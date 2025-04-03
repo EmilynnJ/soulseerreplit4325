@@ -5,6 +5,9 @@ import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { z } from "zod";
 import { UserUpdate, Reading } from "@shared/schema";
+import { db } from "./db";
+import { desc, asc } from "drizzle-orm";
+import { gifts } from "@shared/schema";
 import stripeClient from "./services/stripe-client";
 // TRTC has been completely removed
 import * as muxClient from "./services/mux-client";
@@ -1334,6 +1337,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Admin endpoint to get unprocessed gifts
+  app.get("/api/admin/gifts/unprocessed", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    
+    try {
+      // Get all unprocessed gifts
+      const unprocessedGifts = await storage.getUnprocessedGifts();
+      
+      // Include user information for the gifts
+      const giftsWithUserInfo = await Promise.all(unprocessedGifts.map(async (gift) => {
+        const sender = await storage.getUser(gift.senderId);
+        const recipient = await storage.getUser(gift.recipientId);
+        
+        return {
+          ...gift,
+          senderUsername: sender?.username || `User #${gift.senderId}`,
+          recipientUsername: recipient?.username || `User #${gift.recipientId}`
+        };
+      }));
+      
+      res.json(giftsWithUserInfo);
+    } catch (error) {
+      console.error("Failed to fetch unprocessed gifts:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch unprocessed gifts",
+        error: error.message || "Unknown error" 
+      });
+    }
+  });
+  
+  // Admin endpoint to get all gifts
+  app.get("/api/admin/gifts", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "admin") {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    
+    try {
+      // Get all gifts with optional limit
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      let allGifts = await db.select().from(gifts).orderBy(desc(gifts.createdAt));
+      
+      if (limit && !isNaN(limit)) {
+        allGifts = allGifts.slice(0, limit);
+      }
+      
+      // Include user information for the gifts
+      const giftsWithUserInfo = await Promise.all(allGifts.map(async (gift) => {
+        const sender = await storage.getUser(gift.senderId);
+        const recipient = await storage.getUser(gift.recipientId);
+        
+        return {
+          ...gift,
+          senderUsername: sender?.username || `User #${gift.senderId}`,
+          recipientUsername: recipient?.username || `User #${gift.recipientId}`
+        };
+      }));
+      
+      res.json(giftsWithUserInfo);
+    } catch (error) {
+      console.error("Failed to fetch gifts:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch gifts",
+        error: error.message || "Unknown error" 
+      });
+    }
+  });
+
   // Admin endpoint to process gifts 
   app.post("/api/admin/gifts/process", async (req, res) => {
     if (!req.isAuthenticated() || req.user.role !== "admin") {

@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
+import { GiftManagement } from "./gift-management";
 
 // Helper function to get status color for readings
 function getStatusColor(status: string): string {
@@ -72,13 +73,7 @@ export function AdminDashboard() {
     isLoading: readingsLoading,
   } = useQuery<ReadingWithNames[]>({
     queryKey: ["/api/admin/readings"],
-    onError: (error) => {
-      toast({
-        title: "Error fetching readings",
-        description: error instanceof Error ? error.message : "Failed to load readings data",
-        variant: "destructive",
-      });
-    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch all readers
@@ -88,13 +83,7 @@ export function AdminDashboard() {
     isLoading: readersLoading,
   } = useQuery<User[]>({
     queryKey: ["/api/admin/readers"],
-    onError: (error) => {
-      toast({
-        title: "Error fetching readers",
-        description: error instanceof Error ? error.message : "Failed to load readers data",
-        variant: "destructive",
-      });
-    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch all users
@@ -104,13 +93,7 @@ export function AdminDashboard() {
     isLoading: usersLoading,
   } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    onError: (error) => {
-      toast({
-        title: "Error fetching users",
-        description: error instanceof Error ? error.message : "Failed to load users data",
-        variant: "destructive",
-      });
-    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Calculate reader stats
@@ -223,6 +206,7 @@ export function AdminDashboard() {
           <TabsTrigger value="readers">Reader Performance</TabsTrigger>
           <TabsTrigger value="add-readers">Add Readers</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="gifts">Gift Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="readings" className="space-y-4">
@@ -261,7 +245,9 @@ export function AdminDashboard() {
                               {formatStatus(reading.status)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="hidden md:table-cell">{new Date(reading.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {reading.createdAt ? new Date(reading.createdAt).toLocaleDateString() : 'Unknown'}
+                          </TableCell>
                           <TableCell className="text-right">
                             {reading.totalPrice ? formatCurrency(reading.totalPrice) : "—"}
                           </TableCell>
@@ -366,6 +352,20 @@ export function AdminDashboard() {
             <CardContent className="p-0 sm:p-6">
               {/* Products Data and Management */}
               <ProductsManagement />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="gifts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Gift Management</CardTitle>
+              <CardDescription>
+                Process livestream gifts for readers (70% to readers, 30% to platform)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              <GiftManagement />
             </CardContent>
           </Card>
         </TabsContent>
