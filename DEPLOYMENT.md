@@ -1,94 +1,149 @@
-# SoulSeer App Deployment Guide
+# SoulSeer Deployment Guide
 
-This document provides comprehensive instructions for deploying the SoulSeer application to production environments.
+This document outlines the steps to deploy the SoulSeer application to Railway, as well as alternative deployment options.
 
-## Deployment Options
+## Railway Deployment (Preferred Method)
 
-### 1. AWS Amplify (Recommended)
-For detailed AWS Amplify deployment instructions, see [AWS-DEPLOYMENT-GUIDE.md](./AWS-DEPLOYMENT-GUIDE.md).
+### Prerequisites
 
-### 2. Manual Deployment
-For manual deployment to any hosting provider, follow these general steps:
+1. A [Railway account](https://railway.app/)
+2. [Railway CLI](https://docs.railway.app/develop/cli) installed (optional but recommended)
+3. A PostgreSQL database
+4. Stripe API keys (for payment processing)
+5. MUX API keys (for video streaming)
 
-1. Build the application:
+### Environment Variables
+
+The following environment variables need to be set in your Railway project:
+
+```
+DATABASE_URL=your_postgres_database_url
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+MUX_TOKEN_ID=your_mux_token_id
+MUX_TOKEN_SECRET=your_mux_token_secret
+MUX_WEBHOOK_SECRET=your_mux_webhook_secret
+SESSION_SECRET=a_random_secret_for_session_encryption
+```
+
+### Deployment Steps
+
+1. **Sign in to Railway**:
+   ```bash
+   railway login
    ```
-   npm run build
+
+2. **Initialize a new Railway project** (if not already done):
+   ```bash
+   railway init
    ```
 
-2. Deploy the `dist` directory to your web server
-3. Configure your server to route all client-side routes to `index.html`
-4. Ensure the `/api` routes are properly handled by the Node.js server
+3. **Link your local project to the Railway project**:
+   ```bash
+   railway link
+   ```
 
-## Environment Variables
+4. **Add a PostgreSQL database to your project**:
+   ```bash
+   railway add
+   ```
+   Select PostgreSQL from the options.
 
-The following environment variables must be set in your production environment:
+5. **Set up environment variables**:
+   ```bash
+   railway variables set DATABASE_URL=<your-database-url> STRIPE_SECRET_KEY=<your-stripe-key> ...
+   ```
+   Or set them through the Railway dashboard.
 
-### Required for Operation
-- `DATABASE_URL`: Connection string for PostgreSQL database
-- `SESSION_SECRET`: Secret key for Express sessions
-- `NODE_ENV`: Set to `production` for production deployment
+6. **Deploy your application**:
+   ```bash
+   railway up
+   ```
 
-### Stripe Integration
-- `STRIPE_SECRET_KEY`: Your Stripe secret key
-- `VITE_STRIPE_PUBLIC_KEY`: Your Stripe public key (client-side)
+7. **Generate a domain**:
+   ```bash
+   railway domain
+   ```
 
-### MUX Integration
-- `MUX_TOKEN_ID`: Your MUX API Token ID
-- `MUX_TOKEN_SECRET`: Your MUX API Token Secret
-- `MUX_WEBHOOK_SECRET`: Secret for verifying MUX webhook requests
+### Post-Deployment Configuration
 
-## Database Setup
+1. **Set up Stripe webhooks** to point to your new domain
+2. **Set up MUX webhooks** to point to your new domain
+3. **Run database migrations**:
+   ```bash
+   railway run npm run db:push
+   ```
 
-1. Ensure your PostgreSQL database is accessible from your deployment environment
-2. Run initial migrations: `npm run db:push`
-3. For high-traffic production use, consider using database connection pooling
+## Vercel Deployment (Alternative)
 
-## Security Considerations
+### Prerequisites
 
-- Ensure all API routes are properly authenticated
-- Use HTTPS for all production traffic
-- Set appropriate CORS headers if needed
-- Implement rate limiting for public endpoints
-- Set secure and HTTP-only flags on cookies
+1. A [Vercel account](https://vercel.com/)
+2. [Vercel CLI](https://vercel.com/docs/cli) installed (optional)
+3. A PostgreSQL database
+4. Stripe and MUX API keys
 
-## Monitoring and Logging
+### Deployment Steps
 
-- Set up application monitoring using AWS CloudWatch or similar
-- Configure error reporting to capture and alert on exceptions
-- Implement structured logging for easier debugging
+1. **Sign in to Vercel**:
+   ```bash
+   vercel login
+   ```
 
-## Testing the Deployment
+2. **Deploy the application**:
+   ```bash
+   vercel
+   ```
 
-After deployment, verify the following:
+3. **Set environment variables** in the Vercel dashboard
 
-1. User registration and authentication
-2. Psychic reader profiles and availability
-3. Payment processing with Stripe
-4. Real-time chat functionality
-5. Voice and video readings
-6. MUX livestreaming features
-7. Shop product listings and purchases
+4. **Connect a PostgreSQL database** in the Vercel dashboard or use an external provider
 
-## App Store Publishing
+## Mobile App Preparation
 
-For iOS App Store and Google Play Store publishing:
+### iOS App Store
 
-1. Build native wrappers using a tool like Capacitor
-2. Ensure all App Store guidelines are met
-3. Configure deep linking properly
-4. Test thoroughly on actual devices
+1. Create an Apple Developer account ($99/year)
+2. Create an App ID in the Apple Developer Portal
+3. Create a distribution certificate and provisioning profile
+4. Package the web app as a PWA or use a wrapper like Capacitor/Cordova
+5. Submit for review in App Store Connect
 
-## Rollback Procedure
+### Google Play Store
 
-If issues are detected after deployment:
+1. Create a Google Play Developer account ($25 one-time fee)
+2. Create a new application in the Google Play Console
+3. Package the web app as a PWA or use a wrapper like Capacitor/Cordova
+4. Generate a signed APK or Android App Bundle
+5. Upload to the Google Play Console and submit for review
 
-1. Identify the source of the problem
-2. Restore the previous version if necessary
-3. Roll back database changes if required
-4. Test the restored application
-5. Analyze logs to determine root cause
+### Amazon App Store
 
-## Contact Support
+1. Create an Amazon Developer account
+2. Create a new app in the Amazon Developer Console
+3. Package the web app similarly to Google Play
+4. Upload and submit for review
 
-For deployment assistance or troubleshooting, contact:
-- Technical Support: support@soulseer.com
+## Troubleshooting
+
+### Common Railway Deployment Issues
+
+- **Database connection errors**: Ensure your DATABASE_URL is correct
+- **Missing environment variables**: Check all required environment variables are set
+- **Build failures**: Review build logs for specific errors
+- **Runtime errors**: Check application logs via `railway logs`
+
+### Resource Scaling
+
+If you need to scale your application:
+
+1. Adjust the number of replicas in the Railway dashboard
+2. Upgrade your Railway plan for more resources
+3. Scale your database as needed
+
+## Monitoring and Maintenance
+
+1. Set up monitoring with Railway's built-in tools
+2. Consider integrating with external monitoring services
+3. Regularly back up your database
+4. Keep dependencies updated

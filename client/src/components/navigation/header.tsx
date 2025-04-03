@@ -155,7 +155,34 @@ export function Header() {
               </Link>
             ))}
             
-            {!user && (
+            {user ? (
+              <div className="border-t border-accent/20 mt-3 pt-3 px-4">
+                <div className="flex items-center mb-3 space-x-3">
+                  <Avatar className="h-10 w-10 border border-secondary/50">
+                    <AvatarImage src={user.profileImage || ""} />
+                    <AvatarFallback className="bg-accent text-white">
+                      {user.fullName.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="text-light font-medium">{user.fullName}</div>
+                    <div className="text-sm text-light/70">{user.email}</div>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    logoutMutation.mutate();
+                    setMobileMenuOpen(false);
+                  }}
+                  disabled={logoutMutation.isPending}
+                  className="w-full flex items-center space-x-2 py-2.5 px-4 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition duration-300"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>{logoutMutation.isPending ? "Logging out..." : "Logout"}</span>
+                </button>
+              </div>
+            ) : (
               <div className="flex space-x-3 pt-3 px-4">
                 <Link
                   href="/auth"

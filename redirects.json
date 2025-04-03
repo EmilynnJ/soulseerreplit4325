@@ -1,13 +1,7 @@
 [
   {
-    "source": "/<*>",
-    "target": "/index.html",
-    "status": "200",
-    "condition": "!pathname.startsWith('/api/')"
-  },
-  {
-    "source": "/api/<*>",
-    "target": "/api/:splat",
-    "status": "200"
+    "source": "/*",
+    "destination": "/index.html",
+    "statusCode": 200
   }
 ]

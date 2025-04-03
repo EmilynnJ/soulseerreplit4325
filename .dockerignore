@@ -1,0 +1,45 @@
+# Node.js dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+server/public
+build
+
+# Environment variables and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Git files
+.git
+.gitignore
+
+# Editor files
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development and test files
+__tests__
+tests
+test
+coverage
+*.test.js
+*.spec.js
+
+# Project specific
+README.md
+DEPLOYMENT.md
+AWS-DEPLOYMENT-GUIDE.md
+.dockerignore
+docker-compose.yml

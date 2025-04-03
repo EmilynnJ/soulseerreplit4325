@@ -1,23 +1,31 @@
 version: 1
+backend:
+  phases:
+    build:
+      commands:
+        - npm install -g @aws-amplify/cli
+        - npm ci
+        - amplify pull --appId $AMPLIFY_APP_ID --envName $AMPLIFY_ENV --yes
 frontend:
   phases:
     preBuild:
       commands:
-        - echo "Installing dependencies"
         - npm ci
     build:
       commands:
-        - echo "Running combined build for frontend and backend"
         - npm run build
   artifacts:
-    baseDirectory: dist
+    baseDirectory: dist/public
     files:
       - '**/*'
   cache:
     paths:
       - node_modules/**/*
-  customHeaders:
-    - pattern: '**/*'
-      headers:
-        - key: 'Cache-Control'
-          value: 'public, max-age=0, must-revalidate'
+test:
+  phases:
+    preTest:
+      commands:
+        - npm ci
+    test:
+      commands:
+        - echo "No tests yet"
