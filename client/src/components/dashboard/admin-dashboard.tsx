@@ -3,7 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Reading, Product } from "@shared/schema";
-import { Loader2, User as UserIcon, BookOpen, Users, Package, RefreshCw } from "lucide-react";
+import { Loader2, User as UserIcon, BookOpen, Users, Package, RefreshCw, X } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -17,6 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useState, useRef } from "react";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { useForm } from "react-hook-form";
 
 // Helper function to get status color for readings
 function getStatusColor(status: string): string {
@@ -334,6 +341,20 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="add-readers" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Add New Reader</CardTitle>
+              <CardDescription>
+                Create new psychic reader accounts with specialized profiles
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              <AddReaderForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="products" className="space-y-4">
           <Card>
             <CardHeader>
@@ -349,6 +370,483 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// Form for adding new readers
+function AddReaderForm() {
+  const { toast } = useToast();
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [specialty, setSpecialty] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Common reader specialties
+  const commonSpecialties = [
+    "Tarot Reading", "Astrology", "Medium", "Clairvoyant", "Energy Healing",
+    "Palm Reading", "Dream Interpretation", "Numerology", "Past Life Reading",
+    "Aura Reading", "Crystal Healing", "Chakra Balancing", "Rune Casting",
+    "Spirit Guides", "Angel Reading", "Spiritual Counseling"
+  ];
+  
+  // Form state
+  const form = useForm({
+    defaultValues: {
+      username: "",
+      password: "",
+      email: "",
+      fullName: "",
+      bio: "",
+      ratePerMinute: 100, // $1.00 per minute in cents
+      phoneReading: true,
+      chatReading: true,
+      videoReading: true,
+    },
+  });
+  
+  // File input ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfileImage(file);
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  // Handle adding a specialty
+  const handleAddSpecialty = () => {
+    if (specialty && !specialties.includes(specialty)) {
+      setSpecialties([...specialties, specialty]);
+      setSpecialty("");
+    }
+  };
+  
+  // Handle selecting a common specialty
+  const handleSelectCommonSpecialty = (value: string) => {
+    if (!specialties.includes(value)) {
+      setSpecialties([...specialties, value]);
+    }
+  };
+  
+  // Handle removing a specialty
+  const handleRemoveSpecialty = (index: number) => {
+    const updatedSpecialties = [...specialties];
+    updatedSpecialties.splice(index, 1);
+    setSpecialties(updatedSpecialties);
+  };
+  
+  // Create reader mutation
+  const createReaderMutation = useMutation({
+    mutationFn: async (data: FormData) => {
+      const response = await fetch('/api/admin/readers', {
+        method: 'POST',
+        body: data,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create reader');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      // Reset form
+      form.reset();
+      setProfileImage(null);
+      setProfileImagePreview(null);
+      setSpecialties([]);
+      
+      // Show success message
+      toast({
+        title: "Reader Added Successfully",
+        description: "The new reader account has been created.",
+        variant: "default",
+      });
+      
+      // Refresh readers list
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Add Reader",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Form submission handler
+  const onSubmit = async (values: any) => {
+    try {
+      setIsLoading(true);
+      
+      // Create FormData object to handle file upload
+      const formData = new FormData();
+      
+      // Add all form values to FormData
+      Object.keys(values).forEach(key => {
+        if (key === 'ratePerMinute') {
+          // Convert dollars to cents
+          formData.append(key, String(values[key]));
+        } else {
+          formData.append(key, values[key]);
+        }
+      });
+      
+      // Add role and specialties
+      formData.append('role', 'reader');
+      formData.append('specialties', JSON.stringify(specialties));
+      
+      // Add profile image if exists
+      if (profileImage) {
+        formData.append('profileImage', profileImage);
+      }
+      
+      // Call the mutation to create reader
+      await createReaderMutation.mutateAsync(formData);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  return (
+    <div className="space-y-8">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Column - Basic Information */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Account Information</h3>
+                <p className="text-sm text-muted-foreground">Basic login and contact details for the reader.</p>
+              </div>
+              
+              <FormField
+                control={form.control}
+                name="username"
+                rules={{ required: "Username is required" }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input placeholder="reader_username" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="password"
+                rules={{ required: "Password is required", minLength: { value: 8, message: "Password must be at least 8 characters" } }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="********" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="email"
+                rules={{ 
+                  required: "Email is required",
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: "Invalid email address"
+                  }
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="reader@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="fullName"
+                rules={{ required: "Full name is required" }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Jane Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            {/* Right Column - Profile Information */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Profile Information</h3>
+                <p className="text-sm text-muted-foreground">Reader's public profile details and specialties.</p>
+              </div>
+              
+              {/* Profile Image Upload */}
+              <div className="space-y-2">
+                <Label htmlFor="profile-image">Profile Image</Label>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="h-24 w-24 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-muted overflow-hidden"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {profileImagePreview ? (
+                      <img 
+                        src={profileImagePreview} 
+                        alt="Profile Preview" 
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Upload Image
+                    </Button>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      id="profile-image" 
+                      accept="image/*" 
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Recommended: Square image, at least 300x300px
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <FormField
+                control={form.control}
+                name="bio"
+                rules={{ required: "Bio is required" }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bio</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Write a compelling bio for the reader..."
+                        className="min-h-24 resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              {/* Specialties Selection */}
+              <div className="space-y-2">
+                <Label>Specialties</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={specialty}
+                    onChange={(e) => setSpecialty(e.target.value)}
+                    placeholder="Add a specialty..."
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddSpecialty}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Add
+                  </Button>
+                </div>
+                
+                {/* Common specialties */}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {commonSpecialties.map((item) => (
+                    <Badge
+                      key={item}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-secondary/20"
+                      onClick={() => handleSelectCommonSpecialty(item)}
+                    >
+                      + {item}
+                    </Badge>
+                  ))}
+                </div>
+                
+                {/* Selected specialties */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {specialties.map((item, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="pl-2 pr-1 py-1"
+                    >
+                      {item}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-destructive/20 rounded-full"
+                        onClick={() => handleRemoveSpecialty(index)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+                {specialties.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Add at least one specialty for the reader.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Rate and Reading Type Settings */}
+          <div className="border rounded-lg p-4 space-y-4 bg-secondary/5">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">Reading Settings</h3>
+              <p className="text-sm text-muted-foreground">Configure the reader's rates and available reading types.</p>
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="ratePerMinute"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rate Per Minute (in cents)</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">$</span>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="100"
+                        className="pl-7"
+                        {...field}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    The amount charged per minute of reading (in cents). Example: 100 = $1.00/min
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="chatReading"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Chat Reading</FormLabel>
+                      <FormDescription>
+                        Offer text-based chat readings
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="phoneReading"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Phone Reading</FormLabel>
+                      <FormDescription>
+                        Offer voice call readings
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="videoReading"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Video Reading</FormLabel>
+                      <FormDescription>
+                        Offer video call readings
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+          
+          {/* Submit Button */}
+          <Button 
+            type="submit"
+            className="w-full md:w-auto"
+            disabled={isLoading || createReaderMutation.isPending || specialties.length === 0}
+          >
+            {(isLoading || createReaderMutation.isPending) && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            Add Reader
+          </Button>
+        </form>
+      </Form>
     </div>
   );
 }

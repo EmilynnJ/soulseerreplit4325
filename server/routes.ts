@@ -8,6 +8,20 @@ import { UserUpdate, Reading } from "@shared/schema";
 import stripeClient from "./services/stripe-client";
 // TRTC has been completely removed
 import * as muxClient from "./services/mux-client";
+import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { promisify } from "util";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+// Password hashing function
+const scryptAsync = promisify(scrypt);
+
+async function scrypt_hash(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
+}
 
 // Helper function to process payment for a completed reading
 async function processCompletedReadingPayment(
@@ -2443,7 +2457,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all users (admin only)
-  app.get("/api/admin/users", async (req, res) => {
+  // Admin middleware
+  const requireAdmin = (req: any, res: any, next: any) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
@@ -2452,6 +2467,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ message: "Unauthorized. Admin access required." });
     }
     
+    next();
+  };
+  
+  // Configure multer for memory storage
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // limit to 5MB
+    },
+    fileFilter: (req: any, file: any, cb: any) => {
+      // Accept images only
+      if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+        return cb(new Error('Only image files are allowed!'), false);
+      }
+      cb(null, true);
+    }
+  });
+  
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
     try {
       // We need to get all users - adapted storage method might be needed
       const users = await storage.getAllUsers();
@@ -2469,6 +2503,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to add new readers with profile image
+  app.post("/api/admin/readers", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
+    try {
+      const { username, password, email, fullName, bio, ratePerMinute, specialties } = req.body;
+      
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+      
+      // Check if email already exists
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      
+      // Parse specialties if it's a JSON string
+      let parsedSpecialties = [];
+      try {
+        parsedSpecialties = JSON.parse(specialties);
+      } catch (e) {
+        // If parsing fails, use as is or empty array
+        parsedSpecialties = specialties || [];
+      }
+      
+      // Process boolean fields (checkboxes)
+      const chatReading = req.body.chatReading === 'true';
+      const phoneReading = req.body.phoneReading === 'true';
+      const videoReading = req.body.videoReading === 'true';
+      
+      // Generate a hash for the password
+      const hashedPassword = await scrypt_hash(password);
+      
+      // Handle profile image if uploaded
+      let profileImageUrl = null;
+      if (req.file) {
+        // Generate a unique filename
+        const filename = `${Date.now()}-${req.file.originalname}`;
+        const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+        const filepath = path.join(uploadsDir, filename);
+        
+        // Ensure uploads directory exists
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        // Write file to disk
+        fs.writeFileSync(filepath, req.file.buffer);
+        
+        // Set the URL for the profile image
+        profileImageUrl = `/uploads/${filename}`;
+      }
+      
+      // Create the reader account
+      const newReader = await storage.createUser({
+        username,
+        password: hashedPassword,
+        email,
+        fullName,
+        role: 'reader',
+        bio,
+        profileImage: profileImageUrl,
+        specialties: parsedSpecialties,
+        ratePerMinute: parseInt(ratePerMinute, 10),
+        chatReading,
+        phoneReading,
+        videoReading,
+        isOnline: false,
+        balance: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      
+      // Remove sensitive information from the response
+      const { password: _, ...safeReader } = newReader;
+      
+      res.status(201).json(safeReader);
+    } catch (error) {
+      console.error("Error creating reader:", error);
+      res.status(500).json({ message: "Failed to create reader account" });
+    }
+  });
+  
   // MUX Livestream API for readings
   app.post("/api/readings/:id/livestream", async (req, res) => {
     try {
