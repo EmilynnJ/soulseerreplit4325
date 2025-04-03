@@ -5,7 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser } from "@shared/schema";
+import { User as SelectUser } from "../shared/schema";
 
 declare global {
   namespace Express {
@@ -123,8 +123,7 @@ export function setupAuth(app: Express) {
       });
       
       // Remove password from response
-      const userResponse = { ...user };
-      delete userResponse.password;
+      const { password: _, ...userResponse } = user;
 
       req.login(user, (err) => {
         if (err) return next(err);
@@ -144,8 +143,7 @@ export function setupAuth(app: Express) {
         if (err) return next(err);
         
         // Remove password from response
-        const userResponse = { ...user };
-        delete userResponse.password;
+        const { password: _, ...userResponse } = user;
         
         res.status(200).json(userResponse);
       });
@@ -163,9 +161,11 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     // Remove password from response
-    const userResponse = { ...req.user } as SelectUser;
-    delete userResponse.password;
-    
-    res.json(userResponse);
+    if (req.user) {
+      const { password: _, ...userResponse } = req.user as SelectUser;
+      res.json(userResponse);
+    } else {
+      res.sendStatus(401);
+    }
   });
 }

@@ -1,9 +1,9 @@
-import { users, type User, type InsertUser, type UserUpdate, readings, type Reading, type InsertReading, products, type Product, type InsertProduct, orders, type Order, type InsertOrder, orderItems, type OrderItem, type InsertOrderItem, livestreams, type Livestream, type InsertLivestream, forumPosts, type ForumPost, type InsertForumPost, forumComments, type ForumComment, type InsertForumComment, messages, type Message, type InsertMessage, gifts, type Gift, type InsertGift } from "@shared/schema";
+import { users, type User, type InsertUser, type UserUpdate, readings, type Reading, type InsertReading, products, type Product, type InsertProduct, orders, type Order, type InsertOrder, orderItems, type OrderItem, type InsertOrderItem, livestreams, type Livestream, type InsertLivestream, forumPosts, type ForumPost, type InsertForumPost, forumComments, type ForumComment, type InsertForumComment, messages, type Message, type InsertMessage, gifts, type Gift, type InsertGift } from "../shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
 import { db } from "./db";
-import { pool } from "./database";
+import { pool } from "./db";
 import { eq, and, or, desc, isNull, asc, sql } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
@@ -163,7 +163,7 @@ export class MemStorage implements IStorage {
       lastActive: now, 
       isOnline: false,
       reviewCount: 0,
-      squareCustomerId: null,
+      stripeCustomerId: null,
       profileImage: insertUser.profileImage || null,
       bio: insertUser.bio || null,
       specialties: insertUser.specialties || null,
@@ -596,6 +596,7 @@ export class DatabaseStorage implements IStorage {
     // Commented out PostgresSessionStore until session issues are resolved
     this.sessionStore = new PostgresSessionStore({
       pool,
+      tableName: 'session',
       createTableIfMissing: true
     });
     */
@@ -626,7 +627,6 @@ export class DatabaseStorage implements IStorage {
       isOnline: false,
       reviewCount: 0,
       accountBalance: 0,
-      squareCustomerId: null,
       stripeCustomerId: null
     }).returning();
 

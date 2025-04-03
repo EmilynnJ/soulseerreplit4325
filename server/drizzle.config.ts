@@ -1,7 +1,7 @@
 import { defineConfig } from "drizzle-kit";
 
-if (!process.env.POSTGRES_URL) {
-  throw new Error("POSTGRES_URL is required");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is required");
 }
 
 export default defineConfig({
@@ -9,6 +9,6 @@ export default defineConfig({
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.POSTGRES_URL,
+    url: process.env.DATABASE_URL,
   },
 });

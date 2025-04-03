@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "tsx index.ts",
     "build": "mkdir -p dist && cp -r ../shared dist/ && esbuild index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js"
+    "start": "NODE_ENV=production node dist/index.js",
+    "db:push": "drizzle-kit push:pg"
   },
   "dependencies": {
     "express": "^4.21.2"
