@@ -1,26 +1,21 @@
-// Service Worker for SoulSeer
+// Service Worker for SoulSeer - Optimized for Render deployment
 const CACHE_NAME = 'soulseer-cache-v1';
-const OFFLINE_URL = '/offline.html';
 
-const urlsToCache = [
+// Assets to cache on install (minimum required)
+const PRECACHE_ASSETS = [
   '/',
-  '/offline.html',
+  '/index.html',
   '/manifest.json',
-  '/app-publishing/soulseer-logo.png',
-  '/app-publishing/soulseer-banner.png',
-  '/app-publishing/icons/favicon.ico',
-  '/app-publishing/icons/icon-192x192.png',
-  '/app-publishing/icons/icon-512x512.png',
-  // Add other assets that should be available offline
+  '/offline.html'
 ];
 
-// Install event - cache assets
+// Install event - cache basic assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        console.log('Service Worker: Caching files');
+        return cache.addAll(PRECACHE_ASSETS);
       })
       .then(() => self.skipWaiting())
   );
@@ -28,12 +23,12 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Service Worker: Clearing old cache');
             return caches.delete(cacheName);
           }
         })
@@ -42,148 +37,97 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache or network
+// Optimized fetch event - network first, fallback to cache, then offline page
 self.addEventListener('fetch', (event) => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
+  // Only cache GET requests
+  if (event.request.method !== 'GET') return;
+  
+  // Skip service worker requests and non-HTTP requests
+  const url = new URL(event.request.url);
+  if (event.request.url.startsWith('chrome-extension') || 
+      !event.request.url.startsWith('http')) {
     return;
   }
-
-  // Handle API requests differently - network first, then offline fallback
-  if (event.request.url.includes('/api/')) {
+  
+  // API requests (special handling for API endpoints)
+  if (url.pathname.startsWith('/api/')) {
+    // For API requests, try network with a shorter timeout
     event.respondWith(
-      fetch(event.request)
+      fetchWithTimeout(event.request, 3000)
         .catch(() => {
-          return caches.match('/offline-api.json');
+          // For failed API requests, try to return cached API response
+          return caches.match(event.request)
+            .then(cachedResponse => {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // If no cached response, return a generic error from offline-api.json
+              return caches.match('/offline-api.json');
+            });
         })
     );
     return;
   }
-
-  // For non-API requests, try cache first, then network
+  
+  // Regular assets - Network first with fallback to cache
   event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response;
+    fetchWithTimeout(event.request, 5000)
+      .then(response => {
+        // Clone the response
+        const responseClone = response.clone();
+        
+        // Cache the successful response (but only cache valid responses)
+        if (response.status === 200) {
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(event.request, responseClone);
+            });
         }
         
-        return fetch(event.request)
-          .then((response) => {
-            // Check if valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
+        return response;
+      })
+      .catch(() => {
+        // If network failed, try to serve from cache
+        return caches.match(event.request)
+          .then(cachedResponse => {
+            if (cachedResponse) {
+              return cachedResponse;
             }
-
-            // Clone the response
-            const responseToCache = response.clone();
             
-            // Cache the response for future
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          })
-          .catch(() => {
-            // Offline fallback
+            // Handle navigation requests (HTML pages)
             if (event.request.mode === 'navigate') {
-              return caches.match(OFFLINE_URL);
+              return caches.match('/offline.html');
             }
+            
+            // Return nothing for other resources (will show as failed)
+            return new Response('', {
+              status: 408,
+              headers: { 'Content-Type': 'text/plain' }
+            });
           });
       })
   );
 });
 
-// Background sync registration
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-messages') {
-    event.waitUntil(syncMessages());
-  } else if (event.tag === 'sync-readings') {
-    event.waitUntil(syncReadings());
-  }
-});
-
-// Push notification event
-self.addEventListener('push', (event) => {
-  if (!event.data) return;
-  
-  const data = event.data.json();
-  
-  const options = {
-    body: data.body,
-    icon: '/app-publishing/icons/icon-192x192.png',
-    badge: '/app-publishing/icons/badge-96x96.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: data.url || '/'
-    }
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-// Handle notification click
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  event.waitUntil(
-    clients.matchAll({type: 'window'})
-      .then((clientList) => {
-        if (clientList.length > 0) {
-          let client = clientList[0];
-          for (let i = 0; i < clientList.length; i++) {
-            if (clientList[i].focused) {
-              client = clientList[i];
-            }
-          }
-          return client.navigate(event.notification.data.url);
-        }
-        return clients.openWindow(event.notification.data.url);
-      })
-  );
-});
-
-// Helper functions for background sync
-async function syncMessages() {
-  const outbox = await db.outbox.toArray();
-  
-  for (const message of outbox) {
-    try {
-      await fetch('/api/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(message)
-      });
-      
-      await db.outbox.delete(message.id);
-    } catch (error) {
-      console.error('Error syncing message:', error);
-    }
-  }
-}
-
-async function syncReadings() {
-  const pendingReadings = await db.pendingReadings.toArray();
-  
-  for (const reading of pendingReadings) {
-    try {
-      await fetch('/api/readings/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(reading)
-      });
-      
-      await db.pendingReadings.delete(reading.id);
-    } catch (error) {
-      console.error('Error syncing reading:', error);
-    }
-  }
+// Timeout function for fetch requests
+function fetchWithTimeout(request, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    // Set timeout
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Network request timeout'));
+    }, timeoutMs);
+    
+    fetch(request).then(
+      (response) => {
+        // Clear timeout and resolve
+        clearTimeout(timeoutId);
+        resolve(response);
+      },
+      (err) => {
+        // Clear timeout and reject
+        clearTimeout(timeoutId);
+        reject(err);
+      }
+    );
+  });
 }
