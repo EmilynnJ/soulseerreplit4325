@@ -126,11 +126,29 @@ export function AdminDashboard() {
     );
   }
 
+  // Enhanced error handling with more detailed fallback
   if (readingsError || readersError || usersError) {
+    console.error('Admin dashboard errors:', { 
+      readingsError, 
+      readersError, 
+      usersError 
+    });
+    
     return (
-      <div className="text-center p-6 bg-red-50 rounded-lg text-red-800">
-        <h3 className="text-xl font-semibold mb-2">Error Loading Dashboard</h3>
-        <p>There was a problem loading the admin dashboard. Please try again later.</p>
+      <div className="text-center p-6 bg-primary-dark/40 border border-accent/20 rounded-lg">
+        <h3 className="text-xl font-cinzel text-accent mb-2">Error Loading Dashboard</h3>
+        <p className="font-playfair text-light/90 mb-4">There was a problem loading the admin dashboard data.</p>
+        <Button 
+          onClick={() => {
+            // Invalidate all admin queries to force a refresh
+            queryClient.invalidateQueries({ queryKey: ['/api/admin'] });
+            window.location.reload();
+          }}
+          className="bg-accent hover:bg-accent/80 text-primary-dark"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Retry Loading
+        </Button>
       </div>
     );
   }
