@@ -38,10 +38,15 @@ export default defineConfig(async () => {
       host: '0.0.0.0',
       port: 5000,
       proxy: {
-        '/api': 'http://0.0.0.0:3000'
+        '/api': {
+          target: 'http://0.0.0.0:3000',
+          changeOrigin: true,
+          secure: false
+        }
       },
       hmr: {
-        host: '0.0.0.0'
+        host: '0.0.0.0',
+        clientPort: 443
       },
       allowedHosts: 'all'
     }
