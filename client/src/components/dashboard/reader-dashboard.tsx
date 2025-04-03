@@ -63,6 +63,57 @@ export function ReaderDashboard() {
     }
   };
 
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    username: user?.username || '',
+    fullName: user?.fullName || '',
+    bio: user?.bio || '',
+    specialties: user?.specialties || [],
+    profileImage: null as File | null
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpdateProfile = async () => {
+    try {
+      const formData = new FormData();
+      
+      // Add all profile data to formData
+      Object.entries(profileData).forEach(([key, value]) => {
+        if (key === 'specialties') {
+          formData.append(key, JSON.stringify(value));
+        } else if (key === 'profileImage' && value) {
+          formData.append(key, value);
+        } else {
+          formData.append(key, String(value));
+        }
+      });
+
+      const response = await fetch('/api/readers/profile', {
+        method: 'PATCH',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      // Refresh user data
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      setIsEditingProfile(false);
+      
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleUpdatePricing = async () => {
     if (isUpdatingPricing) return;
 
@@ -160,6 +211,139 @@ export function ReaderDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
+
+        <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full mt-4">Edit Profile</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+              <DialogDescription>
+                Update your reader profile information.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="profile-image">Profile Image</Label>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="h-24 w-24 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-muted overflow-hidden cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {user?.profileImage ? (
+                      <img 
+                        src={user.profileImage} 
+                        alt="Profile" 
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                    )}
+                  </div>
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        setProfileData(prev => ({
+                          ...prev,
+                          profileImage: e.target.files![0]
+                        }));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  value={profileData.username}
+                  onChange={(e) => setProfileData(prev => ({
+                    ...prev,
+                    username: e.target.value
+                  }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={profileData.fullName}
+                  onChange={(e) => setProfileData(prev => ({
+                    ...prev,
+                    fullName: e.target.value
+                  }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
+                  value={profileData.bio}
+                  onChange={(e) => setProfileData(prev => ({
+                    ...prev,
+                    bio: e.target.value
+                  }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Specialties</Label>
+                <div className="flex flex-wrap gap-2">
+                  {profileData.specialties.map((specialty, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setProfileData(prev => ({
+                          ...prev,
+                          specialties: prev.specialties.filter((_, i) => i !== index)
+                        }));
+                      }}
+                    >
+                      {specialty}
+                      <X className="w-3 h-3 ml-1" />
+                    </Badge>
+                  ))}
+                </div>
+                <Input
+                  placeholder="Add a specialty..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = (e.target as HTMLInputElement).value.trim();
+                      if (value && !profileData.specialties.includes(value)) {
+                        setProfileData(prev => ({
+                          ...prev,
+                          specialties: [...prev.specialties, value]
+                        }));
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditingProfile(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateProfile}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
                   <Phone className="h-4 w-4 mr-2" />
                   <span className="text-sm">Voice:</span>
                 </div>

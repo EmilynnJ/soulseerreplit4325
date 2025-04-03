@@ -101,7 +101,7 @@ export function AdminDashboard() {
     const readerReadings = readings?.filter(reading => reading.readerId === reader.id) || [];
     const completedReadings = readerReadings.filter(reading => reading.status === "completed");
     const totalEarnings = completedReadings.reduce((sum, reading) => sum + (reading.totalPrice || 0), 0);
-    
+
     return {
       ...reader,
       sessionCount: readerReadings.length,
@@ -133,7 +133,7 @@ export function AdminDashboard() {
       readersError, 
       usersError 
     });
-    
+
     return (
       <div className="text-center p-6 bg-primary-dark/40 border border-accent/20 rounded-lg">
         <h3 className="text-xl font-cinzel text-accent mb-2">Error Loading Dashboard</h3>
@@ -152,6 +152,10 @@ export function AdminDashboard() {
       </div>
     );
   }
+
+  const [selectedReader, setSelectedReader] = useState<User | null>(null);
+  const [isEditingReader, setIsEditingReader] = useState(false);
+
 
   return (
     <div className="space-y-6">
@@ -311,7 +315,18 @@ export function AdminDashboard() {
                     {readersWithStats && readersWithStats.length > 0 ? (
                       readersWithStats.map((reader) => (
                         <TableRow key={reader.id}>
-                          <TableCell className="font-medium">{reader.username}</TableCell>
+                          <TableCell className="font-medium">
+                            <Button
+                              variant="ghost"
+                              className="hover:text-accent"
+                              onClick={() => {
+                                setSelectedReader(reader);
+                                setIsEditingReader(true);
+                              }}
+                            >
+                              {reader.username}
+                            </Button>
+                          </TableCell>
                           <TableCell>
                             <Badge className={reader.isOnline ? "bg-green-500" : "bg-gray-500"}>
                               {reader.isOnline ? "Online" : "Offline"}
@@ -400,7 +415,7 @@ function AddReaderForm() {
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [specialty, setSpecialty] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Common reader specialties
   const commonSpecialties = [
     "Tarot Reading", "Astrology", "Medium", "Clairvoyant", "Energy Healing",
@@ -408,7 +423,7 @@ function AddReaderForm() {
     "Aura Reading", "Crystal Healing", "Chakra Balancing", "Rune Casting",
     "Spirit Guides", "Angel Reading", "Spiritual Counseling"
   ];
-  
+
   // Form state
   const form = useForm({
     defaultValues: {
@@ -423,16 +438,16 @@ function AddReaderForm() {
       videoReading: true,
     },
   });
-  
+
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setProfileImage(file);
-      
+
       // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -441,7 +456,7 @@ function AddReaderForm() {
       reader.readAsDataURL(file);
     }
   };
-  
+
   // Handle adding a specialty
   const handleAddSpecialty = () => {
     if (specialty && !specialties.includes(specialty)) {
@@ -449,21 +464,21 @@ function AddReaderForm() {
       setSpecialty("");
     }
   };
-  
+
   // Handle selecting a common specialty
   const handleSelectCommonSpecialty = (value: string) => {
     if (!specialties.includes(value)) {
       setSpecialties([...specialties, value]);
     }
   };
-  
+
   // Handle removing a specialty
   const handleRemoveSpecialty = (index: number) => {
     const updatedSpecialties = [...specialties];
     updatedSpecialties.splice(index, 1);
     setSpecialties(updatedSpecialties);
   };
-  
+
   // Create reader mutation
   const createReaderMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -472,13 +487,13 @@ function AddReaderForm() {
           method: 'POST',
           body: data,
         });
-        
+
         const responseData = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(responseData.message || 'Failed to create reader');
         }
-        
+
         return responseData;
       } catch (error) {
         console.error('Error creating reader:', error);
@@ -491,14 +506,14 @@ function AddReaderForm() {
       setProfileImage(null);
       setProfileImagePreview(null);
       setSpecialties([]);
-      
+
       // Show success message
       toast({
         title: "Reader Added Successfully",
         description: "The new reader account has been created.",
         variant: "default",
       });
-      
+
       // Refresh readers list
       queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
     },
@@ -510,15 +525,15 @@ function AddReaderForm() {
       });
     }
   });
-  
+
   // Form submission handler
   const onSubmit = async (values: any) => {
     try {
       setIsLoading(true);
-      
+
       // Create FormData object to handle file upload
       const formData = new FormData();
-      
+
       // Add all form values to FormData
       Object.keys(values).forEach(key => {
         if (key === 'ratePerMinute') {
@@ -528,16 +543,16 @@ function AddReaderForm() {
           formData.append(key, values[key]);
         }
       });
-      
+
       // Add role and specialties
       formData.append('role', 'reader');
       formData.append('specialties', JSON.stringify(specialties));
-      
+
       // Add profile image if exists
       if (profileImage) {
         formData.append('profileImage', profileImage);
       }
-      
+
       // Call the mutation to create reader
       await createReaderMutation.mutateAsync(formData);
     } catch (error) {
@@ -546,7 +561,7 @@ function AddReaderForm() {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="space-y-8">
       <Form {...form}>
@@ -558,7 +573,7 @@ function AddReaderForm() {
                 <h3 className="text-lg font-semibold">Account Information</h3>
                 <p className="text-sm text-muted-foreground">Basic login and contact details for the reader.</p>
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="username"
@@ -573,7 +588,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -588,7 +603,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -609,7 +624,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="fullName"
@@ -625,14 +640,14 @@ function AddReaderForm() {
                 )}
               />
             </div>
-            
+
             {/* Right Column - Profile Information */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">Profile Information</h3>
                 <p className="text-sm text-muted-foreground">Reader's public profile details and specialties.</p>
               </div>
-              
+
               {/* Profile Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="profile-image">Profile Image</Label>
@@ -674,7 +689,7 @@ function AddReaderForm() {
                   </div>
                 </div>
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="bio"
@@ -693,7 +708,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               {/* Specialties Selection */}
               <div className="space-y-2">
                 <Label>Specialties</Label>
@@ -713,7 +728,7 @@ function AddReaderForm() {
                     Add
                   </Button>
                 </div>
-                
+
                 {/* Common specialties */}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {commonSpecialties.map((item) => (
@@ -727,7 +742,7 @@ function AddReaderForm() {
                     </Badge>
                   ))}
                 </div>
-                
+
                 {/* Selected specialties */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   {specialties.map((item, index) => (
@@ -757,14 +772,14 @@ function AddReaderForm() {
               </div>
             </div>
           </div>
-          
+
           {/* Rate and Reading Type Settings */}
           <div className="border rounded-lg p-4 space-y-4 bg-secondary/5">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold">Reading Settings</h3>
               <p className="text-sm text-muted-foreground">Configure the reader's rates and available reading types.</p>
             </div>
-            
+
             <FormField
               control={form.control}
               name="ratePerMinute"
@@ -791,7 +806,7 @@ function AddReaderForm() {
                 </FormItem>
               )}
             />
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField
                 control={form.control}
@@ -813,7 +828,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="phoneReading"
@@ -834,7 +849,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="videoReading"
@@ -857,7 +872,7 @@ function AddReaderForm() {
               />
             </div>
           </div>
-          
+
           {/* Submit Button */}
           <Button 
             type="submit"
@@ -878,7 +893,7 @@ function AddReaderForm() {
 // Create a separate component for Products Management to keep the main component clean
 function ProductsManagement() {
   const { toast } = useToast();
-  
+
   // Fetch all products
   const {
     data: products,
@@ -916,7 +931,7 @@ function ProductsManagement() {
       });
     },
   });
-  
+
   // Mutation for importing products from Stripe
   const importProductsMutation = useMutation({
     mutationFn: async () => {
@@ -989,7 +1004,7 @@ function ProductsManagement() {
           </Button>
         </div>
       </div>
-      
+
       <div className="overflow-x-auto">
         <Table>
           <TableCaption>Shop products inventory</TableCaption>
