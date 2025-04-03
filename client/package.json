@@ -3,13 +3,9 @@
   "version": "1.0.0",
   "description": "SoulSeer - Spiritual Connection Platform",
   "scripts": {
-    "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:client": "cd client && npm run dev",
-    "dev:server": "cd server && npm run dev",
-    "start:client": "cd client && npm run build && npm run preview",
-    "start:server": "cd server && npm run start",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
