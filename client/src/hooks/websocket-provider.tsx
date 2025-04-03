@@ -50,11 +50,16 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     try {
       setStatus('connecting');
 
-      // Create WebSocket with correct protocol and URL
+      // Create WebSocket with correct protocol and URL.  Addressing potential port issue.
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const hostname = window.location.hostname;
-      const port = window.location.port;
-      const wsUrl = `${protocol}//${hostname}${port ? ':' + port : ''}/ws`;
+      let port = window.location.port;
+      // Ensure port is included even if it's the default (80 or 443) for websocket URLs.
+      if (!port) {
+        port = protocol === 'wss:' ? '443' : '80';
+      }
+
+      const wsUrl = `${protocol}//${hostname}:${port}/ws`;
 
       // Create new WebSocket connection
       const socket = new WebSocket(wsUrl);
