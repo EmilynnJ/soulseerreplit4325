@@ -2596,9 +2596,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Process boolean fields (checkboxes)
-      const chatReading = req.body.chatReading === 'true';
-      const phoneReading = req.body.phoneReading === 'true';
-      const videoReading = req.body.videoReading === 'true';
+      const chatReadingEnabled = req.body.chatReading === 'true';
+      const phoneReadingEnabled = req.body.phoneReading === 'true';
+      const videoReadingEnabled = req.body.videoReading === 'true';
       
       // Generate a hash for the password
       const hashedPassword = await scrypt_hash(password);
