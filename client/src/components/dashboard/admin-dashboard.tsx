@@ -214,6 +214,7 @@ export function AdminDashboard() {
         <TabsList>
           <TabsTrigger value="readings">All Readings</TabsTrigger>
           <TabsTrigger value="readers">Reader Performance</TabsTrigger>
+          <TabsTrigger value="add-readers">Add Readers</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
         </TabsList>
 
