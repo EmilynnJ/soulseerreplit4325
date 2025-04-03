@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
 import { z } from "zod";
-import { UserUpdate, Reading, insertUserSchema } from "@shared/schema";
+import { UserUpdate, Reading, insertUserSchema } from "../shared/schema.js";
 import { isAdmin, isAuthenticated } from "./middleware/auth-middleware";
 import stripeClient from "./services/stripe-client";
 // TRTC has been completely removed
