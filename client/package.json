@@ -2,6 +2,7 @@
   "name": "soulseer",
   "version": "1.0.0",
   "description": "SoulSeer - Spiritual Connection Platform",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
