@@ -34,36 +34,38 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       return; // Already connected
     }
-    
+
     // Clear any existing reconnect timeouts
     if (reconnectTimeoutRef.current) {
       window.clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
-    
+
     // Clear ping intervals
     if (pingIntervalRef.current) {
       window.clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = null;
     }
-    
+
     try {
       setStatus('connecting');
-      
-      // Determine WebSocket URL
+
+      // Create WebSocket with correct protocol and URL
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
+      const hostname = window.location.hostname;
+      const port = window.location.port;
+      const wsUrl = `${protocol}//${hostname}${port ? ':' + port : ''}/ws`;
+
       // Create new WebSocket connection
       const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
-      
+
       // Connection opened
       socket.addEventListener('open', () => {
         console.log('WebSocket connection established');
         setStatus('open');
         reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
-        
+
         // Set up ping interval to keep connection alive
         pingIntervalRef.current = window.setInterval(() => {
           if (socket.readyState === WebSocket.OPEN) {
@@ -81,18 +83,18 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           }));
         }
       });
-      
+
       // Listen for messages
       socket.addEventListener('message', (event) => {
         try {
           // Parse message (assuming JSON format)
           const message = JSON.parse(event.data);
-          
+
           // Skip processing ping responses
           if (message.type === 'pong') {
             return;
           }
-          
+
           // Handle system events
           if (message.type === 'system') {
             toast({
@@ -102,7 +104,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             });
             return;
           }
-          
+
           // Handle errors
           if (message.type === 'error') {
             toast({
@@ -112,14 +114,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
             });
             return;
           }
-          
+
           // Update state with received message for consumer components
           setLastMessage(message);
         } catch (error) {
           console.error('Error processing WebSocket message:', error, event.data);
         }
       });
-      
+
       // Handle socket closing
       socket.addEventListener('close', (event) => {
         if (event.wasClean) {
@@ -127,14 +129,14 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         } else {
           console.error('WebSocket connection died');
         }
-        
+
         setStatus('closed');
-        
+
         // Attempt reconnection
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(reconnectDelay * Math.pow(1.5, reconnectAttemptsRef.current), 60000);
           console.log(`Reconnecting in ${delay / 1000} seconds (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
-          
+
           reconnectTimeoutRef.current = window.setTimeout(() => {
             reconnectAttemptsRef.current += 1;
             connectWebSocket();
@@ -148,7 +150,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
           });
         }
       });
-      
+
       // Handle socket errors
       socket.addEventListener('error', (error) => {
         console.error('WebSocket error:', error);
@@ -159,7 +161,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       setStatus('error');
     }
   }, [toast, user]);
-  
+
   // Function to send a message
   const sendMessage = useCallback((message: any) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -174,7 +176,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, [toast]);
-  
+
   // Function to manually reconnect
   const reconnect = useCallback(() => {
     if (socketRef.current) {
@@ -183,11 +185,11 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     }
     connectWebSocket();
   }, [connectWebSocket]);
-  
+
   // Connect when the component mounts
   useEffect(() => {
     connectWebSocket();
-    
+
     // Cleanup function
     return () => {
       // Close the WebSocket connection
@@ -195,20 +197,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
         socketRef.current.close();
         socketRef.current = null;
       }
-      
+
       // Clear any timers
       if (reconnectTimeoutRef.current) {
         window.clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      
+
       if (pingIntervalRef.current) {
         window.clearInterval(pingIntervalRef.current);
         pingIntervalRef.current = null;
       }
     };
   }, [connectWebSocket]);
-  
+
   // Reconnect when user auth changes
   useEffect(() => {
     if (user && status === 'open' && socketRef.current?.readyState === WebSocket.OPEN) {
@@ -220,7 +222,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, [user, status, sendMessage]);
-  
+
   // Create the context value
   const contextValue = {
     status,
@@ -228,7 +230,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     lastMessage,
     reconnect,
   };
-  
+
   return (
     <WebSocketContext.Provider value={contextValue}>
       {children}
@@ -239,10 +241,10 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 // Custom hook to use the WebSocket context
 export function useWebSocketContext(): WebSocketContextType {
   const context = useContext(WebSocketContext);
-  
+
   if (context === undefined) {
     throw new Error('useWebSocketContext must be used within a WebSocketProvider');
   }
-  
+
   return context;
 }
