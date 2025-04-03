@@ -11,6 +11,16 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Add health check endpoint for Render
+app.get('/api/health', (req: Request, res: Response) => {
+  return res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: process.env.VITE_APP_VERSION || '1.0.0',
+    environment: process.env.NODE_ENV
+  });
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

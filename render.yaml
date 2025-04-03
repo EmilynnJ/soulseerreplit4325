@@ -1,0 +1,90 @@
+services:
+  # Main web service configuration
+  - type: web
+    name: soulseer
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: VITE_ENABLE_WEBSOCKET
+        value: false
+      - key: VITE_ENABLE_LIVESTREAMS
+        value: true
+      - key: VITE_ENABLE_CHECKOUT
+        value: true
+      - key: VITE_ENABLE_PWA
+        value: true
+      - key: VITE_APP_VERSION
+        value: 1.0.0
+      - key: VITE_APP_DOMAIN
+        value: soulseer.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: soulseer-db
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: VITE_STRIPE_PUBLIC_KEY
+        sync: false
+      - key: MUX_TOKEN_ID
+        sync: false
+      - key: MUX_TOKEN_SECRET
+        sync: false
+      - key: MUX_WEBHOOK_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+
+  # Background worker for handling async tasks
+  - type: worker
+    name: soulseer-worker
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: soulseer-db
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: MUX_TOKEN_ID
+        sync: false
+      - key: MUX_TOKEN_SECRET
+        sync: false
+
+# Database configuration
+databases:
+  - name: soulseer-db
+    plan: starter
+    databaseName: soulseer
+    user: soulseer
+
+# Static public files cache on render CDN
+headers:
+  - path: /static/*
+    name: Cache-Control
+    value: public, max-age=31536000, immutable
+  - path: /icons/*
+    name: Cache-Control
+    value: public, max-age=31536000, immutable
+  - path: /screenshots/*
+    name: Cache-Control
+    value: public, max-age=31536000, immutable
+  - path: /manifest.json
+    name: Cache-Control
+    value: public, max-age=86400
+  - path: /serviceWorker.js
+    name: Cache-Control
+    value: public, max-age=0, must-revalidate

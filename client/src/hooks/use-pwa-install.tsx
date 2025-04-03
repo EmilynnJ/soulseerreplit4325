@@ -1,162 +1,99 @@
 import { useState, useEffect } from 'react';
-import env from '@/lib/env';
 
-// Interface for the install prompt event that browsers provide
 interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
 }
 
+// Check if PWA is enabled via environment variable
+const isPwaEnabled = import.meta.env.VITE_ENABLE_PWA === 'true';
+
 /**
- * A React hook to manage PWA installation prompts
- * 
- * @returns {Object} Object containing installation state and functions
+ * Hook to handle PWA installation
+ * Returns an object with:
+ * - canInstall: boolean if installation is possible
+ * - isInstalling: boolean if installation is in progress
+ * - isInstalled: boolean if already installed
+ * - installPromptEvent: The saved beforeinstallprompt event
+ * - promptInstall: Function to trigger installation
+ * - installationOutcome: The result of installation ('accepted', 'dismissed', or null)
  */
 export function usePwaInstall() {
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalling, setIsInstalling] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [installationError, setInstallationError] = useState<string | null>(null);
-  
-  // Check if PWA is enabled in environment
-  const isPwaEnabled = env.ENABLE_PWA;
+  const [installationOutcome, setInstallationOutcome] = useState<'accepted' | 'dismissed' | null>(null);
 
+  // Check if app is already installed by looking for display-mode: standalone
+  useEffect(() => {
+    const checkIfInstalled = () => {
+      // Check if in standalone mode (PWA installed)
+      if (window.matchMedia('(display-mode: standalone)').matches || 
+          // @ts-ignore - navigator.standalone is available on iOS Safari but not in the TypeScript definitions
+          (window.navigator as any).standalone === true) {
+        setIsInstalled(true);
+      }
+    };
+
+    checkIfInstalled();
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setInstallationOutcome('accepted');
+    });
+
+    return () => {
+      window.removeEventListener('appinstalled', checkIfInstalled);
+    };
+  }, []);
+
+  // Listen for beforeinstallprompt event
   useEffect(() => {
     if (!isPwaEnabled) return;
 
-    // Function to detect if app is already installed
-    const checkIfInstalled = () => {
-      const isStandalone = 
-        window.matchMedia('(display-mode: standalone)').matches || 
-        (window.navigator as any).standalone || 
-        document.referrer.includes('android-app://');
-      
-      setIsInstalled(isStandalone);
-    };
-
-    // Initial check
-    checkIfInstalled();
-
-    // Listen for the beforeinstallprompt event
-    const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent Chrome <= 67 from automatically showing the prompt
+    const handler = (e: Event) => {
+      // Prevent the default browser install prompt
       e.preventDefault();
-      // Store the event so it can be triggered later
-      setInstallPrompt(e as BeforeInstallPromptEvent);
-      console.log('PWA install prompt available');
+      // Save the event for later use
+      setInstallPromptEvent(e as BeforeInstallPromptEvent);
     };
 
-    // Listen for app installed event
-    const handleAppInstalled = () => {
-      // Clear the saved prompt since it's no longer needed
-      setInstallPrompt(null);
-      setIsInstalled(true);
-      console.log('PWA was installed');
-    };
+    window.addEventListener('beforeinstallprompt', handler);
 
-    // Listen for display mode changes (for iOS detection which doesn't support beforeinstallprompt)
-    const handleDisplayModeChange = () => {
-      checkIfInstalled();
-    };
-
-    // Add event listeners
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-    window.matchMedia('(display-mode: standalone)').addEventListener('change', handleDisplayModeChange);
-
-    // Remove event listeners on cleanup
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-      window.matchMedia('(display-mode: standalone)').removeEventListener('change', handleDisplayModeChange);
+      window.removeEventListener('beforeinstallprompt', handler);
     };
-  }, [isPwaEnabled]);
+  }, []);
 
-  // Function to prompt the user to install the PWA
+  // Function to prompt the user to install the app
   const promptInstall = async () => {
-    if (!installPrompt) {
-      setInstallationError('Installation prompt not available');
-      return false;
+    if (!installPromptEvent) {
+      return;
     }
 
-    try {
-      // Show the installation prompt
-      await installPrompt.prompt();
-      
-      // Wait for the user to respond to the prompt
-      const choiceResult = await installPrompt.userChoice;
-      
-      // Reset the installPrompt - it can only be used once
-      setInstallPrompt(null);
-      
-      // Check if the user accepted or dismissed
-      if (choiceResult.outcome === 'accepted') {
-        console.log('User accepted the PWA installation');
-        setIsInstalled(true);
-        return true;
-      } else {
-        console.log('User dismissed the PWA installation');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error during PWA installation:', error);
-      setInstallationError((error as Error).message || 'Installation failed');
-      return false;
-    }
-  };
-
-  // Function to determine if we should show iOS install instructions
-  // iOS doesn't support the beforeinstallprompt event
-  const isIOSDevice = () => {
-    return isPwaEnabled && 
-      !isInstalled && 
-      /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-      !(window as any).MSStream;
+    setIsInstalling(true);
+    
+    // Show the install prompt
+    await installPromptEvent.prompt();
+    
+    // Wait for the user to respond to the prompt
+    const choiceResult = await installPromptEvent.userChoice;
+    
+    // Reset the saved prompt since it can't be used again
+    setInstallPromptEvent(null);
+    setIsInstalling(false);
+    setInstallationOutcome(choiceResult.outcome);
   };
 
   return {
-    canInstall: !!installPrompt && !isInstalled,
+    canInstall: !!installPromptEvent && !isInstalled && isPwaEnabled,
+    isInstalling,
     isInstalled,
+    installPromptEvent,
     promptInstall,
-    installationError,
-    isPwaEnabled,
-    // Special case for iOS
-    isIOSDevice: isIOSDevice(),
+    installationOutcome
   };
-}
-
-// Component for showing iOS installation instructions
-export function IOSInstallInstructions() {
-  return (
-    <div className="p-4 rounded-lg bg-primary/10 mt-4 text-sm">
-      <h3 className="text-lg font-semibold mb-2">Install this app on your iPhone</h3>
-      <ol className="list-decimal pl-5 space-y-2">
-        <li>Tap the Share button <span className="inline-block w-6 h-6 text-center leading-6 bg-gray-100 rounded-full">↑</span> at the bottom of your screen</li>
-        <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
-        <li>Tap <strong>Add</strong> in the top right corner</li>
-      </ol>
-    </div>
-  );
-}
-
-// Simple install button component
-export function InstallPWAButton() {
-  const { canInstall, promptInstall, isIOSDevice } = usePwaInstall();
-  
-  if (isIOSDevice) {
-    return <IOSInstallInstructions />;
-  }
-  
-  if (!canInstall) {
-    return null;
-  }
-  
-  return (
-    <button 
-      onClick={promptInstall}
-      className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 flex items-center"
-    >
-      <span className="mr-2">📱</span>
-      Install App
-    </button>
-  );
 }
