@@ -170,33 +170,42 @@ export function Header() {
                   </div>
                 </div>
                 
+                <Link
+                  href={PATHS.DASHBOARD}
+                  className="w-full flex items-center space-x-2 py-2.5 px-4 text-light hover:text-accent hover:bg-accent/10 rounded-md transition duration-300"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <User className="h-4 w-4" />
+                  <span>Dashboard</span>
+                </Link>
+                
                 <button
                   onClick={() => {
                     logoutMutation.mutate();
                     setMobileMenuOpen(false);
                   }}
                   disabled={logoutMutation.isPending}
-                  className="w-full flex items-center space-x-2 py-2.5 px-4 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition duration-300"
+                  className="w-full flex items-center space-x-2 py-2.5 px-4 mt-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-md transition duration-300"
                 >
                   <LogOut className="h-4 w-4" />
                   <span>{logoutMutation.isPending ? "Logging out..." : "Logout"}</span>
                 </button>
               </div>
             ) : (
-              <div className="flex space-x-3 pt-3 px-4">
+              <div className="border-t border-accent/20 mt-3 pt-3 px-4 space-y-2">
                 <Link
                   href="/auth"
-                  className="flex-1 text-center bg-transparent border border-secondary text-secondary hover:bg-secondary/10 py-2 px-4 rounded-full transition duration-300 celestial-button"
+                  className="w-full flex justify-center py-2.5 px-4 bg-transparent border border-secondary text-secondary hover:bg-secondary/10 rounded-full transition duration-300 celestial-button"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Login
                 </Link>
                 <Link
                   href="/auth"
-                  className="flex-1 text-center bg-gradient-to-r from-accent to-accent-dark text-white py-2 px-6 rounded-full transition duration-300 celestial-button"
+                  className="w-full flex justify-center py-2.5 px-4 bg-gradient-to-r from-accent to-accent-dark text-white rounded-full transition duration-300 celestial-button"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Get Started
+                  Sign Up
                 </Link>
               </div>
             )}
