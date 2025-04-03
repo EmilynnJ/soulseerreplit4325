@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import env from '@/lib/env';
 
 type WebSocketStatus = 'connecting' | 'open' | 'closed' | 'error';
 
@@ -20,39 +21,76 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   
   // Create WebSocket connection
   const createWebSocketConnection = useCallback(() => {
+    // Don't create a connection if WebSockets are disabled via environment
+    if (!env.ENABLE_WEBSOCKET) {
+      console.log('WebSockets are disabled via environment settings');
+      setStatus('closed');
+      return null;
+    }
+    
     if (!user) {
       return null;
     }
     
     try {
+      // Check if WebSocket is available in this environment
+      if (typeof WebSocket === 'undefined') {
+        console.log('WebSocketProvider not available, using fallback');
+        setStatus('error');
+        return null;
+      }
+      
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      // For Railway deployment, use the proper host
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/ws`;
       
       console.log(`Creating WebSocket connection to ${wsUrl}`);
       setStatus('connecting');
       
-      const newSocket = new WebSocket(wsUrl);
+      // Create a new socket with error handling
+      let newSocket: WebSocket;
+      try {
+        newSocket = new WebSocket(wsUrl);
+      } catch (socketError) {
+        console.error('Failed to create WebSocket instance:', socketError);
+        setStatus('error');
+        return null;
+      }
       
       newSocket.onopen = () => {
         console.log('WebSocket connection established');
         setStatus('open');
         
+        if (!user.id) {
+          console.warn('User ID not available for WebSocket authentication');
+          return;
+        }
+        
         // Authenticate with the server
-        newSocket.send(JSON.stringify({
-          type: 'authenticate',
-          userId: user.id,
-          authToken: 'session-token' // In a real app, you'd use a proper token
-        }));
-        
-        // Start ping interval to keep connection alive
-        const pingInterval = setInterval(() => {
-          if (newSocket.readyState === WebSocket.OPEN) {
-            newSocket.send(JSON.stringify({ type: 'ping' }));
-          }
-        }, 30000);
-        
-        // Store the interval ID on the socket to clear it later
-        (newSocket as any).pingInterval = pingInterval;
+        try {
+          newSocket.send(JSON.stringify({
+            type: 'authenticate',
+            userId: user.id,
+            authToken: 'session-token' // In a real app, you'd use a proper token
+          }));
+          
+          // Start ping interval to keep connection alive
+          const pingInterval = setInterval(() => {
+            if (newSocket.readyState === WebSocket.OPEN) {
+              try {
+                newSocket.send(JSON.stringify({ type: 'ping' }));
+              } catch (pingError) {
+                console.error('Error sending ping:', pingError);
+              }
+            }
+          }, 30000);
+          
+          // Store the interval ID on the socket to clear it later
+          (newSocket as any).pingInterval = pingInterval;
+        } catch (authError) {
+          console.error('Error during WebSocket authentication:', authError);
+        }
       };
       
       newSocket.onmessage = (event) => {
@@ -89,6 +127,28 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
   
+  // Function to safely close a socket
+  const closeSocket = useCallback((socketToClose: WebSocket | null) => {
+    if (!socketToClose) return;
+    try {
+      clearInterval((socketToClose as any).pingInterval);
+      if (socketToClose.readyState === WebSocket.OPEN) {
+        socketToClose.close();
+      }
+    } catch (err) {
+      console.error('Error closing socket:', err);
+    }
+  }, []);
+  
+  // Function to handle reconnection
+  const handleReconnect = useCallback(() => {
+    closeSocket(socket);
+    const newSocket = createWebSocketConnection();
+    if (newSocket) {
+      setSocket(newSocket);
+    }
+  }, [socket, closeSocket, createWebSocketConnection]);
+  
   // Initialize WebSocket when user is authenticated
   useEffect(() => {
     if (user && (!socket || socket.readyState === WebSocket.CLOSED)) {
@@ -99,42 +159,44 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
     
     return () => {
-      if (socket) {
-        clearInterval((socket as any).pingInterval);
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.close();
-        }
-      }
+      closeSocket(socket);
     };
-  }, [user, socket, createWebSocketConnection]);
+  }, [user, socket, createWebSocketConnection, closeSocket]);
   
-  // Send message through WebSocket
+  // Public reconnect function for the context
+  const reconnect = useCallback(() => {
+    handleReconnect();
+  }, [handleReconnect]);
+  
+  // Send message through WebSocket with error handling
   const sendMessage = useCallback((message: any) => {
+    if (!env.ENABLE_WEBSOCKET) {
+      console.warn('WebSockets are disabled, message not sent');
+      return;
+    }
+    
     if (socket && socket.readyState === WebSocket.OPEN) {
-      const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-      socket.send(messageStr);
+      try {
+        const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+        socket.send(messageStr);
+      } catch (error) {
+        console.error('Error sending WebSocket message:', error);
+      }
     } else {
-      console.warn('Cannot send message, WebSocket not connected');
+      console.warn('Cannot send message, WebSocket not connected (state:', socket?.readyState, ')');
     }
   }, [socket]);
   
-  // Reconnect WebSocket
-  const reconnect = useCallback(() => {
-    if (socket) {
-      clearInterval((socket as any).pingInterval);
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.close();
-      }
-    }
-    
-    const newSocket = createWebSocketConnection();
-    if (newSocket) {
-      setSocket(newSocket);
-    }
-  }, [socket, createWebSocketConnection]);
-  
+  // Create value object to pass to context
+  const contextValue = {
+    status,
+    lastMessage,
+    sendMessage,
+    reconnect
+  };
+
   return (
-    <WebSocketContext.Provider value={{ status, lastMessage, sendMessage, reconnect }}>
+    <WebSocketContext.Provider value={contextValue}>
       {children}
     </WebSocketContext.Provider>
   );

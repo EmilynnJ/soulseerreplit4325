@@ -1,3 +1,4 @@
+import React, { ReactNode } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -87,20 +88,84 @@ function Router() {
   );
 }
 
+// Error boundary to catch and gracefully handle errors
+class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Error caught by boundary:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+          <h1 className="text-3xl font-bold mb-4">Something went wrong</h1>
+          <p className="mb-4">
+            We're experiencing some technical difficulties. Please try refreshing the page.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+          >
+            Refresh Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Import at the top level instead of using require
+import env from './lib/env';
+
+// Wrap WebSocket in a fallback provider with environment-based disabling
+const SafeWebSocketProvider = ({ children }: { children: ReactNode }) => {
+  // Skip WebSocket provider entirely if disabled in environment
+  if (!env.ENABLE_WEBSOCKET) {
+    console.log("WebSockets are disabled via environment settings");
+    return <>{children}</>;
+  }
+  
+  // In production Railway deployment, wrap in try/catch
+  if (env.IS_PRODUCTION) {
+    try {
+      return <WebSocketProvider>{children}</WebSocketProvider>;
+    } catch (error) {
+      console.error("Failed to initialize WebSocket provider:", error);
+      return <>{children}</>;
+    }
+  }
+  
+  // In development, don't catch errors to make debugging easier
+  return <WebSocketProvider>{children}</WebSocketProvider>;
+};
+
 function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <CartProvider>
-            <WebSocketProvider>
-              <Router />
-              <Toaster />
-            </WebSocketProvider>
-          </CartProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <CartProvider>
+              <SafeWebSocketProvider>
+                <Router />
+                <Toaster />
+              </SafeWebSocketProvider>
+            </CartProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

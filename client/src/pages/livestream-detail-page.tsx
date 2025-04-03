@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from "react";
+import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Gift, Livestream, User } from "@shared/schema";
 import { useParams, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import env from "@/lib/env";
 import {
   ArrowLeft,
   Users,
@@ -17,6 +19,7 @@ import {
   MessageCircle,
   Clock,
   MonitorPlay,
+  AlertCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +34,43 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import MuxPlayer from "@mux/mux-player-react";
+
+// Error boundary specific for MuxPlayer to catch and handle player errors
+class MuxPlayerErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: React.ErrorInfo) {
+    console.error('MuxPlayer error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full w-full bg-dark/50 p-8 text-center">
+          <AlertCircle className="h-16 w-16 text-accent/60 mb-4" />
+          <h3 className="text-xl font-cinzel text-secondary mb-2">Video Playback Error</h3>
+          <p className="text-light/70 mb-4">
+            We encountered an issue playing this stream. This could be due to connection issues or missing stream configuration.
+          </p>
+          <button 
+            onClick={() => this.setState({ hasError: false })}
+            className="px-4 py-2 bg-accent/80 text-white rounded-md hover:bg-accent transition">
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default function LivestreamDetailPage() {
   const { id } = useParams();
@@ -384,22 +424,45 @@ export default function LivestreamDetailPage() {
         <div className="lg:col-span-2">
           <Card className="overflow-hidden bg-primary-dark/40 border-accent/20">
             <div className="relative aspect-video">
-              {livestream.status === "live" && livestream.playbackId ? (
-                <MuxPlayer
-                  playbackId={livestream.playbackId}
-                  style={{ height: "100%", width: "100%" }}
-                  streamType="live"
-                  autoPlay
-                  muted={false}
-                />
+              {/* Check if livestreams are enabled in environment */}
+              {!env.ENABLE_LIVESTREAMS ? (
+                <div className="flex items-center justify-center bg-dark/50 h-full">
+                  <div className="text-center p-8">
+                    <AlertCircle className="h-16 w-16 mx-auto mb-4 text-accent/60" />
+                    <h3 className="text-xl font-cinzel text-secondary mb-2">Livestreams Temporarily Unavailable</h3>
+                    <p className="text-light/70">
+                      Livestreaming functionality is currently unavailable. Please check back later.
+                    </p>
+                  </div>
+                </div>
+              ) : livestream.status === "live" && livestream.playbackId ? (
+                <MuxPlayerErrorBoundary>
+                  <MuxPlayer
+                    playbackId={livestream.playbackId}
+                    style={{ height: "100%", width: "100%" }}
+                    streamType="live"
+                    autoPlay
+                    muted={false}
+                    metadata={{ 
+                      video_title: livestream.title || "Live Psychic Session",
+                      player_name: "SoulSeer Live Stream"
+                    }}
+                  />
+                </MuxPlayerErrorBoundary>
               ) : livestream.status === "ended" && livestream.muxAssetId && livestream.playbackId ? (
-                <MuxPlayer
-                  playbackId={livestream.playbackId}
-                  style={{ height: "100%", width: "100%" }}
-                  streamType="on-demand"
-                  autoPlay={false}
-                  muted={false}
-                />
+                <MuxPlayerErrorBoundary>
+                  <MuxPlayer
+                    playbackId={livestream.playbackId}
+                    style={{ height: "100%", width: "100%" }}
+                    streamType="on-demand"
+                    autoPlay={false}
+                    muted={false}
+                    metadata={{ 
+                      video_title: livestream.title || "Recorded Psychic Session",
+                      player_name: "SoulSeer Replay"
+                    }}
+                  />
+                </MuxPlayerErrorBoundary>
               ) : (
                 <div className="flex items-center justify-center bg-dark/50 h-full">
                   {livestream.status === "scheduled" ? (
