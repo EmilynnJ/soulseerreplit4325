@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -63,6 +64,57 @@ interface ReadingWithNames extends Reading {
   readerName: string;
 }
 
+// Error boundary for admin dashboard
+export class ErrorBoundary extends React.Component<{children: React.ReactNode, fallback: React.ReactNode}, {hasError: boolean}> {
+  constructor(props: {children: React.ReactNode, fallback: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    // Update state so the next render will show the fallback UI
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    // Log the error to console
+    console.error("Admin Dashboard Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // You can render any custom fallback UI
+      return this.props.fallback;
+    }
+
+    return this.props.children;
+  }
+}
+
+// Fallback component to show when admin dashboard errors
+export function AdminDashboardFallback() {
+  return (
+    <div className="cosmic-bg min-h-screen p-6">
+      <div className="max-w-4xl mx-auto bg-primary-dark/30 backdrop-blur-md p-8 rounded-lg border border-accent/30 text-center">
+        <h2 className="text-2xl font-bold mb-4">Dashboard Error</h2>
+        <p className="mb-6">There was a problem loading the admin dashboard data. Please try refreshing the page.</p>
+        <Button 
+          onClick={() => {
+            // Invalidate all admin queries to force a refresh
+            queryClient.invalidateQueries({ queryKey: ['/api/admin'] });
+            window.location.reload();
+          }}
+          className="bg-accent hover:bg-accent/80 text-primary-dark"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Reload Dashboard
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Main Admin Dashboard component
 export function AdminDashboard() {
   const { toast } = useToast();
 
