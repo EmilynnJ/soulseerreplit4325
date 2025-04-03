@@ -1,110 +1,159 @@
 {
   "name": "SoulSeer - Psychic Readings, Spiritual Shop & Community",
   "short_name": "SoulSeer",
-  "description": "Connect with gifted psychics for on-demand readings, join spiritual community, and shop mystical products at SoulSeer.",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#13151a",
+  "description": "Connect with gifted psychics for on-demand readings, join spiritual community, and shop mystical products.",
   "theme_color": "#d946ef",
+  "background_color": "#13151a",
+  "display": "standalone",
   "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/?source=pwa",
+  "id": "soulseer.app",
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Book Reading",
+      "short_name": "Book Reading",
+      "description": "Book a psychic reading session",
+      "url": "/readings?source=pwa",
+      "icons": [
+        {
+          "src": "/app-publishing/icons/shortcut-reading-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Shop",
+      "short_name": "Shop",
+      "description": "Browse spiritual products",
+      "url": "/shop?source=pwa",
+      "icons": [
+        {
+          "src": "/app-publishing/icons/shortcut-shop-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Livestreams",
+      "short_name": "Live",
+      "description": "Join live psychic sessions",
+      "url": "/livestreams?source=pwa",
+      "icons": [
+        {
+          "src": "/app-publishing/icons/shortcut-live-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "/app-publishing/icons/icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-96x96.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-128x128.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-144x144.png",
       "sizes": "144x144",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-152x152.png",
       "sizes": "152x152",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-384x384.png",
       "sizes": "384x384",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/app-publishing/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/app-publishing/icons/maskable-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/app-publishing/icons/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/app-publishing/screenshots/home-screen.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide"
+      "src": "/app-publishing/screenshots/screenshot1.webp",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "platform": "narrow",
+      "label": "Homepage of SoulSeer"
     },
     {
-      "src": "/app-publishing/screenshots/reader-profile.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide"
+      "src": "/app-publishing/screenshots/screenshot2.webp",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "platform": "narrow",
+      "label": "Reading session interface"
     },
     {
-      "src": "/app-publishing/screenshots/dashboard.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide"
+      "src": "/app-publishing/screenshots/screenshot3.webp",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "platform": "narrow",
+      "label": "Spiritual shop products"
     },
     {
-      "src": "/app-publishing/screenshots/reading-session.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide"
-    }
-  ],
-  "categories": ["lifestyle", "spirituality", "shopping"],
-  "shortcuts": [
-    {
-      "name": "Find a Reader",
-      "short_name": "Readers",
-      "description": "Browse and connect with psychic readers",
-      "url": "/readers",
-      "icons": [{ "src": "/app-publishing/icons/icon-96x96.png", "sizes": "96x96" }]
+      "src": "/app-publishing/screenshots/screenshot4.webp",
+      "sizes": "1080x1920",
+      "type": "image/webp",
+      "platform": "narrow",
+      "label": "Live psychic session"
     },
     {
-      "name": "My Readings",
-      "short_name": "Readings",
-      "description": "View your reading history",
-      "url": "/dashboard/readings",
-      "icons": [{ "src": "/app-publishing/icons/icon-96x96.png", "sizes": "96x96" }]
+      "src": "/app-publishing/screenshots/screenshot-wide1.webp",
+      "sizes": "1920x1080",
+      "type": "image/webp",
+      "platform": "wide",
+      "label": "Dashboard view on desktop"
     },
     {
-      "name": "Spiritual Shop",
-      "short_name": "Shop",
-      "description": "Browse spiritual products and tools",
-      "url": "/shop",
-      "icons": [{ "src": "/app-publishing/icons/icon-96x96.png", "sizes": "96x96" }]
+      "src": "/app-publishing/screenshots/screenshot-wide2.webp",
+      "sizes": "1920x1080",
+      "type": "image/webp",
+      "platform": "wide",
+      "label": "Community forum on desktop"
     }
   ]
 }
