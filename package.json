@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "SoulSeer - Spiritual Connection Platform",
   "scripts": {
+    "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\"",
     "build": "cd client && npm install && npm run build && cd ../server && npm install && npm run build",
     "start": "NODE_ENV=production node server/dist/index.js"
   },
@@ -19,6 +20,7 @@
     "@types/passport-local": "^1.0.38",
     "@types/pg": "^8.11.11",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
     "connect-pg-simple": "^10.0.0",
     "drizzle-kit": "^0.30.6",
     "drizzle-orm": "^0.41.0",
