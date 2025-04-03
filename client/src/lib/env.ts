@@ -3,66 +3,46 @@
  * Provides fallbacks and validation for critical environment variables
  */
 
-export const env = {
-  // Stripe
-  STRIPE_PUBLIC_KEY: import.meta.env.VITE_STRIPE_PUBLIC_KEY || '',
-  
-  // MUX Video
-  MUX_ENV_KEY: import.meta.env.VITE_MUX_ENV_KEY || '',
-  
-  // API
-  API_URL: import.meta.env.VITE_API_URL || '',
-  
-  // Feature flags - deploy safe with fallbacks
-  ENABLE_WEBSOCKET: import.meta.env.VITE_ENABLE_WEBSOCKET !== 'false',
-  ENABLE_LIVESTREAMS: import.meta.env.VITE_ENABLE_LIVESTREAMS !== 'false',
-  ENABLE_CHECKOUT: import.meta.env.VITE_ENABLE_CHECKOUT !== 'false',
-  
-  // PWA features
-  ENABLE_PWA: import.meta.env.VITE_ENABLE_PWA !== 'false',
-  ENABLE_NOTIFICATIONS: import.meta.env.VITE_ENABLE_NOTIFICATIONS !== 'false',
-  APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
-  
-  // App store information
-  APP_STORE_ID: import.meta.env.VITE_APP_STORE_ID || '',
-  PLAY_STORE_ID: import.meta.env.VITE_PLAY_STORE_ID || '',
-  APP_DOMAIN: import.meta.env.VITE_APP_DOMAIN || 'soulseer.app',
-  
-  // Environment
-  IS_PRODUCTION: import.meta.env.PROD,
-  MODE: import.meta.env.MODE,
-  
-  // Debug
-  DEBUG: import.meta.env.DEV,
+// Helper function to get environment variable with fallback
+const getEnvVar = (key: string, fallback: string = ''): string => {
+  const value = import.meta.env[key];
+  return value !== undefined ? String(value) : fallback;
 };
 
-// Warn about missing important keys in development only
-if (import.meta.env.DEV) {
-  if (!env.STRIPE_PUBLIC_KEY) {
-    console.warn('Missing VITE_STRIPE_PUBLIC_KEY environment variable');
-  }
+// Helper function to convert environment variable to boolean
+const getBoolEnvVar = (key: string, fallback: boolean = false): boolean => {
+  const value = import.meta.env[key];
+  if (value === undefined) return fallback;
+  return value === 'true' || value === '1';
+};
+
+// Export environment variables with appropriate types
+export const env = {
+  // Core environment information
+  NODE_ENV: getEnvVar('NODE_ENV', 'development'),
+  IS_PRODUCTION: getEnvVar('NODE_ENV') === 'production',
+  IS_DEVELOPMENT: getEnvVar('NODE_ENV') === 'development',
   
-  if (!env.MUX_ENV_KEY) {
-    console.warn('Missing VITE_MUX_ENV_KEY environment variable');
-  }
+  // API and service endpoints
+  API_URL: getEnvVar('VITE_API_URL', ''),
+  WEBSOCKET_URL: getEnvVar('VITE_WEBSOCKET_URL', ''),
   
-  // PWA-related warnings only if PWA is enabled
-  if (env.ENABLE_PWA) {
-    if (!env.APP_DOMAIN) {
-      console.warn('Missing VITE_APP_DOMAIN environment variable (for PWA)');
-    }
-    
-    // Only warn about app store IDs in production mode
-    if (env.IS_PRODUCTION) {
-      if (!env.APP_STORE_ID) {
-        console.warn('Missing VITE_APP_STORE_ID environment variable (for Apple App Store)');
-      }
-      
-      if (!env.PLAY_STORE_ID) {
-        console.warn('Missing VITE_PLAY_STORE_ID environment variable (for Google Play Store)');
-      }
-    }
-  }
-}
+  // Feature flags
+  ENABLE_WEBSOCKET: getBoolEnvVar('VITE_ENABLE_WEBSOCKET', false),
+  ENABLE_LIVESTREAMS: getBoolEnvVar('VITE_ENABLE_LIVESTREAMS', true),
+  ENABLE_CHECKOUT: getBoolEnvVar('VITE_ENABLE_CHECKOUT', true),
+  
+  // External services
+  STRIPE_PUBLIC_KEY: getEnvVar('VITE_STRIPE_PUBLIC_KEY', ''),
+  MUX_ENV_KEY: getEnvVar('VITE_MUX_ENV_KEY', ''),
+  
+  // PWA configuration
+  ENABLE_PWA: getBoolEnvVar('VITE_ENABLE_PWA', true),
+  ENABLE_NOTIFICATIONS: getBoolEnvVar('VITE_ENABLE_NOTIFICATIONS', false),
+  APP_VERSION: getEnvVar('VITE_APP_VERSION', '1.0.0'),
+  APP_DOMAIN: getEnvVar('VITE_APP_DOMAIN', 'soulseer.app'),
+  APP_STORE_ID: getEnvVar('VITE_APP_STORE_ID', ''),
+  PLAY_STORE_ID: getEnvVar('VITE_PLAY_STORE_ID', ''),
+};
 
 export default env;

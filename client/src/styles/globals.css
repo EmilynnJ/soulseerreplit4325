@@ -123,6 +123,48 @@
     100% { box-shadow: 0 0 20px theme('colors.accent.DEFAULT'), 0 0 30px theme('colors.accent.DEFAULT'); }
   }
   
+  @keyframes slide-up {
+    from { 
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    to { 
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slide-down {
+    from { 
+      transform: translateY(0);
+      opacity: 1;
+    }
+    to { 
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes bounce-in {
+    0% {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+    70% {
+      transform: scale(1.1);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -137,6 +179,22 @@
   
   .animate-pulse-slow {
     animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .animate-slide-up {
+    animation: slide-up 0.5s ease-out forwards;
+  }
+  
+  .animate-slide-down {
+    animation: slide-down 0.5s ease-in forwards;
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-in forwards;
+  }
+  
+  .animate-bounce-in {
+    animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   }
   
   .glow-effect {

@@ -1,159 +1,125 @@
 {
-  "name": "SoulSeer - Psychic Readings, Spiritual Shop & Community",
+  "name": "SoulSeer - Psychic Readings & Spiritual Shop",
   "short_name": "SoulSeer",
-  "description": "Connect with gifted psychics for on-demand readings, join spiritual community, and shop mystical products.",
-  "theme_color": "#d946ef",
-  "background_color": "#13151a",
+  "description": "Connect with gifted psychic readers for life guidance and spiritual products",
+  "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "scope": "/",
-  "start_url": "/?source=pwa",
-  "id": "soulseer.app",
-  "lang": "en-US",
-  "dir": "ltr",
-  "prefer_related_applications": false,
-  "shortcuts": [
-    {
-      "name": "Book Reading",
-      "short_name": "Book Reading",
-      "description": "Book a psychic reading session",
-      "url": "/readings?source=pwa",
-      "icons": [
-        {
-          "src": "/app-publishing/icons/shortcut-reading-96x96.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Shop",
-      "short_name": "Shop",
-      "description": "Browse spiritual products",
-      "url": "/shop?source=pwa",
-      "icons": [
-        {
-          "src": "/app-publishing/icons/shortcut-shop-96x96.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Livestreams",
-      "short_name": "Live",
-      "description": "Join live psychic sessions",
-      "url": "/livestreams?source=pwa",
-      "icons": [
-        {
-          "src": "/app-publishing/icons/shortcut-live-96x96.png",
-          "sizes": "96x96"
-        }
-      ]
-    }
-  ],
+  "background_color": "#2c0f27",
+  "theme_color": "#7f2474",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/app-publishing/icons/icon-72x72.png",
+      "src": "/icons/icon-72x72.png",
+      "type": "image/png",
       "sizes": "72x72",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-96x96.png",
+      "src": "/icons/icon-96x96.png",
+      "type": "image/png",
       "sizes": "96x96",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-128x128.png",
+      "src": "/icons/icon-128x128.png",
+      "type": "image/png",
       "sizes": "128x128",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-144x144.png",
+      "src": "/icons/icon-144x144.png",
+      "type": "image/png",
       "sizes": "144x144",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-152x152.png",
+      "src": "/icons/icon-152x152.png",
+      "type": "image/png",
       "sizes": "152x152",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-192x192.png",
+      "src": "/icons/icon-192x192.png",
+      "type": "image/png",
       "sizes": "192x192",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-384x384.png",
+      "src": "/icons/icon-384x384.png",
+      "type": "image/png",
       "sizes": "384x384",
-      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/icon-512x512.png",
-      "sizes": "512x512",
+      "src": "/icons/icon-512x512.png",
       "type": "image/png",
+      "sizes": "512x512",
       "purpose": "any"
     },
     {
-      "src": "/app-publishing/icons/maskable-icon-192x192.png",
-      "sizes": "192x192",
+      "src": "/icons/maskable-icon-512x512.png",
       "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/app-publishing/icons/maskable-icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png",
       "purpose": "maskable"
     }
   ],
   "screenshots": [
     {
-      "src": "/app-publishing/screenshots/screenshot1.webp",
-      "sizes": "1080x1920",
-      "type": "image/webp",
-      "platform": "narrow",
-      "label": "Homepage of SoulSeer"
+      "src": "/screenshots/home-mobile.jpg",
+      "type": "image/jpeg",
+      "sizes": "750x1334",
+      "form_factor": "narrow"
     },
     {
-      "src": "/app-publishing/screenshots/screenshot2.webp",
-      "sizes": "1080x1920",
-      "type": "image/webp",
-      "platform": "narrow",
-      "label": "Reading session interface"
+      "src": "/screenshots/readings-mobile.jpg",
+      "type": "image/jpeg",
+      "sizes": "750x1334",
+      "form_factor": "narrow"
     },
     {
-      "src": "/app-publishing/screenshots/screenshot3.webp",
-      "sizes": "1080x1920",
-      "type": "image/webp",
-      "platform": "narrow",
-      "label": "Spiritual shop products"
-    },
-    {
-      "src": "/app-publishing/screenshots/screenshot4.webp",
-      "sizes": "1080x1920",
-      "type": "image/webp",
-      "platform": "narrow",
-      "label": "Live psychic session"
-    },
-    {
-      "src": "/app-publishing/screenshots/screenshot-wide1.webp",
+      "src": "/screenshots/home-desktop.jpg",
+      "type": "image/jpeg",
       "sizes": "1920x1080",
-      "type": "image/webp",
-      "platform": "wide",
-      "label": "Dashboard view on desktop"
-    },
-    {
-      "src": "/app-publishing/screenshots/screenshot-wide2.webp",
-      "sizes": "1920x1080",
-      "type": "image/webp",
-      "platform": "wide",
-      "label": "Community forum on desktop"
+      "form_factor": "wide"
     }
-  ]
+  ],
+  "categories": ["lifestyle", "social", "shopping"],
+  "shortcuts": [
+    {
+      "name": "Find Readers",
+      "short_name": "Readers",
+      "description": "Browse available psychic readers",
+      "url": "/readers",
+      "icons": [
+        {
+          "src": "/icons/readers-shortcut.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Watch Livestreams",
+      "short_name": "Live",
+      "description": "Watch live psychic streams",
+      "url": "/live",
+      "icons": [
+        {
+          "src": "/icons/live-shortcut.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=app.soulseer.android",
+      "id": "app.soulseer.android"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/soulseer/id1234567890"
+    }
+  ],
+  "prefer_related_applications": false
 }

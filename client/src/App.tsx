@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -25,7 +25,11 @@ import LivestreamPage from "@/pages/livestream-page";
 import LivestreamDetailPage from "@/pages/livestream-detail-page";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Layout } from "./components/layout";
+import { PwaInstallBanner } from "@/components/pwa-install-banner";
 import "@/styles/globals.css";
+
+// Import at the top level instead of using require
+import env from './lib/env';
 
 // Dashboard page has been moved to its own component file
 
@@ -88,6 +92,40 @@ function Router() {
   );
 }
 
+// Component to handle app version checking and updates
+const AppUpdater = () => {
+  useEffect(() => {
+    // Check for app updates (only in PWA mode and production)
+    if (env.ENABLE_PWA && env.IS_PRODUCTION) {
+      const checkForUpdates = async () => {
+        try {
+          // If service worker is supported and registered
+          if ('serviceWorker' in navigator) {
+            const registration = await navigator.serviceWorker.getRegistration();
+            
+            if (registration) {
+              // Check for updates
+              registration.update().catch(err => {
+                console.error('Service worker update failed:', err);
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error checking for updates:', error);
+        }
+      };
+      
+      // Check immediately and then every hour
+      checkForUpdates();
+      const interval = setInterval(checkForUpdates, 60 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, []);
+  
+  return null;
+};
+
 // Error boundary to catch and gracefully handle errors
 class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -125,9 +163,6 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError:
   }
 }
 
-// Import at the top level instead of using require
-import env from './lib/env';
-
 // Wrap WebSocket in a fallback provider with environment-based disabling
 const SafeWebSocketProvider = ({ children }: { children: ReactNode }) => {
   // Skip WebSocket provider entirely if disabled in environment
@@ -159,6 +194,8 @@ function App() {
             <CartProvider>
               <SafeWebSocketProvider>
                 <Router />
+                <AppUpdater />
+                <PwaInstallBanner />
                 <Toaster />
               </SafeWebSocketProvider>
             </CartProvider>
