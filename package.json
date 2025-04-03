@@ -8,6 +8,9 @@
   },
   "dependencies": {
     "@mux/mux-node": "^11.0.1",
+    "@replit/vite-plugin-cartographer": "^0.0.11",
+    "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
+    "@replit/vite-plugin-shadcn-theme-json": "^0.0.4",
     "@stripe/react-stripe-js": "^3.6.0",
     "@stripe/stripe-js": "^7.0.0",
     "@types/express-session": "^1.18.1",
@@ -15,6 +18,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-local": "^1.0.38",
     "@types/pg": "^8.11.11",
+    "@vitejs/plugin-react": "^4.3.4",
     "connect-pg-simple": "^10.0.0",
     "drizzle-kit": "^0.30.6",
     "drizzle-orm": "^0.41.0",
@@ -22,10 +26,14 @@
     "express": "^5.1.0",
     "express-session": "^1.18.1",
     "memorystore": "^1.6.7",
+    "nanoid": "^5.1.5",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "pg": "^8.14.1",
+    "stripe": "^18.0.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vite": "^6.2.4",
+    "ws": "^8.18.1"
   }
 }

@@ -1,5 +1,5 @@
-const express = require('express');
-const { registerRoutes } = require('./routes');
+import express from 'express';
+import { registerRoutes } from './routes.js';
 
 async function main() {
   const app = express();

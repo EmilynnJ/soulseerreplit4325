@@ -17,6 +17,7 @@ import CheckoutPage from "@/pages/checkout-page";
 import AddFundsPage from "@/pages/add-funds-page";
 import ReadingSessionPage from "@/pages/reading-session";
 import CommunityPage from "@/pages/community-page";
+import CommunityChatPage from "@/pages/community-chat-page";
 import ReadersPage from "@/pages/readers-page";
 import ReaderProfilePage from "@/pages/reader-profile-page";
 import PoliciesPage from "@/pages/policies-page";
@@ -130,6 +131,7 @@ function Router() {
         <Route path="/checkout" component={CheckoutPage} />
         <Route path="/checkout/success" component={CheckoutPage} />
         <Route path="/community" component={CommunityPage} />
+        <Route path="/community-chat" component={CommunityChatPage} />
         <Route path="/help" component={Help} />
         <Route path="/policies" component={PoliciesPage} />
         <Route path="/apply" component={Apply} />
