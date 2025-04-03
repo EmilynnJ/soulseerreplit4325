@@ -467,17 +467,23 @@ function AddReaderForm() {
   // Create reader mutation
   const createReaderMutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const response = await fetch('/api/admin/readers', {
-        method: 'POST',
-        body: data,
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create reader');
+      try {
+        const response = await fetch('/api/admin/readers', {
+          method: 'POST',
+          body: data,
+        });
+        
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(responseData.message || 'Failed to create reader');
+        }
+        
+        return responseData;
+      } catch (error) {
+        console.error('Error creating reader:', error);
+        throw error;
       }
-      
-      return response.json();
     },
     onSuccess: () => {
       // Reset form
