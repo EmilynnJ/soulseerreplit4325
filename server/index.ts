@@ -20,7 +20,7 @@ async function main() {
   });
 
   // Start the server
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 3000;
   server.listen({
     port: PORT,
     host: "0.0.0.0",
