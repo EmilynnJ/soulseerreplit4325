@@ -2567,6 +2567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin endpoint to add new readers with profile image
   app.post("/api/admin/readers", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
     try {
+      console.log("Reader form submission received:", req.body);
       const { username, password, email, fullName, bio, ratePerMinute, specialties } = req.body;
       
       // Check if username already exists
@@ -2618,6 +2619,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImageUrl = `/uploads/${filename}`;
       }
       
+      // Parse rate per minute to a number
+      const rate = parseInt(ratePerMinute, 10);
+      
       // Create the reader account
       const newReader = await storage.createUser({
         username,
@@ -2628,14 +2632,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bio,
         profileImage: profileImageUrl,
         specialties: parsedSpecialties,
-        ratePerMinute: parseInt(ratePerMinute, 10),
-        chatReading,
-        phoneReading,
-        videoReading,
+        // Set both legacy pricing and specific pricing fields
+        pricing: rate,
+        pricingChat: rate,
+        pricingVoice: rate + 100, // $1 more for voice
+        pricingVideo: rate + 200, // $2 more for video
         isOnline: false,
-        balance: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        accountBalance: 0, // Use accountBalance instead of balance to match schema
       });
       
       // Remove sensitive information from the response
