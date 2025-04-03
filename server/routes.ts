@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -16,6 +16,19 @@ import { promisify } from "util";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+
+// Admin middleware
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+  
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Unauthorized. Admin access required." });
+  }
+  
+  next();
+};
 
 // Password hashing function
 const scryptAsync = promisify(scrypt);
@@ -1338,11 +1351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Admin endpoint to get unprocessed gifts
-  app.get("/api/admin/gifts/unprocessed", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-    
+  app.get("/api/admin/gifts/unprocessed", requireAdmin, async (req, res) => {
     try {
       // Get all unprocessed gifts
       const unprocessedGifts = await storage.getUnprocessedGifts();
@@ -1370,11 +1379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Admin endpoint to get all gifts
-  app.get("/api/admin/gifts", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-    
+  app.get("/api/admin/gifts", requireAdmin, async (req, res) => {
     try {
       // Get all gifts with optional limit
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
@@ -1407,11 +1412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin endpoint to process gifts 
-  app.post("/api/admin/gifts/process", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "admin") {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-    
+  app.post("/api/admin/gifts/process", requireAdmin, async (req, res) => {
     try {
       // Get all unprocessed gifts
       const unprocessedGifts = await storage.getUnprocessedGifts();
@@ -2529,18 +2530,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all users (admin only)
-  // Admin middleware
-  const requireAdmin = (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Unauthorized. Admin access required." });
-    }
-    
-    next();
-  };
   
   // Configure multer for memory storage
   const upload = multer({ 
