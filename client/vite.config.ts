@@ -47,7 +47,8 @@ export default defineConfig(async () => {
       hmr: {
         host: true,
         clientPort: 443
-      }
+      },
+      allowedHosts: ['f75f3cba-f4b3-4139-8c08-8410f77c1d90-00-206nodnpubbk3.picard.replit.dev', 'all']
     }
   };
 });
