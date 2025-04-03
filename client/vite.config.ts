@@ -8,29 +8,31 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export default defineConfig({
-  plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    themePlugin(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-        ]
-      : []),
-  ],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "client", "src"),
-      "@shared": path.resolve(__dirname, "shared"),
+// Create a function that returns the config
+export default defineConfig(async () => {
+  // Import the cartographer conditionally
+  const cartographerPlugin = 
+    process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
+      ? [(await import("@replit/vite-plugin-cartographer")).cartographer()]
+      : [];
+
+  return {
+    plugins: [
+      react(),
+      runtimeErrorOverlay(),
+      themePlugin(),
+      ...cartographerPlugin,
+    ],
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "client", "src"),
+        "@shared": path.resolve(__dirname, "shared"),
+      },
     },
-  },
-  root: path.resolve(__dirname, "client"),
-  build: {
-    outDir: path.resolve(__dirname, "dist/public"),
-    emptyOutDir: true,
-  },
+    root: path.resolve(__dirname, "client"),
+    build: {
+      outDir: path.resolve(__dirname, "dist/public"),
+      emptyOutDir: true,
+    }
+  };
 });
