@@ -38,7 +38,10 @@ export default defineConfig(async () => {
       host: '0.0.0.0',
       port: 5000,
       proxy: {
-        '/api': 'http://localhost:3000'
+        '/api': 'http://0.0.0.0:3000'
+      },
+      hmr: {
+        host: '0.0.0.0'
       },
       allowedHosts: 'all'
     }
