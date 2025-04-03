@@ -20,6 +20,8 @@ import CommunityPage from "@/pages/community-page";
 import ReadersPage from "@/pages/readers-page";
 import ReaderProfilePage from "@/pages/reader-profile-page";
 import PoliciesPage from "@/pages/policies-page";
+import LivestreamPage from "@/pages/livestream-page";
+import LivestreamDetailPage from "@/pages/livestream-detail-page";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Layout } from "./components/layout";
 import "@/styles/globals.css";
@@ -34,67 +36,11 @@ const Messages = () => (
   </div>
 );
 
-// Readers component
-const Readers = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Our Readers</h1>
-    <p className="font-playfair">Meet our gifted psychic readers.</p>
-  </div>
-);
-
-// Reader details component
-const ReaderDetails = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Reader Profile</h1>
-    <p className="font-playfair">Reader details will appear here.</p>
-  </div>
-);
-
-// Live streams component
-const LiveStreams = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Live Streams</h1>
-    <p className="font-playfair">Watch live psychic readings and spiritual sessions.</p>
-  </div>
-);
-
-// Live stream details component
-const LiveStreamDetails = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Live Stream</h1>
-    <p className="font-playfair">This live stream will appear here.</p>
-  </div>
-);
-
-// Shop component
-const Shop = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Spiritual Shop</h1>
-    <p className="font-playfair">Browse our mystical products and spiritual tools.</p>
-  </div>
-);
-
-// Community component
-const Community = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Community</h1>
-    <p className="font-playfair">Connect with fellow spiritual seekers.</p>
-  </div>
-);
-
 // Help component
 const Help = () => (
   <div className="container min-h-screen py-8">
     <h1 className="text-4xl font-alex mb-6">Help Center</h1>
     <p className="font-playfair">Find answers to your questions.</p>
-  </div>
-);
-
-// Policies component
-const Policies = () => (
-  <div className="container min-h-screen py-8">
-    <h1 className="text-4xl font-alex mb-6">Policies</h1>
-    <p className="font-playfair">Our terms, privacy policy, and guidelines.</p>
   </div>
 );
 
@@ -124,8 +70,8 @@ function Router() {
         {/* Public routes */}
         <Route path="/readers" component={ReadersPage} />
         <Route path="/readers/:id" component={ReaderProfilePage} />
-        <Route path="/live" component={LiveStreams} />
-        <Route path="/live/:id" component={LiveStreamDetails} />
+        <Route path="/live" component={LivestreamPage} />
+        <Route path="/live/:id" component={LivestreamDetailPage} />
         <Route path="/shop" component={ShopPage} />
         <Route path="/checkout" component={CheckoutPage} />
         <Route path="/checkout/success" component={CheckoutPage} />
