@@ -7,19 +7,15 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["sh", "-c", "NODE_ENV=production node server/dist/index.js"]
-build = ["sh", "-c", "cd client && npm install && npm run build && cd ../server && npm install && npm run build"]
-
-[[ports]]
-localPort = 3000
-externalPort = 3000
+run = ["sh", "-c", "NODE_ENV=production node dist/index.js"]
+build = ["sh", "-c", "npm run build"]
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Dev Server"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -44,33 +40,3 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Full Stack Dev"
-author = 39434645
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-
-[[workflows.workflow]]
-name = "Dev Server"
-author = 39434645
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm install"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd client && npm install && cd .."
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd server && npm install && cd .."
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"

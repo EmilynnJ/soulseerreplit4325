@@ -12,7 +12,7 @@ interface ReaderCardProps {
 export function ReaderCard({ reader }: ReaderCardProps) {
   // Default fallback image for readers without profile images
   const profileImage = reader.profileImage || "/images/default-reader.png";
-
+  
   // Parse specialties, ensuring they're always an array of strings
   const specialties: string[] = (() => {
     if (!reader.specialties) return [];
@@ -40,23 +40,23 @@ export function ReaderCard({ reader }: ReaderCardProps) {
             />
           )}
         </div>
-
+        
         {/* Online status */}
         <div className="absolute top-1 right-1">
           <OnlineStatusBadge isOnline={reader.isOnline || false} className="bg-primary-dark/70 backdrop-blur-sm px-1.5 py-0.5 text-xs rounded-full" />
         </div>
       </div>
-
+      
       {/* Reader info */}
       <h3 className="text-xl font-alex text-accent mb-0.5">{reader.fullName}</h3>
-
+      
       {/* Rating */}
       <div className="flex items-center space-x-2 mb-1">
         <div className="flex items-center">
           <StarIcon className="h-3 w-3 text-yellow-500 mr-0.5" />
           <span className="text-light/90 text-xs font-playfair">{reader.rating || "-"}/5</span>
         </div>
-
+        
         {/* Pricing */}
         {reader.pricing && (
           <p className="text-secondary text-xs font-cinzel">
@@ -64,7 +64,7 @@ export function ReaderCard({ reader }: ReaderCardProps) {
           </p>
         )}
       </div>
-
+      
       {/* Specialties */}
       {Array.isArray(specialties) && specialties.length > 0 && (
         <div className="mb-2">
@@ -83,7 +83,7 @@ export function ReaderCard({ reader }: ReaderCardProps) {
           </div>
         </div>
       )}
-
+      
       {/* Action buttons */}
       <div className="mt-auto flex space-x-1 pt-2">
         <Link href={`/readers/${reader.id}`} className="flex-1">

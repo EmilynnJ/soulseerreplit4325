@@ -164,7 +164,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
           <div className="pt-4">
             <CelestialButton
               type="submit"
-              variant="default"
+              variant="primary"
               className="w-full"
               disabled={registerMutation.isPending}
             >

@@ -5,7 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser } from "../shared/schema";
+import { User as SelectUser } from "@shared/schema";
 
 declare global {
   namespace Express {
@@ -15,7 +15,7 @@ declare global {
 
 const scryptAsync = promisify(scrypt);
 
-export async function hashPassword(password: string) {
+async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
   return `${buf.toString("hex")}.${salt}`;
@@ -93,7 +93,7 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", async (req, res, next) => {
     try {
-      const { username, email, password, fullName } = req.body;
+      const { username, email, password, fullName, role } = req.body;
       
       // Check if username exists
       const existingUsername = await storage.getUserByUsername(username);
@@ -107,13 +107,13 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already exists" });
       }
       
-      // Create user with hashed password - only allow client role in public registration
+      // Create user with hashed password
       const user = await storage.createUser({
         username,
         email,
         password: await hashPassword(password),
         fullName,
-        role: "client", // Force client role for public registration
+        role: role || "client",
         bio: "",
         specialties: [],
         pricing: null,
@@ -123,7 +123,8 @@ export function setupAuth(app: Express) {
       });
       
       // Remove password from response
-      const { password: _, ...userResponse } = user;
+      const userResponse = { ...user };
+      delete userResponse.password;
 
       req.login(user, (err) => {
         if (err) return next(err);
@@ -143,7 +144,8 @@ export function setupAuth(app: Express) {
         if (err) return next(err);
         
         // Remove password from response
-        const { password: _, ...userResponse } = user;
+        const userResponse = { ...user };
+        delete userResponse.password;
         
         res.status(200).json(userResponse);
       });
@@ -161,11 +163,9 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
     // Remove password from response
-    if (req.user) {
-      const { password: _, ...userResponse } = req.user as SelectUser;
-      res.json(userResponse);
-    } else {
-      res.sendStatus(401);
-    }
+    const userResponse = { ...req.user } as SelectUser;
+    delete userResponse.password;
+    
+    res.json(userResponse);
   });
 }

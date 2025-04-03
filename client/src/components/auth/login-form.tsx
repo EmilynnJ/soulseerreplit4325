@@ -88,7 +88,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           <div className="pt-4">
             <CelestialButton
               type="submit"
-              variant="default"
+              variant="primary"
               className="w-full"
               disabled={loginMutation.isPending}
             >
