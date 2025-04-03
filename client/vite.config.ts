@@ -35,7 +35,7 @@ export default defineConfig(async () => {
       emptyOutDir: true,
     },
     server: {
-      host: '0.0.0.0',
+      host: true,
       port: 5000,
       proxy: {
         '/api': {
@@ -45,10 +45,9 @@ export default defineConfig(async () => {
         }
       },
       hmr: {
-        host: '0.0.0.0',
+        host: true,
         clientPort: 443
-      },
-      allowedHosts: 'all'
+      }
     }
   };
 });
