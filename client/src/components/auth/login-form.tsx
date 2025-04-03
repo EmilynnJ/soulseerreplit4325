@@ -28,7 +28,7 @@ interface LoginFormProps {
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
   const { loginMutation } = useAuth();
-  
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -45,7 +45,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   return (
     <GlowCard className="p-6">
       <h2 className="text-3xl font-alex text-secondary text-center mb-6">Welcome Back</h2>
-      
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -58,14 +58,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                   <Input
                     placeholder="Enter your username or email"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-light"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+
           <FormField
             control={form.control}
             name="password"
@@ -77,14 +77,14 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                     type="password"
                     placeholder="Enter your password"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-light"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+
           <div className="pt-4">
             <CelestialButton
               type="submit"

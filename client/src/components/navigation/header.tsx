@@ -140,6 +140,26 @@ export function Header() {
           }`}
         >
           <nav className="py-3 space-y-3 cosmic-bg backdrop-blur-md rounded-lg">
+            {!user && (
+              <>
+                <Link
+                  href="/auth"
+                  className="block py-2.5 px-4 text-accent hover:text-accent-dark transition duration-300 font-playfair"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/auth"
+                  className="block py-2.5 px-4 text-secondary hover:text-secondary-light transition duration-300 font-playfair"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Sign Up
+                </Link>
+                <div className="border-b border-accent/20 my-3"></div>
+              </>
+            )}
+            
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -154,6 +174,23 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
+            
+            {user && (
+              <>
+                <div className="border-t border-accent/20 mt-3"></div>
+                <button
+                  onClick={() => {
+                    logoutMutation.mutate();
+                    setMobileMenuOpen(false);
+                  }}
+                  disabled={logoutMutation.isPending}
+                  className="w-full text-left py-2.5 px-4 text-red-400 hover:text-red-300 hover:bg-red-900/20 transition duration-300 font-playfair"
+                >
+                  <LogOut className="inline-block h-4 w-4 mr-2" />
+                  <span>{logoutMutation.isPending ? "Logging out..." : "Logout"}</span>
+                </button>
+              </>
+            )}
             
             {user ? (
               <div className="border-t border-accent/20 mt-3 pt-3 px-4">
