@@ -2568,7 +2568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/readers", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
     try {
       console.log("Reader form submission received:", req.body);
-      const { username, password, email, fullName, bio, ratePerMinute, specialties, chatReading, phoneReading, videoReading } = req.body;
+      const { username, password, email, fullName, bio, ratePerMinute, specialties } = req.body;
 
       if (!username || !password || !email || !fullName) {
         return res.status(400).json({ message: "Required fields missing" });
