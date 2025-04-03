@@ -340,11 +340,23 @@ export default function ReaderProfilePage() {
                     <MessageSquare className="w-4 h-4 mb-1 text-accent" />
                     <span className="font-bold text-light">Chat</span>
                     <span className="text-light/80">
-                      {formatPrice(reader.pricingChat || reader.pricing || 0)}/min
+                      {formatPrice(reader.pricingChat || 0)}/min
                     </span>
                   </div>
                   <div className="flex flex-col items-center p-2 rounded-md bg-primary-dark/40 border border-accent/20">
                     <Phone className="w-4 h-4 mb-1 text-accent" />
+                    <span className="font-bold text-light">Voice</span>
+                    <span className="text-light/80">
+                      {formatPrice(reader.pricingVoice || 0)}/min
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center p-2 rounded-md bg-primary-dark/40 border border-accent/20">
+                    <Video className="w-4 h-4 mb-1 text-accent" />
+                    <span className="font-bold text-light">Video</span>
+                    <span className="text-light/80">
+                      {formatPrice(reader.pricingVideo || 0)}/min
+                    </span>
+                  </div>
                     <span className="font-bold text-light">Voice</span>
                     <span className="text-light/80">
                       {formatPrice(reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))}/min

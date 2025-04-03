@@ -29,32 +29,32 @@ export function ReaderDashboard() {
   const { toast } = useToast();
   const [isOnline, setIsOnline] = useState(user?.isOnline || false);
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
-  const [pricingChat, setPricingChat] = useState<number | undefined>(user?.pricingChat || user?.pricing || 0);
-  const [pricingVoice, setPricingVoice] = useState<number | undefined>(user?.pricingVoice || (user?.pricing ? user.pricing + 100 : 0));
-  const [pricingVideo, setPricingVideo] = useState<number | undefined>(user?.pricingVideo || (user?.pricing ? user.pricing + 200 : 0));
+  const [pricingChat, setPricingChat] = useState<number | undefined>(user?.pricingChat || 0);
+  const [pricingVoice, setPricingVoice] = useState<number | undefined>(user?.pricingVoice || 0);
+  const [pricingVideo, setPricingVideo] = useState<number | undefined>(user?.pricingVideo || 0);
   const [isUpdatingPricing, setIsUpdatingPricing] = useState(false);
-  
+
   const { data: readings, isLoading } = useQuery<Reading[]>({
     queryKey: ["/api/readings/reader"],
   });
-  
+
   useEffect(() => {
     if (user) {
       setIsOnline(user.isOnline || false);
-      setPricingChat(user.pricingChat || user.pricing || 0);
-      setPricingVoice(user.pricingVoice || (user.pricing ? user.pricing + 100 : 0));
-      setPricingVideo(user.pricingVideo || (user.pricing ? user.pricing + 200 : 0));
+      setPricingChat(user.pricingChat || 0);
+      setPricingVoice(user.pricingVoice || 0);
+      setPricingVideo(user.pricingVideo || 0);
     }
   }, [user]);
-  
+
   const handleOnlineToggle = async (checked: boolean) => {
     setIsOnline(checked);
-    
+
     try {
       await apiRequest("PATCH", "/api/readers/status", {
         isOnline: checked
       });
-      
+
       // Invalidate user data to refresh status
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
     } catch (err) {
@@ -62,27 +62,27 @@ export function ReaderDashboard() {
       setIsOnline(!checked); // Revert on failure
     }
   };
-  
+
   const handleUpdatePricing = async () => {
     if (isUpdatingPricing) return;
-    
+
     try {
       setIsUpdatingPricing(true);
-      
+
       const response = await apiRequest("PATCH", "/api/readers/pricing", {
         pricingChat,
         pricingVoice,
         pricingVideo
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || "Failed to update pricing");
       }
-      
+
       // Invalidate user data to refresh pricing
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      
+
       setIsPricingDialogOpen(false);
       toast({
         title: "Pricing Updated",
@@ -98,24 +98,24 @@ export function ReaderDashboard() {
       setIsUpdatingPricing(false);
     }
   };
-  
+
   // Group readings by status
   const waitingReadings = readings?.filter(
     (r) => r.status === "payment_completed"
   ) || [];
-  
+
   const activeReadings = readings?.filter(
     (r) => r.status === "in_progress"
   ) || [];
-  
+
   const upcomingReadings = readings?.filter(
     (r) => r.status === "scheduled"
   ) || [];
-  
+
   const completedReadings = readings?.filter(
     (r) => r.status === "completed"
   ) || [];
-  
+
   return (
     <DashboardLayout title="Reader Dashboard">
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
@@ -139,7 +139,7 @@ export function ReaderDashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="glow-card">
           <CardHeader className="p-3 md:p-6">
             <CardTitle className="text-lg md:text-xl">Reading Rates</CardTitle>
@@ -155,7 +155,7 @@ export function ReaderDashboard() {
                   <span className="text-sm">Chat:</span>
                 </div>
                 <span className="font-bold text-sm gold-gradient">
-                  {formatCurrency((user?.pricingChat || user?.pricing || 0) / 100)}/min
+                  {formatCurrency(pricingChat / 100)}/min
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -164,7 +164,7 @@ export function ReaderDashboard() {
                   <span className="text-sm">Voice:</span>
                 </div>
                 <span className="font-bold text-sm gold-gradient">
-                  {formatCurrency((user?.pricingVoice || (user?.pricing ? user.pricing + 100 : 0)) / 100)}/min
+                  {formatCurrency(pricingVoice / 100)}/min
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -173,11 +173,11 @@ export function ReaderDashboard() {
                   <span className="text-sm">Video:</span>
                 </div>
                 <span className="font-bold text-sm gold-gradient">
-                  {formatCurrency((user?.pricingVideo || (user?.pricing ? user.pricing + 200 : 0)) / 100)}/min
+                  {formatCurrency(pricingVideo / 100)}/min
                 </span>
               </div>
             </div>
-            
+
             <Dialog open={isPricingDialogOpen} onOpenChange={setIsPricingDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="w-full">Update Pricing</Button>
@@ -202,13 +202,13 @@ export function ReaderDashboard() {
                       value={pricingChat}
                       onChange={(e) => setPricingChat(parseInt(e.target.value) || 0)}
                       min={0}
-                      placeholder="100"
+                      placeholder="199 for $1.99"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Example: 100 = $1.00 per minute
+                      Example: 199 = $1.99 per minute
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 mr-2" />
@@ -220,13 +220,13 @@ export function ReaderDashboard() {
                       value={pricingVoice}
                       onChange={(e) => setPricingVoice(parseInt(e.target.value) || 0)}
                       min={0}
-                      placeholder="200"
+                      placeholder="299 for $2.99"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Example: 200 = $2.00 per minute
+                      Example: 299 = $2.99 per minute
                     </p>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center">
                       <Video className="h-5 w-5 mr-2" />
@@ -238,10 +238,10 @@ export function ReaderDashboard() {
                       value={pricingVideo}
                       onChange={(e) => setPricingVideo(parseInt(e.target.value) || 0)}
                       min={0}
-                      placeholder="300"
+                      placeholder="499 for $4.99"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Example: 300 = $3.00 per minute
+                      Example: 499 = $4.99 per minute
                     </p>
                   </div>
                 </div>
@@ -263,7 +263,7 @@ export function ReaderDashboard() {
             </Dialog>
           </CardContent>
         </Card>
-        
+
         <Card className="glow-card sm:col-span-2 md:col-span-1">
           <CardHeader className="p-3 md:p-6">
             <CardTitle className="text-lg md:text-xl">Statistics</CardTitle>
@@ -286,7 +286,7 @@ export function ReaderDashboard() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Active Readings */}
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-4">Active Sessions</h2>
@@ -308,7 +308,7 @@ export function ReaderDashboard() {
           </Card>
         )}
       </div>
-      
+
       {/* Waiting Readings */}
       {waitingReadings.length > 0 && (
         <div className="mb-8">
@@ -320,7 +320,7 @@ export function ReaderDashboard() {
           </div>
         </div>
       )}
-      
+
       {/* Upcoming Readings */}
       {upcomingReadings.length > 0 && (
         <div className="mb-8">
@@ -347,7 +347,7 @@ function ReadingCard({ reading, actionLabel }: ReadingCardProps) {
     : reading.createdAt 
       ? new Date(reading.createdAt) 
       : new Date();
-  
+
   return (
     <Card className="glow-card h-full">
       <CardHeader className="pb-2">
@@ -378,13 +378,13 @@ function ReadingCard({ reading, actionLabel }: ReadingCardProps) {
             <span className="text-muted-foreground text-sm">Duration:</span>
             <span className="text-sm text-right">{reading.duration || "-"} min</span>
           </div>
-          
+
           {actionLabel && (
             <Button className="w-full mt-4 bg-accent hover:bg-accent-dark text-white">
               {actionLabel}
             </Button>
           )}
-          
+
           {reading.status === "in_progress" && (
             <Button className="w-full mt-4 bg-purple-500 hover:bg-purple-700 text-white">
               Continue Session
@@ -405,6 +405,6 @@ function getStatusColor(status: string): string {
     completed: "bg-green-700",
     cancelled: "bg-red-500",
   };
-  
+
   return colors[status as keyof typeof colors] || "bg-gray-500";
 }
