@@ -1,0 +1,10 @@
+
+{
+  "name": "soulseer",
+  "version": "1.0.0",
+  "description": "SoulSeer - Spiritual Connection Platform",
+  "scripts": {
+    "build": "cd client && npm install && npm run build && cd ../server && npm install && npm run build",
+    "start": "NODE_ENV=production node server/dist/index.js"
+  }
+}
