@@ -15,7 +15,7 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Project"
+runButton = "Full Stack Dev"
 
 [[workflows.workflow]]
 name = "Project"
@@ -40,3 +40,12 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Full Stack Dev"
+author = 39434645
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd client && npm install && npm run dev & cd server && npm install && npm run dev"
