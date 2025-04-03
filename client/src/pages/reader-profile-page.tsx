@@ -37,26 +37,26 @@ export default function ReaderProfilePage() {
     notes: ""
   });
   const [isSchedulingReading, setIsSchedulingReading] = useState(false);
-  
+
   // Fetch reader data
   const { data: reader, isLoading, error } = useQuery<Omit<User, 'password'>>({
     queryKey: [`/api/readers/${id}`],
     enabled: !!id,
   });
-  
+
   // Fetch user's past readings with this reader if authenticated
   const { data: userReadings } = useQuery<Reading[]>({
     queryKey: ['/api/readings/client'],
     enabled: !!user,
   });
-  
+
   // Past readings with this reader
   const pastReadings = userReadings 
     ? userReadings.filter(reading => 
         reading.readerId === Number(id) && 
         reading.status === "completed")
     : [];
-  
+
   // Handle starting a reading
   const handleStartReading = async () => {
     if (!user) {
@@ -68,24 +68,24 @@ export default function ReaderProfilePage() {
       navigate("/auth");
       return;
     }
-    
+
     if (!reader) return;
-    
+
     setIsCreatingReading(true);
-    
+
     try {
       const response = await apiRequest("POST", "/api/readings/on-demand", {
         readerId: reader.id,
         type: readingType
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to create reading");
       }
-      
+
       const data = await response.json();
-      
+
       if (data.paymentLink) {
         // Redirect to payment if needed
         window.location.href = data.paymentLink;
@@ -93,12 +93,12 @@ export default function ReaderProfilePage() {
         // Redirect to reading session
         navigate(`/reading-session/${data.reading.id}`);
       }
-      
+
       toast({
         title: "Reading Created",
         description: "Your reading session is being set up.",
       });
-      
+
     } catch (error: any) {
       toast({
         title: "Error",
@@ -106,10 +106,10 @@ export default function ReaderProfilePage() {
         variant: "destructive",
       });
     }
-    
+
     setIsCreatingReading(false);
   };
-  
+
   // Handle scheduling a reading
   const handleScheduleReading = async () => {
     if (!user) {
@@ -121,11 +121,11 @@ export default function ReaderProfilePage() {
       navigate("/auth");
       return;
     }
-    
+
     if (!reader) return;
-    
+
     setIsSchedulingReading(true);
-    
+
     try {
       // Calculate total price based on duration and type
       const basePrice = (
@@ -135,9 +135,9 @@ export default function ReaderProfilePage() {
             ? (reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))
             : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
       );
-      
+
       const totalPrice = basePrice * scheduledReadingOptions.duration;
-      
+
       const response = await apiRequest("POST", "/api/readings/schedule", {
         readerId: reader.id,
         type: scheduledReadingOptions.type,
@@ -146,14 +146,14 @@ export default function ReaderProfilePage() {
         notes: scheduledReadingOptions.notes,
         price: totalPrice
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to schedule reading");
       }
-      
+
       const data = await response.json();
-      
+
       if (data.paymentLink) {
         // Redirect to payment
         window.location.href = data.paymentLink;
@@ -162,14 +162,14 @@ export default function ReaderProfilePage() {
           title: "Reading Scheduled",
           description: "Your reading has been successfully scheduled.",
         });
-        
+
         // Refresh readings data
         queryClient.invalidateQueries({ queryKey: ['/api/readings/client'] });
-        
+
         // Switch to dashboard tab
         navigate("/dashboard");
       }
-      
+
     } catch (error: any) {
       toast({
         title: "Error",
@@ -177,16 +177,16 @@ export default function ReaderProfilePage() {
         variant: "destructive",
       });
     }
-    
+
     setIsSchedulingReading(false);
   };
-  
+
   // Format price from cents to dollars
   const formatPrice = (cents: number | null | undefined) => {
     if (!cents) return "$0.00";
     return `$${(cents / 100).toFixed(2)}`;
   };
-  
+
   // Handle error state
   if (error) {
     return (
@@ -204,7 +204,7 @@ export default function ReaderProfilePage() {
       </div>
     );
   }
-  
+
   if (isLoading || !reader) {
     return (
       <div className="container mx-auto py-12 px-4 text-center">
@@ -213,7 +213,7 @@ export default function ReaderProfilePage() {
       </div>
     );
   }
-  
+
   return (
     <div className="container mx-auto py-12 px-4">
       {/* Back button */}
@@ -223,7 +223,7 @@ export default function ReaderProfilePage() {
           Back to Readers
         </CelestialButton>
       </div>
-      
+
       {/* Reader Profile Header */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
         {/* Profile Image */}
@@ -240,7 +240,7 @@ export default function ReaderProfilePage() {
                 <span className="text-7xl font-playfair text-accent/50">{reader.fullName.charAt(0)}</span>
               </div>
             )}
-            
+
             {reader.isOnline && (
               <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full flex items-center">
                 <span className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></span>
@@ -249,7 +249,7 @@ export default function ReaderProfilePage() {
             )}
           </div>
         </div>
-        
+
         {/* Profile Info */}
         <div className="md:col-span-2">
           <div className="mb-4 flex items-start justify-between">
@@ -261,19 +261,19 @@ export default function ReaderProfilePage() {
                     <CheckCircle className="w-3 h-3 mr-1" /> Verified
                   </Badge>
                 )}
-                
+
                 <Badge variant="outline" className="bg-primary-dark/50 text-light/80 border-accent/20">
                   <Star className="w-3 h-3 mr-1 text-yellow-500" /> 
                   {reader.rating || "New"} 
                   {reader.reviewCount ? ` (${reader.reviewCount} reviews)` : ""}
                 </Badge>
-                
+
                 <Badge variant="outline" className="bg-primary-dark/50 text-light/80 border-accent/20">
                   <Clock className="w-3 h-3 mr-1 text-accent/60" /> 
                   {formatPrice(reader.pricing)}/minute
                 </Badge>
               </div>
-              
+
               {reader.specialties && reader.specialties.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-4">
                   {reader.specialties.map(specialty => (
@@ -285,7 +285,7 @@ export default function ReaderProfilePage() {
               )}
             </div>
           </div>
-          
+
           {/* Reading Options */}
           <Card className="glow-card bg-primary-dark/40 border-accent/20 mb-6">
             <CardHeader className="pb-2">
@@ -307,7 +307,7 @@ export default function ReaderProfilePage() {
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Text Chat
                 </button>
-                
+
                 <button
                   onClick={() => setReadingType("voice")}
                   className={`px-4 py-2 rounded-md flex items-center ${
@@ -319,7 +319,7 @@ export default function ReaderProfilePage() {
                   <Phone className="w-4 h-4 mr-2" />
                   Voice Call
                 </button>
-                
+
                 <button
                   onClick={() => setReadingType("video")}
                   className={`px-4 py-2 rounded-md flex items-center ${
@@ -332,7 +332,7 @@ export default function ReaderProfilePage() {
                   Video Call
                 </button>
               </div>
-              
+
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-accent mb-2">Pricing:</h3>
                 <div className="grid grid-cols-3 gap-2 text-xs">
@@ -357,26 +357,14 @@ export default function ReaderProfilePage() {
                       {formatPrice(reader.pricingVideo || 0)}/min
                     </span>
                   </div>
-                    <span className="font-bold text-light">Voice</span>
-                    <span className="text-light/80">
-                      {formatPrice(reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))}/min
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-md bg-primary-dark/40 border border-accent/20">
-                    <Video className="w-4 h-4 mb-1 text-accent" />
-                    <span className="font-bold text-light">Video</span>
-                    <span className="text-light/80">
-                      {formatPrice(reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))}/min
-                    </span>
-                  </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center text-xs text-light/70 mb-6">
                 <Shield className="w-4 h-4 mr-2 text-accent/60" />
                 <p>Pay-per-minute: only pay for the time you use. Secure payment via Stripe.</p>
               </div>
-              
+
               <CelestialButton
                 onClick={handleStartReading}
                 className="w-full"
@@ -397,7 +385,7 @@ export default function ReaderProfilePage() {
           </Card>
         </div>
       </div>
-      
+
       {/* Tabs for About, Reviews, etc. */}
       <Tabs defaultValue="about" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 bg-primary-dark/50">
@@ -405,7 +393,7 @@ export default function ReaderProfilePage() {
           <TabsTrigger value="reviews" className="font-cinzel">Reviews</TabsTrigger>
           <TabsTrigger value="availability" className="font-cinzel">Availability</TabsTrigger>
         </TabsList>
-        
+
         {/* About Tab */}
         <TabsContent value="about" className="mt-6">
           <Card className="glow-card bg-primary-dark/40 border-accent/20">
@@ -416,7 +404,7 @@ export default function ReaderProfilePage() {
               <p className="text-light/90 whitespace-pre-line">
                 {reader.bio || "This reader has not provided a bio yet."}
               </p>
-              
+
               {reader.specialties && reader.specialties.length > 0 && (
                 <>
                   <h3 className="text-xl font-cinzel text-accent mt-6 mb-3">Specialties</h3>
@@ -427,7 +415,7 @@ export default function ReaderProfilePage() {
                   </ul>
                 </>
               )}
-              
+
               <div className="mt-6 p-4 border border-accent/20 rounded-lg bg-primary-dark/20">
                 <h3 className="text-xl font-cinzel text-accent mb-3 flex items-center">
                   <Award className="w-5 h-5 mr-2 text-yellow-500" />
@@ -475,7 +463,7 @@ export default function ReaderProfilePage() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Reviews Tab */}
         <TabsContent value="reviews" className="mt-6">
           <Card className="glow-card bg-primary-dark/40 border-accent/20">
@@ -496,7 +484,7 @@ export default function ReaderProfilePage() {
               </div>
             </CardContent>
           </Card>
-          
+
           {pastReadings.length > 0 && (
             <div className="mt-6">
               <h3 className="text-xl font-cinzel text-accent mb-4">Your Past Readings</h3>
@@ -537,7 +525,7 @@ export default function ReaderProfilePage() {
             </div>
           )}
         </TabsContent>
-        
+
         {/* Availability Tab */}
         <TabsContent value="availability" className="mt-6">
           <Card className="glow-card bg-primary-dark/40 border-accent/20">
@@ -561,7 +549,7 @@ export default function ReaderProfilePage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="mb-8">
                 <h3 className="text-lg font-cinzel text-light mb-3">Schedule a Reading</h3>
                 <div className="p-5 rounded-lg bg-primary-dark/20 border border-accent/30">
@@ -569,7 +557,7 @@ export default function ReaderProfilePage() {
                     Book a set time with {reader.fullName} for a fixed-price reading. 
                     Choose your preferred reading method, duration, and date.
                   </p>
-                  
+
                   <div className="space-y-4 mb-5">
                     <div>
                       <label className="text-light font-medium mb-1 block">Reading Type</label>
@@ -585,7 +573,7 @@ export default function ReaderProfilePage() {
                           <MessageSquare className="w-4 h-4 mr-2" />
                           Text Chat
                         </button>
-                        
+
                         <button
                           onClick={() => setScheduledReadingOptions(prev => ({ ...prev, type: "voice" }))}
                           className={`px-4 py-2 rounded-md flex items-center ${
@@ -597,7 +585,7 @@ export default function ReaderProfilePage() {
                           <Phone className="w-4 h-4 mr-2" />
                           Voice Call
                         </button>
-                        
+
                         <button
                           onClick={() => setScheduledReadingOptions(prev => ({ ...prev, type: "video" }))}
                           className={`px-4 py-2 rounded-md flex items-center ${
@@ -611,7 +599,7 @@ export default function ReaderProfilePage() {
                         </button>
                       </div>
                     </div>
-                    
+
                     <div>
                       <label className="text-light font-medium mb-1 block">Duration (minutes)</label>
                       <select 
@@ -629,7 +617,7 @@ export default function ReaderProfilePage() {
                         <option value="90">90 minutes</option>
                       </select>
                     </div>
-                    
+
                     <div>
                       <label className="text-light font-medium mb-1 block">Date and Time</label>
                       <input 
@@ -643,7 +631,7 @@ export default function ReaderProfilePage() {
                         className="w-full p-2 rounded-md bg-primary-dark/50 border border-accent/20 text-black"
                       />
                     </div>
-                    
+
                     <div>
                       <label className="text-light font-medium mb-1 block">Notes for the Reader (Optional)</label>
                       <textarea 
@@ -657,7 +645,7 @@ export default function ReaderProfilePage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="border-t border-accent/10 pt-4">
                     <h4 className="text-accent font-medium mb-2">Price Summary</h4>
                     <div className="flex justify-between mb-1 text-light/80 text-sm">
@@ -686,7 +674,7 @@ export default function ReaderProfilePage() {
                       )}</span>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4">
                     <CelestialButton
                       onClick={handleScheduleReading}
@@ -702,14 +690,14 @@ export default function ReaderProfilePage() {
                         "Schedule and Pay"
                       )}
                     </CelestialButton>
-                    
+
                     <p className="text-light/60 text-xs text-center mt-2">
                       You'll be charged the full amount once the reader confirms your appointment.
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <h3 className="text-lg font-cinzel text-light mb-3">Reading Options</h3>
                 <div className="space-y-4">
@@ -722,7 +710,7 @@ export default function ReaderProfilePage() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start p-4 rounded-lg bg-primary-dark/20 border border-accent/20">
                     <Phone className="w-5 h-5 text-accent mr-3 mt-0.5" />
                     <div>
@@ -732,7 +720,7 @@ export default function ReaderProfilePage() {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start p-4 rounded-lg bg-primary-dark/20 border border-accent/20">
                     <Video className="w-5 h-5 text-accent mr-3 mt-0.5" />
                     <div>
@@ -753,7 +741,7 @@ export default function ReaderProfilePage() {
               >
                 {isCreatingReading ? (
                   <>
-                    <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2"></div>
+                    <div className="animate-spin w-4 h-4 border-2border-current border-t-transparent rounded-full mr-2"></div>
                     Setting Up Reading...
                   </>
                 ) : !reader.isOnline ? (
