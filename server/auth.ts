@@ -95,6 +95,14 @@ export function setupAuth(app: Express) {
     try {
       const { username, email, password, fullName, role } = req.body;
       
+      // Force role to be client regardless of what was sent
+      // This ensures only clients can self-register
+      if (role !== "client") {
+        return res.status(403).json({ 
+          message: "Only client accounts can be registered. Please contact administration for reader accounts." 
+        });
+      }
+      
       // Check if username exists
       const existingUsername = await storage.getUserByUsername(username);
       if (existingUsername) {
@@ -107,13 +115,13 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already exists" });
       }
       
-      // Create user with hashed password
+      // Create user with hashed password (always as client)
       const user = await storage.createUser({
         username,
         email,
         password: await hashPassword(password),
         fullName,
-        role: role || "client",
+        role: "client", // Force role to client
         bio: "",
         specialties: [],
         pricing: null,

@@ -31,7 +31,8 @@ const registerSchema = z.object({
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
   fullName: z.string().min(2, "Full name is required"),
-  role: z.enum(["client", "reader"]),
+  // Role is always client for self-registration
+  role: z.literal("client"),
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -139,32 +140,22 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-light font-playfair">I am a</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800">
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="client" className="font-playfair text-gray-800">Client seeking guidance</SelectItem>
-                    <SelectItem value="reader" className="font-playfair text-gray-800">Psychic reader offering services</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* Hidden field for role which is always client */}
+          <input type="hidden" {...form.register("role")} value="client" />
+          
+          {/* Information about reader registration */}
+          <div className="rounded-md bg-purple-50 p-3 border border-purple-100">
+            <p className="text-sm text-purple-800 font-playfair">
+              <strong>Note:</strong> This registration is for clients only. 
+              If you are a psychic reader interested in offering services on SoulSeer, 
+              please contact our team for the application process.
+            </p>
+          </div>
 
           <div className="pt-4">
             <CelestialButton
               type="submit"
-              variant="primary"
+              variant="default"
               className="w-full"
               disabled={registerMutation.isPending}
             >
