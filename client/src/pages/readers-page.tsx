@@ -165,18 +165,17 @@ export default function ReadersPage() {
             <Link key={reader.id} href={`/readers/${reader.id}`}>
               <Card className={`glow-card overflow-hidden h-full bg-primary-dark/40 border-accent/20 hover:border-accent/40 transition-all cursor-pointer ${reader.isOnline ? 'ring-2 ring-green-500/50' : ''}`}>
                 <div className="relative">
-                  {reader.profileImage ? (
-                    <img 
-                      src={reader.profileImage} 
-                      alt={reader.fullName}
-                      className="w-full h-48 object-cover object-center object-top"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
-                      <span className="text-5xl font-playfair text-accent/50">{reader.fullName.charAt(0)}</span>
-                    </div>
-                  )}
+                  <img 
+                    src={reader.profileImage || '/images/default-profile.jpg'} 
+                    alt={reader.fullName}
+                    className="w-full h-48 object-cover object-center object-top"
+                    loading="lazy"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.onerror = null; // Prevent infinite loop
+                      target.src = '/images/default-profile.jpg';
+                    }}
+                  />
                   
                   {reader.isOnline && (
                     <div className="absolute top-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center">

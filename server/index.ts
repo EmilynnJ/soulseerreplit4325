@@ -14,8 +14,25 @@ app.use(express.urlencoded({ extended: false }));
 
 // Serve uploads directory directly in both development and production
 const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
-app.use('/uploads', express.static(uploadsPath));
-console.log(`Serving uploads from: ${uploadsPath}`);
+const imagesPath = path.join(process.cwd(), 'public', 'images');
+
+// Create custom middleware to handle missing files
+app.use('/uploads', (req, res, next) => {
+  const filePath = path.join(uploadsPath, req.path);
+  // Use fs to check if the file exists
+  const fs = require('fs');
+  
+  // If the requested file exists, serve it
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  
+  // If not, serve the default profile image
+  console.log(`File not found: ${filePath}, serving default image instead`);
+  return res.sendFile(path.join(imagesPath, 'default-profile.jpg'));
+});
+
+console.log(`Serving uploads from: ${uploadsPath} with fallback to default images`);
 
 // Add health check endpoint for Render
 app.get('/api/health', (req: Request, res: Response) => {
