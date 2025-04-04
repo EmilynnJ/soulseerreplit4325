@@ -31,6 +31,10 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET || "soul-seer-secret-key-change-in-production";
   
+  // Determine if we're in production based on the NODE_ENV
+  const isProduction = process.env.NODE_ENV === "production";
+  console.log(`Setting up auth in ${isProduction ? 'production' : 'development'} mode`);
+  
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
@@ -38,7 +42,7 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     cookie: {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Set to false to work on both HTTP and HTTPS
       sameSite: "lax"
     }
   };
