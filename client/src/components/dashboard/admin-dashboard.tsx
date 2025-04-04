@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState as useStateReact, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,15 +117,15 @@ export function AdminDashboardFallback() {
 // Main Admin Dashboard component
 export function AdminDashboard() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useStateReact("readings");
 
   // Fetch all readings
   const {
     data: readings,
     error: readingsError,
     isLoading: readingsLoading,
-  } = useQuery<ReadingWithNames[]>({
+  } = useQuery<Reading[]>({
     queryKey: ["/api/admin/readings"],
-    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch all readers
@@ -135,7 +135,6 @@ export function AdminDashboard() {
     isLoading: readersLoading,
   } = useQuery<User[]>({
     queryKey: ["/api/admin/readers"],
-    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Fetch all users
@@ -145,30 +144,36 @@ export function AdminDashboard() {
     isLoading: usersLoading,
   } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Calculate reader stats
-  const readersWithStats: ReaderWithStats[] = readers?.map(reader => {
-    const readerReadings = readings?.filter(reading => reading.readerId === reader.id) || [];
-    const completedReadings = readerReadings.filter(reading => reading.status === "completed");
-    const totalEarnings = completedReadings.reduce((sum, reading) => sum + (reading.totalPrice || 0), 0);
+  const readersWithStats = useMemo(() => {
+    if (!readers || !readings) return [];
 
-    return {
-      ...reader,
-      sessionCount: readerReadings.length,
-      totalEarnings,
-    };
-  }) || [];
+    return readers.map(reader => {
+      const readerReadings = readings.filter(reading => reading.readerId === reader.id) || [];
+      const completedReadings = readerReadings.filter(reading => reading.status === "completed");
+      const totalEarnings = completedReadings.reduce((sum, reading) => sum + (reading.totalPrice || 0), 0);
+
+      return {
+        ...reader,
+        sessionCount: readerReadings.length,
+        totalEarnings,
+      };
+    });
+  }, [readers, readings]);
 
   // Calculate platform stats
-  const totalUsers = users?.length || 0;
-  const totalReaders = readers?.length || 0;
-  const totalClients = users?.filter(user => user.role === "client")?.length || 0;
-  const totalReadings = readings?.length || 0;
-  const completedReadings = readings?.filter(reading => reading.status === "completed")?.length || 0;
-  const totalRevenue = readings?.filter(reading => reading.status === "completed")
-    .reduce((sum, reading) => sum + (reading.totalPrice || 0), 0) || 0;
+  const platformStats = useMemo(() => ({
+    totalUsers: users?.length || 0,
+    totalReaders: readers?.length || 0,
+    totalClients: users?.filter(user => user.role === "client")?.length || 0,
+    totalReadings: readings?.length || 0,
+    completedReadings: readings?.filter(reading => reading.status === "completed")?.length || 0,
+    totalRevenue: readings?.filter(reading => reading.status === "completed")
+      .reduce((sum, reading) => sum + (reading.totalPrice || 0), 0) || 0
+  }), [users, readers, readings]);
+
 
   if (readingsLoading || readersLoading || usersLoading) {
     return (
@@ -178,7 +183,6 @@ export function AdminDashboard() {
     );
   }
 
-  // Enhanced error handling with more detailed fallback
   if (readingsError || readersError || usersError) {
     console.error('Admin dashboard errors:', { 
       readingsError, 
@@ -186,14 +190,9 @@ export function AdminDashboard() {
       usersError 
     });
 
-    // Force invalidate queries and retry loading
-    queryClient.invalidateQueries({ queryKey: ['/api/admin/readings'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/admin/readers'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
-
     return (
       <div className="text-center p-6">
-        <h3 className="text-2xl font-bold text-accent mb-4">Loading Admin Dashboard</h3>
+        <h3 className="text-2xl font-bold text-accent mb-4">Dashboard Error</h3>
         <div className="flex items-center justify-center mb-4">
           <Loader2 className="h-8 w-8 animate-spin text-accent" />
         </div>
@@ -211,13 +210,6 @@ export function AdminDashboard() {
     );
   }
 
-  const [selectedReader, setSelectedReader] = useState<User | null>(null);
-  const [isEditingReader, setIsEditingReader] = useState(false);
-
-
-  // Add state for controlling tab selection
-  const [activeTab, setActiveTab] = useState("readings");
-  
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
@@ -228,10 +220,10 @@ export function AdminDashboard() {
           <CardContent className="p-3 md:p-6">
             <div className="flex items-center space-x-2">
               <UserIcon className="h-4 w-4 md:h-5 md:w-5 text-indigo-500" />
-              <span className="text-xl md:text-2xl font-bold text-indigo-800">{totalUsers}</span>
+              <span className="text-xl md:text-2xl font-bold text-indigo-800">{platformStats.totalUsers}</span>
             </div>
             <p className="text-xs md:text-sm text-indigo-600 mt-1">
-              {totalClients} Clients, {totalReaders} Readers
+              {platformStats.totalClients} Clients, {platformStats.totalReaders} Readers
             </p>
           </CardContent>
         </Card>
@@ -243,10 +235,10 @@ export function AdminDashboard() {
           <CardContent className="p-3 md:p-6">
             <div className="flex items-center space-x-2">
               <BookOpen className="h-4 w-4 md:h-5 md:w-5 text-cyan-500" />
-              <span className="text-xl md:text-2xl font-bold text-cyan-800">{totalReadings}</span>
+              <span className="text-xl md:text-2xl font-bold text-cyan-800">{platformStats.totalReadings}</span>
             </div>
             <p className="text-xs md:text-sm text-cyan-600 mt-1">
-              {completedReadings} Completed
+              {platformStats.completedReadings} Completed
             </p>
           </CardContent>
         </Card>
@@ -257,10 +249,10 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent className="p-3 md:p-6">
             <div className="text-xl md:text-2xl font-bold text-emerald-800">
-              {formatCurrency(totalRevenue)}
+              {formatCurrency(platformStats.totalRevenue)}
             </div>
             <p className="text-xs md:text-sm text-emerald-600 mt-1">
-              From {completedReadings} completed readings
+              From {platformStats.completedReadings} completed readings
             </p>
           </CardContent>
         </Card>
@@ -277,7 +269,7 @@ export function AdminDashboard() {
               </span>
             </div>
             <p className="text-xs md:text-sm text-amber-600 mt-1">
-              Of {totalReaders} total readers
+              Of {platformStats.totalReaders} total readers
             </p>
           </CardContent>
         </Card>
@@ -285,11 +277,11 @@ export function AdminDashboard() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="readings" onClick={() => setActiveTab("readings")}>All Readings</TabsTrigger>
-          <TabsTrigger value="readers" onClick={() => setActiveTab("readers")}>Reader Performance</TabsTrigger>
-          <TabsTrigger value="add-readers" onClick={() => setActiveTab("add-readers")}>Add Readers</TabsTrigger>
-          <TabsTrigger value="products" onClick={() => setActiveTab("products")}>Products</TabsTrigger>
-          <TabsTrigger value="gifts" onClick={() => setActiveTab("gifts")}>Gift Management</TabsTrigger>
+          <TabsTrigger value="readings">All Readings</TabsTrigger>
+          <TabsTrigger value="readers">Reader Performance</TabsTrigger>
+          <TabsTrigger value="add-readers">Add Readers</TabsTrigger>
+          <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="gifts">Gift Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="readings" className="space-y-4">
@@ -377,16 +369,7 @@ export function AdminDashboard() {
                       readersWithStats.map((reader) => (
                         <TableRow key={reader.id}>
                           <TableCell className="font-medium">
-                            <Button
-                              variant="ghost"
-                              className="hover:text-accent"
-                              onClick={() => {
-                                setSelectedReader(reader);
-                                setIsEditingReader(true);
-                              }}
-                            >
-                              {reader.username}
-                            </Button>
+                            {reader.username}
                           </TableCell>
                           <TableCell>
                             <Badge className={reader.isOnline ? "bg-green-500" : "bg-gray-500"}>
@@ -444,7 +427,6 @@ export function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 sm:p-6">
-              {/* Products Data and Management */}
               <ProductsManagement />
             </CardContent>
           </Card>
@@ -471,11 +453,11 @@ export function AdminDashboard() {
 // Form for adding new readers
 function AddReaderForm() {
   const { toast } = useToast();
-  const [profileImage, setProfileImage] = useState<File | null>(null);
-  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
-  const [specialties, setSpecialties] = useState<string[]>([]);
-  const [specialty, setSpecialty] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [profileImage, setProfileImage] = useStateReact<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useStateReact<string | null>(null);
+  const [specialties, setSpecialties] = useStateReact<string[]>([]);
+  const [specialty, setSpecialty] = useStateReact<string>("");
+  const [isLoading, setIsLoading] = useStateReact(false);
 
   // Common reader specialties
   const commonSpecialties = [
