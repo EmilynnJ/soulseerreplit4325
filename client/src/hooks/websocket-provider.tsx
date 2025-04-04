@@ -53,7 +53,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       const wsUrl = env.WEBSOCKET_URL || `${protocol}//${host}/ws`;
       
       // Ensure secure WebSocket for soulseer.app and onrender.com domains
-      const adjustedWsUrl = (host.includes('soulseer.app') || host.includes('onrender.com')) 
+      const adjustedWsUrl = (host.includes('soulseer.app') || host.includes('onrender.com') || host.includes('render.com')) 
         ? `wss://${host}/ws`
         : wsUrl;
       

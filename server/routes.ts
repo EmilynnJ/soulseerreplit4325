@@ -1,6 +1,5 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage.js";
 import { setupAuth } from "./auth.js";
 import readingRouter from "./routes/readings.js";
@@ -122,7 +121,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Setup WebSocket server for live readings and real-time communication
-  setupWebSocket(httpServer);
+  const wsManager = setupWebSocket(httpServer);
+  (global as any).wsManager = wsManager;
   
   // MUX Webhook endpoint
   app.post('/api/webhooks/mux', express.raw({type: 'application/json'}), async (req, res) => {

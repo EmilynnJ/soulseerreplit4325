@@ -8,8 +8,6 @@ const session = require('express-session');
 const MemoryStore = require('memorystore')(session);
 const { Pool } = require('pg');
 const { createServer } = require('http');
-const { WebSocketServer } = require('ws');
-const WebSocket = require('ws');
 
 // Create Express app
 const app = express();
@@ -21,7 +19,7 @@ const pool = new Pool({
 });
 
 // Basic logging function
-function log(message, tag = 'server') {
+function log(message: string, tag = 'server'): void {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [${tag}] ${message}`);
 }
@@ -45,21 +43,18 @@ app.use(session({
 
 // Import Stripe for payments
 const Stripe = require('stripe');
-let stripe = null;
+let stripe: any = null;
 
 // Initialize Stripe with the API key if available
 if (process.env.STRIPE_SECRET_KEY) {
   try {
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    log(`Initializing Stripe with key length: ${stripeKey.length}`, 'stripe');
-    stripe = new Stripe(stripeKey, {
-      apiVersion: '2024-03-19',
-      typescript: true
-    });
-    log('Stripe initialized successfully', 'stripe');
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    log('Stripe initialized successfully');
   } catch (error) {
-    log(`Error initializing Stripe: ${error.message}`, 'stripe');
+    log(`Error initializing Stripe: ${error instanceof Error ? error.message : String(error)}`);
   }
+} else {
+  log('No Stripe API key found - payment features will be disabled');
 }
 
 // Serve static files if available
@@ -84,132 +79,48 @@ app.get('/api/health', (req, res) => {
 // Create HTTP server
 const server = createServer(app);
 
-// Setup WebSocket server
-const wss = new WebSocketServer({ server, path: '/ws' });
-
-// Track connected clients
-const connectedClients = new Map();
-let clientIdCounter = 1;
-
-// Handle WebSocket connections
-wss.on('connection', (ws, req) => {
-  const clientId = clientIdCounter++;
-  log(`WebSocket client connected [id=${clientId}]`);
-  
-  // Store client connection
-  connectedClients.set(clientId, { socket: ws });
-  
-  // Send welcome message
-  ws.send(JSON.stringify({ 
-    type: 'connected', 
-    message: 'Connected to SoulSeer WebSocket Server',
-    clientId,
-    serverTime: Date.now()
-  }));
-  
-  // Handle incoming messages
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      log(`WebSocket message received from client ${clientId}: ${data.type}`);
-      
-      // Handle ping messages
-      if (data.type === 'ping') {
-        ws.send(JSON.stringify({ 
-          type: 'pong', 
-          timestamp: data.timestamp,
-          serverTime: Date.now()
-        }));
-      }
-    } catch (error) {
-      log(`Error processing WebSocket message: ${error.message}`);
-    }
-  });
-  
-  // Handle disconnections
-  ws.on('close', () => {
-    log(`WebSocket client ${clientId} disconnected`);
-    connectedClients.delete(clientId);
-  });
-  
-  ws.on('error', (error) => {
-    log(`WebSocket error for client ${clientId}: ${error.message}`);
-    connectedClients.delete(clientId);
-  });
-});
-
-// Broadcast to all WebSocket clients
-function broadcastToAll(message) {
-  const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-  let sentCount = 0;
-  
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(messageStr);
-        sentCount++;
-      } catch (error) {
-        log(`Error sending message to client: ${error.message}`);
-      }
-    }
-  });
-  
-  log(`Broadcast message sent to ${sentCount} clients`);
-  return sentCount;
-}
-
 // Test database connection
 async function testDatabase() {
   try {
-    const result = await pool.query('SELECT NOW()');
-    log(`Database connection successful: ${result.rows[0].now}`, 'db');
-    return true;
+    const client = await pool.connect();
+    await client.query('SELECT NOW()');
+    client.release();
+    log('Database connection successful');
   } catch (error) {
-    log(`Database connection error: ${error.message}`, 'db');
-    return false;
+    log(`Database connection error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
   }
 }
 
 // Initialize Mux
 const Mux = require('@mux/mux-node');
-let muxClient = null;
+let muxClient: any = null;
 
 // Test Mux API connection
 async function testMux() {
+  if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
+    log('Mux credentials not found - video features will be disabled');
+    return;
+  }
+
   try {
-    // Get credentials from environment
-    const tokenId = process.env.MUX_TOKEN_ID;
-    const tokenSecret = process.env.MUX_TOKEN_SECRET;
+    const { Video } = new Mux({
+      tokenId: process.env.MUX_TOKEN_ID,
+      tokenSecret: process.env.MUX_TOKEN_SECRET
+    });
     
-    if (!tokenId || !tokenSecret) {
-      log(`Missing MUX credentials`, 'mux');
-      return false;
-    }
-    
-    log(`MUX_TOKEN_ID found (length: ${tokenId.length})`, 'mux');
-    log(`MUX_TOKEN_SECRET found (length: ${tokenSecret.length})`, 'mux');
-    
-    // Initialize Mux client
-    muxClient = new Mux({ tokenId, tokenSecret });
-    log('Mux client initialized', 'mux');
-    
-    // Try to list livestreams
-    const liveStreams = await muxClient.video.liveStreams.list();
-    log(`Successfully retrieved ${liveStreams.data.length} live streams`, 'mux');
-    
-    return true;
+    muxClient = Video;
+    log('Mux API connection successful');
   } catch (error) {
-    log(`Error testing Mux: ${error.message}`, 'mux');
-    return false;
+    log(`Mux API connection error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
 // Catch-all route for SPA
-app.get('*', (req, res) => {
+app.get('*', (req: any, res: any) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: "API endpoint not found" });
   }
-  
   const indexPath = path.join(publicDir, 'index.html');
   if (fs.existsSync(indexPath)) {
     return res.sendFile(indexPath);
