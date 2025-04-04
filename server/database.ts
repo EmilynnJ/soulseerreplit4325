@@ -1,5 +1,10 @@
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { log } from './vite';
+import { Pool, types } from 'pg';
+
+// Disable parsing of timestamps to JS Date objects to avoid version mismatches
+types.setTypeParser(1114, str => str); // timestamp without timezone
+types.setTypeParser(1184, str => str); // timestamp with timezone
 
 // Configure neon with retries and timeout
 neonConfig.fetchConnectionCache = true;
@@ -17,9 +22,9 @@ export const query = async (text: string, params?: any[]) => {
     const start = Date.now();
     const result = await sql(text, params);
     const duration = Date.now() - start;
-    
+
     log(`Executed query: ${text} - Duration: ${duration}ms`, 'database');
-    
+
     return { rows: result, rowCount: result.length };
   } catch (error: any) {
     console.error('Database query error:', error);
