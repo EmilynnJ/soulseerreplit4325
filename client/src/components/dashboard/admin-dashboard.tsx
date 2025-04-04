@@ -399,6 +399,23 @@ export function AdminDashboard() {
                                   specialties: reader.specialties || [],
                                   profileImage: reader.profileImage || null
                                 };
+                                setEditingReader({...reader, ...profileData});
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const profileData = {
+                                  fullName: reader.fullName,
+                                  bio: reader.bio || '',
+                                  specialties: reader.specialties || [],
+                                  profileImage: reader.profileImage || null
+                                };
                                 // Open edit dialog
                                 setEditingReader({...reader, ...profileData});
                               }}
