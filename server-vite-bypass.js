@@ -7,7 +7,7 @@ const { createServer } = require('http');
 
 // Create Express app
 const app = express();
-const port = process.env.PORT || 5000;
+const port = 5000;
 
 // Basic middleware
 app.use(cors());
