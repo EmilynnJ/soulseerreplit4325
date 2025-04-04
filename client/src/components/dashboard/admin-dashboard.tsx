@@ -890,8 +890,9 @@ function AddReaderForm() {
                   <div>
                     <Button 
                       type="button" 
-                      variant="outline                      size="sm"
-                      onClick={() => fileInputRef`.current?.click()}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
                     >
                       Upload Image
                     </Button>
