@@ -124,6 +124,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server for live readings and real-time communication
   const wsManager = setupWebSocket(httpServer);
   (global as any).wsManager = wsManager;
+
+  // Handle WebSocket client connections through the WebSocket manager
+  wsManager.wss.on('connection', (ws) => {
+    const clientId = Math.random().toString(36).substring(7);
+    console.log(`New WebSocket client connected with ID ${clientId}`);
+    
+    // Handle client disconnection
+    ws.on('close', () => {
+      console.log(`WebSocket client ${clientId} disconnected`);
+    });
+  });
   
   // MUX Webhook endpoint
   app.post('/api/webhooks/mux', express.raw({type: 'application/json'}), async (req, res) => {
