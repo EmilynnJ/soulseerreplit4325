@@ -4,13 +4,13 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { z } from "zod";
-import { UserUpdate, Reading } from "@shared/schema";
+import { UserUpdate } from "@shared/schema";
 import { db } from "./db";
 import { desc, asc } from "drizzle-orm";
 import { gifts } from "@shared/schema";
 import stripeClient from "./services/stripe-client";
-// TRTC has been completely removed
-import * as muxClient from "./services/mux-client";
+// LiveKit will be implemented later
+import * as livekitClient from "./services/livekit-client";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
@@ -39,65 +39,7 @@ async function scrypt_hash(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
-// Helper function to process payment for a completed reading
-async function processCompletedReadingPayment(
-  readingId: number,
-  totalPrice: number,
-  duration: number
-): Promise<void> {
-  try {
-    // Get the reading
-    const reading = await storage.getReading(readingId);
-    if (!reading) {
-      throw new Error(`Reading not found: ${readingId}`);
-    }
-    
-    // Get the client user
-    const client = await storage.getUser(reading.clientId);
-    if (!client) {
-      throw new Error(`Client not found: ${reading.clientId}`);
-    }
-    
-    // Check if client has sufficient balance
-    const currentBalance = client.accountBalance || 0;
-    if (currentBalance < totalPrice) {
-      throw new Error(`Insufficient balance for client ${client.id}: has ${currentBalance}, needs ${totalPrice}`);
-    }
-    
-    // Deduct from client's balance
-    await storage.updateUser(client.id, {
-      accountBalance: currentBalance - totalPrice
-    });
-    
-    // Add to reader's balance (readers get 70% of the payment, platform takes 30%)
-    const reader = await storage.getUser(reading.readerId);
-    if (reader && reader.role === "reader") {
-      const readerShare = Math.floor(totalPrice * 0.7); // 70% to reader
-      const platformShare = totalPrice - readerShare; // 30% to platform
-      
-      console.log(`Processing reading payment: Total $${totalPrice/100}, Reader $${readerShare/100} (70%), Platform $${platformShare/100} (30%)`);
-      
-      await storage.updateUser(reader.id, {
-        accountBalance: (reader.accountBalance || 0) + readerShare
-      });
-    }
-    
-    // Update reading with payment details
-    await storage.updateReading(readingId, {
-      totalPrice,
-      duration,
-      status: "completed",
-      completedAt: new Date(),
-      paymentStatus: "paid",
-      paymentId: `internal-${Date.now()}`
-    });
-    
-    console.log(`Completed payment for reading ${readingId}: ${totalPrice} cents for ${duration} minutes`);
-  } catch (error) {
-    console.error('Error processing reading payment:', error);
-    throw error;
-  }
-}
+// Removed helper function for processing reading payments
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication routes
@@ -109,88 +51,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server for live readings and real-time communication
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
   
-  // MUX Webhook endpoint
-  app.post('/api/webhooks/mux', express.raw({type: 'application/json'}), async (req, res) => {
-    try {
-      // Get the MUX signature from headers
-      const signature = req.headers['mux-signature'] as string;
-      
-      if (!signature) {
-        console.warn('Missing MUX signature header');
-        return res.status(400).json({ message: 'Missing signature header' });
-      }
-      
-      // The raw body is available in req.body since we used express.raw middleware
-      // Ensure we're handling the Buffer correctly
-      let rawBody;
-      if (Buffer.isBuffer(req.body)) {
-        rawBody = req.body.toString('utf8');
-      } else if (typeof req.body === 'string') {
-        rawBody = req.body;
-      } else {
-        rawBody = JSON.stringify(req.body);
-      }
-      
-      // Log the raw request for debugging
-      console.log(`MUX webhook raw request body: ${rawBody}`);
-      
-      // Handle the webhook - note: handleMuxWebhook now returns structured responses
-      // instead of throwing errors for better diagnostics
-      const result = await muxClient.handleMuxWebhook(rawBody, signature);
-      
-      // If webhook processing was unsuccessful, return an appropriate status code
-      if (!result.success) {
-        console.warn('MUX webhook processing failed:', result);
-        return res.status(422).json(result);
-      }
-      
-      // Return the success result
-      res.status(200).json(result);
-    } catch (error) {
-      console.error('Error handling MUX webhook:', error);
-      res.status(500).json({ 
-        message: 'Error processing webhook',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        time: new Date().toISOString()
-      });
-    }
+  // LiveKit webhook endpoint (placeholder for future implementation)
+  app.post('/api/webhooks/livekit', express.json(), async (req, res) => {
+    console.log('LiveKit webhook endpoint - not yet implemented');
+    res.status(501).json({ message: 'LiveKit integration coming soon' });
   });
-  
-  // Test endpoint for simulating MUX webhook events (DEVELOPMENT ONLY)
-  if (process.env.NODE_ENV !== 'production') {
-    app.post('/api/test/mux-webhook', express.json(), async (req, res) => {
-      try {
-        console.log('Received test MUX webhook event:', req.body);
-        
-        // Extract event data
-        const { type, data } = req.body;
-        
-        if (!type || !data) {
-          return res.status(400).json({ message: 'Missing event type or data' });
-        }
-        
-        // Directly call the appropriate handler based on the event type
-        switch (type) {
-          case 'video.live_stream.active':
-            await muxClient.handleLivestreamActive(data);
-            break;
-          case 'video.live_stream.idle':
-            await muxClient.handleLivestreamIdle(data);
-            break;
-          case 'video.asset.ready':
-            await muxClient.handleAssetReady(data);
-            break;
-          default:
-            return res.status(400).json({ message: `Unsupported event type: ${type}` });
-        }
-        
-        res.status(200).json({ success: true, message: `Successfully processed test ${type} event` });
-      } catch (error) {
-        console.error('Error handling test MUX webhook:', error);
-        res.status(500).json({ message: 'Error processing test webhook' });
-      }
-    });
-  }
   
   // Track all connected WebSocket clients
   const connectedClients = new Map();
@@ -543,230 +408,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Readings
+  // Reading system has been removed
+  // Placeholder endpoints to maintain API compatibility during transition
+
   app.post("/api/readings", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const readingData = req.body;
-      
-      const reading = await storage.createReading({
-        readerId: readingData.readerId,
-        clientId: req.user.id,
-        status: "scheduled",
-        type: readingData.type,
-        readingMode: "scheduled",
-        scheduledFor: readingData.scheduledFor ? new Date(readingData.scheduledFor) : null,
-        duration: readingData.duration || null,
-        pricePerMinute: readingData.pricePerMinute || 100,
-        notes: readingData.notes || null
-      });
-      
-      res.status(201).json(reading);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create reading" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
   app.get("/api/readings/client", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const readings = await storage.getReadingsByClient(req.user.id);
-      res.json(readings);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch readings" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
   app.get("/api/readings/reader", async (req, res) => {
-    if (!req.isAuthenticated() || req.user.role !== "reader") {
-      return res.status(401).json({ message: "Not authenticated as reader" });
-    }
-    
-    try {
-      const readings = await storage.getReadingsByReader(req.user.id);
-      res.json(readings);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch readings" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
   app.get("/api/readings/:id", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid reading ID" });
-      }
-      
-      const reading = await storage.getReading(id);
-      if (!reading) {
-        return res.status(404).json({ message: "Reading not found" });
-      }
-      
-      // Check if user is authorized (client or reader of this reading)
-      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId && req.user.role !== "admin") {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      res.json(reading);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch reading" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
   app.patch("/api/readings/:id/status", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid reading ID" });
-      }
-      
-      const reading = await storage.getReading(id);
-      if (!reading) {
-        return res.status(404).json({ message: "Reading not found" });
-      }
-      
-      // Check if user is authorized (client or reader of this reading)
-      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const { status } = req.body;
-      
-      // Update reading status
-      const updatedReading = await storage.updateReading(id, { status });
-      
-      res.json(updatedReading);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update reading status" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
-  // Send a chat message in a reading session
+  // Additional reading system endpoints - placeholders
   app.post("/api/readings/:id/message", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid reading ID" });
-      }
-      
-      const reading = await storage.getReading(id);
-      if (!reading) {
-        return res.status(404).json({ message: "Reading not found" });
-      }
-      
-      // Check if user is authorized (client or reader of this reading)
-      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const { message } = req.body;
-      
-      if (!message) {
-        return res.status(400).json({ message: "Message is required" });
-      }
-      
-      // Broadcast the message to both participants
-      (global as any).websocket.broadcastToAll({
-        type: 'chat_message',
-        readingId: reading.id,
-        senderId: req.user.id,
-        senderName: req.user.fullName || req.user.username,
-        message,
-        timestamp: Date.now()
-      });
-      
-      res.status(200).json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to send message" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
-  // End a reading session
   app.post("/api/readings/:id/end", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid reading ID" });
-      }
-      
-      const reading = await storage.getReading(id);
-      if (!reading) {
-        return res.status(404).json({ message: "Reading not found" });
-      }
-      
-      // Check if user is authorized (client or reader of this reading)
-      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const { duration } = req.body;
-      
-      if (!duration || isNaN(duration)) {
-        return res.status(400).json({ message: "Valid duration is required" });
-      }
-      
-      // Calculate final cost based on duration and price per minute
-      const durationInMinutes = Math.ceil(duration / 60); // Convert seconds to minutes, round up
-      const totalCost = reading.pricePerMinute * durationInMinutes;
-      
-      // Update reading with duration, status, and end time
-      const updatedReading = await storage.updateReading(id, {
-        status: "completed",
-        duration,
-        totalPrice: totalCost, // Using totalPrice instead of totalCost to match schema
-        endedAt: new Date()
-      });
-      
-      // Process the payment if this is an on-demand reading
-      if (reading.readingMode === 'on_demand') {
-        try {
-          await processCompletedReadingPayment(
-            reading.id,
-            totalCost,
-            durationInMinutes
-          );
-        } catch (paymentError) {
-          console.error('Error processing payment:', paymentError);
-          // Continue anyway as the reading is completed
-        }
-      }
-      
-      // Notify both client and reader about the end of the session
-      (global as any).websocket.broadcastToAll({
-        type: 'reading_ended',
-        readingId: reading.id,
-        duration,
-        totalCost,
-        timestamp: Date.now()
-      });
-      
-      res.json(updatedReading);
-    } catch (error) {
-      console.error('Error ending reading:', error);
-      res.status(500).json({ message: "Failed to end reading session" });
-    }
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
   // Products
@@ -1101,8 +772,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const livestreamData = req.body;
       
-      // Create the livestream with MUX integration
-      const livestream = await muxClient.createLivestream(
+      // Create the livestream with LiveKit integration (placeholder)
+      const livestream = await livekitClient.createLivestream(
         req.user,
         livestreamData.title,
         livestreamData.description
@@ -1115,11 +786,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category: livestreamData.category || "General"
       });
       
-      // Return the livestream with streamUrl for broadcasting
-      res.status(201).json({
-        ...livestream,
-        streamUrl: `rtmps://global-live.mux.com:443/app/${livestream.streamKey}`
-      });
+      // Return the livestream 
+      res.status(201).json(livestream);
     } catch (error) {
       console.error("Failed to create livestream:", error);
       res.status(500).json({ message: "Failed to create livestream" });
@@ -1152,8 +820,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updatedLivestream;
       
       if (status === "live") {
-        // Start the livestream with MUX
-        updatedLivestream = await muxClient.startLivestream(id);
+        // Start the livestream with LiveKit
+        updatedLivestream = await livekitClient.startLivestream(id);
         
         // Broadcast to all connected clients that a new livestream is starting
         (global as any).websocket?.broadcastToAll?.({
@@ -1168,8 +836,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: Date.now()
         });
       } else if (status === "ended") {
-        // End the livestream with MUX
-        updatedLivestream = await muxClient.endLivestream(id);
+        // End the livestream with LiveKit
+        updatedLivestream = await livekitClient.endLivestream(id);
         
         // Broadcast to all connected clients that the livestream has ended
         (global as any).websocket?.broadcastToAll?.({
@@ -2660,55 +2328,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // MUX Livestream API for readings
+  // Reading livestream API placeholder
   app.post("/api/readings/:id/livestream", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      
-      const readingId = parseInt(req.params.id);
-      if (isNaN(readingId)) {
-        return res.status(400).json({ message: "Invalid reading ID" });
-      }
-      
-      const reading = await storage.getReading(readingId);
-      if (!reading) {
-        return res.status(404).json({ message: "Reading not found" });
-      }
-      
-      // Only the reader or client can create a livestream for this reading
-      if (reading.readerId !== req.user.id && reading.clientId !== req.user.id) {
-        return res.status(403).json({ message: "Forbidden" });
-      }
-      
-      const { title, description } = req.body;
-      if (!title || !description) {
-        return res.status(400).json({ message: "Title and description are required" });
-      }
-      
-      // Use the MUX client to create a livestream for this reading
-      // Pass the reader user for the livestream creation
-      const readerUser = await storage.getUser(reading.readerId);
-      if (!readerUser) {
-        return res.status(404).json({ message: "Reader not found" });
-      }
-      
-      const livestream = await muxClient.createLivestream(readerUser, title, description);
-      
-      // Update the reading with the livestream ID
-      await storage.updateReading(readingId, {
-        muxLivestreamId: livestream.id
-      });
-      
-      res.status(200).json(livestream);
-    } catch (error) {
-      console.error("Failed to create livestream for reading:", error);
-      res.status(500).json({ message: "Failed to create livestream" });
-    }
+    // Reading system has been removed - return 501 Not Implemented
+    res.status(501).json({ message: "Reading system has been removed" });
   });
   
-  // API endpoint to start a MUX livestream
+  // API endpoint to start a LiveKit livestream
   app.post("/api/livestreams/:id/start", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -2730,7 +2356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      const updatedLivestream = await muxClient.startLivestream(livestreamId);
+      const updatedLivestream = await livekitClient.startLivestream(livestreamId);
       
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -2739,7 +2365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // API endpoint to end a MUX livestream
+  // API endpoint to end a LiveKit livestream
   app.post("/api/livestreams/:id/end", async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
@@ -2761,7 +2387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      const updatedLivestream = await muxClient.endLivestream(livestreamId);
+      const updatedLivestream = await livekitClient.endLivestream(livestreamId);
       
       res.status(200).json(updatedLivestream);
     } catch (error) {
