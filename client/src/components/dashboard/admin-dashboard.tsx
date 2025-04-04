@@ -215,6 +215,9 @@ export function AdminDashboard() {
   const [isEditingReader, setIsEditingReader] = useState(false);
 
 
+  // Add state for controlling tab selection
+  const [activeTab, setActiveTab] = useState("readings");
+  
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
@@ -280,13 +283,13 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      <Tabs defaultValue="readings" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="readings">All Readings</TabsTrigger>
-          <TabsTrigger value="readers">Reader Performance</TabsTrigger>
-          <TabsTrigger value="add-readers">Add Readers</TabsTrigger>
-          <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="gifts">Gift Management</TabsTrigger>
+          <TabsTrigger value="readings" onClick={() => setActiveTab("readings")}>All Readings</TabsTrigger>
+          <TabsTrigger value="readers" onClick={() => setActiveTab("readers")}>Reader Performance</TabsTrigger>
+          <TabsTrigger value="add-readers" onClick={() => setActiveTab("add-readers")}>Add Readers</TabsTrigger>
+          <TabsTrigger value="products" onClick={() => setActiveTab("products")}>Products</TabsTrigger>
+          <TabsTrigger value="gifts" onClick={() => setActiveTab("gifts")}>Gift Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="readings" className="space-y-4">
