@@ -10,7 +10,7 @@ interface ReaderCardProps {
 }
 
 export function ReaderCard({ reader }: ReaderCardProps) {
-  // Default fallback image for readers without profile images
+  // Make sure path to profile image is correct
   const profileImage = reader.profileImage || "/images/default-reader.png";
   
   // Parse specialties, ensuring they're always an array of strings
@@ -30,13 +30,14 @@ export function ReaderCard({ reader }: ReaderCardProps) {
   return (
     <GlowCard className="p-4 flex flex-col h-full">
       <div className="relative mb-3">
-        {/* Profile image */}
-        <div className="w-full aspect-square rounded-lg overflow-hidden mb-2 bg-primary-light/20 max-h-32">
+        {/* Profile image - standardized display for all reader cards */}
+        <div className="w-full aspect-square rounded-lg overflow-hidden mb-2 bg-primary-light/20">
           {profileImage && (
             <img 
               src={profileImage} 
               alt={`${reader.fullName} - Psychic Reader`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center object-top"
+              loading="lazy"
             />
           )}
         </div>

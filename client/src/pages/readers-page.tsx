@@ -169,7 +169,8 @@ export default function ReadersPage() {
                     <img 
                       src={reader.profileImage} 
                       alt={reader.fullName}
-                      className="w-full h-48 object-cover"
+                      className="w-full h-48 object-cover object-center object-top"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-full h-48 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 flex items-center justify-center">

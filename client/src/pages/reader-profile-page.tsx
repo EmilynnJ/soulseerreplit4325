@@ -233,7 +233,8 @@ export default function ReaderProfilePage() {
               <img 
                 src={reader.profileImage} 
                 alt={reader.fullName}
-                className="w-full rounded-lg shadow-lg aspect-square object-cover"
+                className="w-full rounded-lg shadow-lg aspect-square object-cover object-center object-top"
+                loading="lazy"
               />
             ) : (
               <div className="w-full rounded-lg shadow-lg aspect-square bg-gradient-to-r from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
