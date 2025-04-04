@@ -591,6 +591,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const readingData = req.body;
       
+      // Calculate the price based on duration and pricePerMinute or use a default
+      const duration = readingData.duration || 30; // Default to 30 minutes if not specified
+      const pricePerMinute = readingData.pricePerMinute || 100; // Default to $1/minute if not specified
+      const totalPrice = duration * pricePerMinute; // Total price in cents
+      
       const reading = await storage.createReading({
         readerId: readingData.readerId,
         clientId: req.user.id,
@@ -598,8 +603,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: readingData.type,
         readingMode: "scheduled",
         scheduledFor: readingData.scheduledFor ? new Date(readingData.scheduledFor) : null,
-        duration: readingData.duration || null,
-        pricePerMinute: readingData.pricePerMinute || 100,
+        duration: duration, // Use the defined duration
+        price: totalPrice, // Set the required price field
+        pricePerMinute: pricePerMinute, // Use the defined pricePerMinute
         notes: readingData.notes || null
       });
       
@@ -775,7 +781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "completed",
         duration,
         totalPrice: totalCost, // Using totalPrice instead of totalCost to match schema
-        endedAt: new Date()
+        completedAt: new Date() // Using completedAt instead of endedAt to match schema
       });
       
       // Process the payment if this is an on-demand reading
@@ -2232,18 +2238,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Create the reading in "waiting_payment" status
+        // Calculate price per minute
+        const pricePerMinute = Math.round(price / duration);
+        
         const reading = await storage.createReading({
           readerId,
           clientId,
           type,
           status: "waiting_payment",
-          price: price / duration, // Store the per-minute rate
+          price: price, // Store the total price (required field)
+          pricePerMinute: pricePerMinute, // Store the per-minute rate
           duration,
           totalPrice: price,
           scheduledFor: scheduledDate,
           notes: notes || null,
           readingMode: "scheduled",
-          stripePaymentIntentId: paymentIntent.id
+          paymentId: paymentIntent.id // Use paymentId instead of stripePaymentIntentId to match schema
         });
         
         // Notify the reader
