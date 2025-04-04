@@ -6,13 +6,14 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageCircle, Phone, Video } from "lucide-react";
+import { Loader2, MessageCircle, Phone, Video, UserIcon, X, Radio, Wifi, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Dialog,
   DialogContent,
@@ -169,6 +170,45 @@ export function ReaderDashboard() {
 
   return (
     <DashboardLayout title="Reader Dashboard">
+      {/* Quick Actions Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
+        <Button 
+          className="bg-purple-600 hover:bg-purple-700 text-white p-6 h-auto flex flex-col items-center justify-center gap-2"
+          size="lg"
+          onClick={() => {
+            toast({
+              title: "Starting Livestream",
+              description: "Setting up your live stream...",
+            });
+            // Implement livestream start logic here
+          }}
+        >
+          <div className="w-full flex items-center justify-center">
+            <Radio className="h-8 w-8 text-white mb-2" />
+          </div>
+          <span className="text-xl font-medium">Go Live Now</span>
+          <p className="text-sm opacity-90 font-normal">Start a livestream for your followers</p>
+        </Button>
+
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700 text-white p-6 h-auto flex flex-col items-center justify-center gap-2"
+          size="lg"
+          onClick={() => {
+            toast({
+              title: "Connect with Stripe",
+              description: "You will be redirected to Stripe to set up payouts.",
+            });
+            // Implement Stripe Connect redirect here
+          }}
+        >
+          <div className="w-full flex items-center justify-center">
+            <CreditCard className="h-8 w-8 text-white mb-2" />
+          </div>
+          <span className="text-xl font-medium">Connect Stripe</span>
+          <p className="text-sm opacity-90 font-normal">Set up payouts for your readings</p>
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
         <Card className="glow-card">
           <CardHeader className="p-3 md:p-6">
