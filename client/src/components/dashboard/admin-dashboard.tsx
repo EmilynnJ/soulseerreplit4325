@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Reading, Product } from "@shared/schema";
-import { Loader2, User as UserIcon, BookOpen, Users, Package, RefreshCw, X } from "lucide-react";
+import { Loader2, User as UserIcon, BookOpen, Users, Package, RefreshCw, X, CreditCard, Gift } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -60,8 +60,8 @@ interface ReaderWithStats extends User {
 
 // Interface for reading data with names
 interface ReadingWithNames extends Reading {
-  clientName: string;
-  readerName: string;
+  clientName?: string;
+  readerName?: string;
 }
 
 // Error boundary for admin dashboard
@@ -130,7 +130,7 @@ export function AdminDashboard() {
       setPreviewImage(previewUrl);
       
       if (editingReader) {
-        setEditingReader(prev => ({...prev, newProfileImage: file}));
+        setEditingReader((prev: any) => ({...prev, newProfileImage: file}));
       }
     }
   };
@@ -182,7 +182,7 @@ export function AdminDashboard() {
     data: readings,
     error: readingsError,
     isLoading: readingsLoading,
-  } = useQuery<Reading[]>({
+  } = useQuery<ReadingWithNames[]>({
     queryKey: ["/api/admin/readings"],
   });
 
@@ -370,8 +370,12 @@ export function AdminDashboard() {
                       readings.map((reading) => (
                         <TableRow key={reading.id}>
                           <TableCell className="font-medium">{reading.id}</TableCell>
-                          <TableCell className="hidden md:table-cell">{reading.clientName}</TableCell>
-                          <TableCell>{reading.readerName}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {'clientName' in reading ? reading.clientName : 'Unknown'}
+                          </TableCell>
+                          <TableCell>
+                            {'readerName' in reading ? reading.readerName : 'Unknown'}
+                          </TableCell>
                           <TableCell className="hidden sm:table-cell capitalize">{reading.type}</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(reading.status)}>
@@ -420,6 +424,7 @@ export function AdminDashboard() {
                       <TableHead className="hidden sm:table-cell">Sessions</TableHead>
                       <TableHead className="hidden md:table-cell">Specialties</TableHead>
                       <TableHead className="text-right">Earnings</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -472,23 +477,6 @@ export function AdminDashboard() {
                                   specialties: reader.specialties || [],
                                   profileImage: reader.profileImage || null
                                 };
-                                setEditingReader({...reader, ...profileData});
-                              }}
-                            >
-                              Edit
-                            </Button>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                const profileData = {
-                                  fullName: reader.fullName,
-                                  bio: reader.bio || '',
-                                  specialties: reader.specialties || [],
-                                  profileImage: reader.profileImage || null
-                                };
                                 // Open edit dialog
                                 setEditingReader({...reader, ...profileData});
                               }}
@@ -500,7 +488,7 @@ export function AdminDashboard() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
                           No readers found
                         </TableCell>
                       </TableRow>
@@ -610,7 +598,7 @@ export function AdminDashboard() {
                 <Label>Full Name</Label>
                 <Input 
                   value={editingReader.fullName} 
-                  onChange={(e) => setEditingReader(prev => ({...prev, fullName: e.target.value}))}
+                  onChange={(e) => setEditingReader((prev: any) => ({...prev, fullName: e.target.value}))}
                 />
               </div>
 
@@ -618,7 +606,7 @@ export function AdminDashboard() {
                 <Label>Bio</Label>
                 <Textarea 
                   value={editingReader.bio || ''} 
-                  onChange={(e) => setEditingReader(prev => ({...prev, bio: e.target.value}))}
+                  onChange={(e) => setEditingReader((prev: any) => ({...prev, bio: e.target.value}))}
                   rows={4}
                 />
               </div>
@@ -641,7 +629,7 @@ export function AdminDashboard() {
                         onClick={() => {
                           const newSpecialties = [...editingReader.specialties];
                           newSpecialties.splice(index, 1);
-                          setEditingReader(prev => ({...prev, specialties: newSpecialties}));
+                          setEditingReader((prev: any) => ({...prev, specialties: newSpecialties}));
                         }}
                       >
                         <X className="h-3 w-3" />
@@ -686,7 +674,7 @@ function AddReaderForm() {
       setProfileImagePreview(previewUrl);
       
       if (editingReader) {
-        setEditingReader(prev => ({...prev, newProfileImage: file}));
+        setEditingReader((prev: any) => ({...prev, newProfileImage: file}));
       }
     }
   };
