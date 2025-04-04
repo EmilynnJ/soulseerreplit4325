@@ -2,11 +2,13 @@
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { log } from './vite';
 
-// Configure neon
+// Configure neon with retries and timeout
 neonConfig.fetchConnectionCache = true;
+neonConfig.wsReconnectMaxAttempts = 5;
+neonConfig.wsReconnectTimeout = 5000;
 
 // Use the connection URL from environment variables or fall back to default for Replit
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_1tA3DvNckXoW@ep-noisy-union-a5mhired-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_1tA3DvNckXoW@ep-noisy-union-a5mhired-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=10';
 
 const sql = neon(DATABASE_URL);
 
