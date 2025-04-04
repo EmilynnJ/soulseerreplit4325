@@ -1,11 +1,8 @@
-// Import using the simpler approach (lowercase properties in the new SDK)
-import * as Mux from '@mux/mux-node';
+// Import Mux SDK correctly for v10.1.0
+import Mux from '@mux/mux-node';
 import { storage } from '../storage';
 import { Livestream, type User } from '@shared/schema';
 import { log } from '../vite';
-
-// Keep track of initialized Mux client
-let muxClient: any = null;
 
 // Get MUX credentials from environment
 function getMuxCredentials() {
@@ -33,88 +30,10 @@ function createMockVideoInterface() {
   };
 }
 
-// Compatibility layer for old API style vs new API style
-const Video = {
-  LiveStreams: {
-    create: async (params: any) => {
-      try {
-        if (!muxClient) {
-          const credentials = getMuxCredentials();
-          if (!credentials) {
-            throw new Error("MUX not configured");
-          }
-          
-          // Create new client
-          muxClient = new Mux.default(credentials);
-          log("MUX client initialized", "mux");
-        }
-        
-        // Use the video client from the SDK
-        const videoClient = muxClient.video || createMockVideoInterface();
-        
-        // Create the livestream
-        log("Creating livestream via Mux API", "mux");
-        const response = await videoClient.liveStreams.create(params);
-        return response.data;
-      } catch (error) {
-        log(`Error in LiveStreams.create: ${error}`, 'mux');
-        throw error;
-      }
-    },
-    disable: async (livestreamId: string) => {
-      try {
-        if (!muxClient) {
-          const credentials = getMuxCredentials();
-          if (!credentials) {
-            throw new Error("MUX not configured");
-          }
-          
-          // Create new client
-          muxClient = new Mux.default(credentials);
-          log("MUX client initialized", "mux");
-        }
-        
-        // Use the video client from the SDK
-        const videoClient = muxClient.video || createMockVideoInterface();
-        
-        // Disable the livestream
-        log(`Disabling livestream: ${livestreamId}`, "mux");
-        const response = await videoClient.liveStreams.disable(livestreamId);
-        return response.data;
-      } catch (error) {
-        log(`Error in LiveStreams.disable: ${error}`, 'mux');
-        throw error;
-      }
-    }
-  },
-  Assets: {
-    get: async (assetId: string) => {
-      try {
-        if (!muxClient) {
-          const credentials = getMuxCredentials();
-          if (!credentials) {
-            throw new Error("MUX not configured");
-          }
-          
-          // Create new client
-          muxClient = new Mux.default(credentials);
-          log("MUX client initialized", "mux");
-        }
-        
-        // Use the video client from the SDK
-        const videoClient = muxClient.video || createMockVideoInterface();
-        
-        // Get the asset
-        log(`Getting asset: ${assetId}`, "mux");
-        const response = await videoClient.assets.get(assetId);
-        return response.data;
-      } catch (error) {
-        log(`Error in Assets.get: ${error}`, 'mux');
-        throw error;
-      }
-    }
-  }
-};
+// Initialize the Mux client once at module load time
+const credentials = getMuxCredentials();
+const muxClient = credentials ? new Mux(credentials) : null;
+log(muxClient ? "MUX client initialized on startup" : "MUX client initialization failed - missing credentials", "mux");
 
 // Types for MUX API responses
 interface MuxLiveStream {
@@ -132,6 +51,7 @@ interface MuxAsset {
   status: string;
   duration: number;
   created_at: string;
+  recent_asset_ids?: string[];
 }
 
 // Create a new livestream
@@ -139,13 +59,20 @@ export async function createLivestream(user: User, title: string, description: s
   try {
     log(`Creating new livestream for user ${user.id}`, 'mux');
 
-    // Create a new livestream in MUX
-    const muxLiveStream = await Video.LiveStreams.create({
+    // Check if client is available
+    if (!muxClient) {
+      throw new Error("MUX client not initialized - check your MUX credentials");
+    }
+
+    // Create a new livestream using MUX Video API
+    const response = await Mux.Video.liveStreams.create({
       playback_policy: 'public',
       new_asset_settings: {
         playback_policy: 'public',
-      },
-    }) as MuxLiveStream;
+      }
+    });
+    
+    const muxLiveStream = response.data as MuxLiveStream;
 
     // Save livestream details to our database
     const livestream = await storage.createLivestream({
@@ -156,9 +83,9 @@ export async function createLivestream(user: User, title: string, description: s
       streamKey: muxLiveStream.stream_key,
       playbackId: muxLiveStream.playback_ids[0].id,
       muxLivestreamId: muxLiveStream.id,
-      muxAssetId: null,
-      startedAt: null,
-      endedAt: null,
+      // Add missing schema fields
+      category: 'general',
+      duration: null,
       viewerCount: 0,
       thumbnailUrl: null,
     });
@@ -186,12 +113,21 @@ export async function getLivestreamDetails(id: number) {
     // If the livestream exists in our database but not in MUX, create a new one in MUX
     if (!livestream.muxLivestreamId) {
       log(`Livestream ${id} has no MUX ID, creating new MUX livestream`, 'mux');
-      const muxLiveStream = await Video.LiveStreams.create({
+      
+      // Check if client is available
+      if (!muxClient) {
+        throw new Error("MUX client not initialized - check your MUX credentials");
+      }
+
+      // Create a new livestream using MUX Video API
+      const response = await Mux.Video.liveStreams.create({
         playback_policy: 'public',
         new_asset_settings: {
           playback_policy: 'public',
-        },
-      }) as MuxLiveStream;
+        }
+      });
+      
+      const muxLiveStream = response.data as MuxLiveStream;
 
       // Update our database with MUX details
       await storage.updateLivestream(id, {
@@ -230,7 +166,6 @@ export async function startLivestream(id: number) {
     // Update livestream status in our database
     const updatedLivestream = await storage.updateLivestream(id, {
       status: 'live',
-      startedAt: new Date(),
     });
 
     log(`Livestream ${id} started`, 'mux');
@@ -251,7 +186,11 @@ export async function endLivestream(id: number, disableMuxStream = true) {
 
     // If requested, disable the livestream in MUX
     if (disableMuxStream && livestream.muxLivestreamId) {
-      await Video.LiveStreams.disable(livestream.muxLivestreamId);
+      if (!muxClient) {
+        throw new Error("MUX client not initialized - check your MUX credentials");
+      }
+      
+      await Mux.Video.liveStreams.disable(livestream.muxLivestreamId);
       log(`Disabled MUX livestream ${livestream.muxLivestreamId}`, 'mux');
     }
 
@@ -259,7 +198,12 @@ export async function endLivestream(id: number, disableMuxStream = true) {
     let assetDetails = null;
     if (livestream.muxAssetId) {
       try {
-        assetDetails = await Video.Assets.get(livestream.muxAssetId) as MuxAsset;
+        if (!muxClient) {
+          throw new Error("MUX client not initialized - check your MUX credentials");
+        }
+        
+        const response = await Mux.Video.assets.get(livestream.muxAssetId);
+        assetDetails = response.data as MuxAsset;
       } catch (error) {
         log(`Could not fetch asset details: ${error}`, 'mux');
       }
@@ -268,9 +212,7 @@ export async function endLivestream(id: number, disableMuxStream = true) {
     // Update livestream status in our database
     const updatedLivestream = await storage.updateLivestream(id, {
       status: 'ended',
-      endedAt: new Date(),
-      duration: assetDetails?.duration || null,
-      thumbnailUrl: assetDetails?.playback_ids?.length > 0 
+      thumbnailUrl: assetDetails?.playback_ids && assetDetails.playback_ids.length > 0 
         ? `https://image.mux.com/${assetDetails.playback_ids[0].id}/thumbnail.jpg`
         : null
     });
@@ -420,7 +362,6 @@ export async function handleLivestreamActive(data: any) {
     if (livestream) {
       await storage.updateLivestream(livestream.id, {
         status: 'live',
-        startedAt: new Date(),
       });
       log(`Updated livestream ${livestream.id} to 'live' status via webhook`, 'mux');
     } else {
@@ -470,21 +411,28 @@ export async function handleAssetReady(data: any) {
       return; // Skip actual API calls for test events
     }
     
-    // In production, get the asset details from MUX
-    const asset = await Video.Assets.get(muxAssetId) as MuxAsset;
+    // Skip if Mux is not initialized
+    if (!muxClient) {
+      log(`MUX client not initialized, skipping asset.ready handling`, 'mux');
+      return;
+    }
     
-    // Find the corresponding livestream by checking if this asset is associated with any livestream
+    // In production, get the asset details from MUX
+    const response = await Mux.Video.assets.get(muxAssetId);
+    const asset = response.data as MuxAsset;
+    
+    // Find the corresponding livestream
     if (asset && asset.playback_ids && asset.playback_ids.length > 0) {
       const livestreams = await storage.getLivestreams();
+      
+      // Try to find a matching livestream
       const livestream = livestreams.find(ls => 
-        ls.muxLivestreamId && 
-        asset.recent_asset_ids?.includes(ls.muxLivestreamId)
+        ls.muxLivestreamId && asset.recent_asset_ids?.includes(ls.muxLivestreamId)
       );
       
       if (livestream) {
         await storage.updateLivestream(livestream.id, {
-          muxAssetId: muxAssetId,
-          duration: asset.duration || null,
+          // Just update the thumbnail URL as that's in the schema
           thumbnailUrl: `https://image.mux.com/${asset.playback_ids[0].id}/thumbnail.jpg`,
         });
         log(`Updated livestream ${livestream.id} with asset info via webhook`, 'mux');
