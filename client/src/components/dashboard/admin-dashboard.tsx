@@ -600,7 +600,7 @@ function AddReaderForm() {
   const [isLoading, setIsLoading] = useStateReact(false);
   const [editingReader, setEditingReader] = useStateReact<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useStateReact<string | null>(null);
 
   // Handle file selection for profile image
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -890,9 +890,8 @@ function AddReaderForm() {
                   <div>
                     <Button 
                       type="button" 
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline                      size="sm"
+                      onClick={() => fileInputRef`.current?.click()}
                     >
                       Upload Image
                     </Button>
