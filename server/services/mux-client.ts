@@ -1,46 +1,120 @@
-import Mux from '@mux/mux-node';
+// Import using the simpler approach (lowercase properties in the new SDK)
+import * as Mux from '@mux/mux-node';
 import { storage } from '../storage';
 import { Livestream, type User } from '@shared/schema';
 import { log } from '../vite';
 
-// Lazy initialization for MUX
-let muxInstance: any = null;
+// Keep track of initialized Mux client
+let muxClient: any = null;
 
-// Function to get or create MUX instance
-function getMux() {
-  if (!muxInstance) {
-    if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-      log("MUX credentials not found. MUX features will be disabled.", "mux");
-      // Return a mock instance instead of throwing
-      return {
-        Video: {
-          LiveStreams: {
-            create: async () => { throw new Error("MUX not configured"); },
-            disable: async () => { throw new Error("MUX not configured"); }
-          },
-          Assets: {
-            get: async () => { throw new Error("MUX not configured"); }
-          }
-        }
-      };
-    }
-    
-    muxInstance = new Mux({
-      tokenId: process.env.MUX_TOKEN_ID,
-      tokenSecret: process.env.MUX_TOKEN_SECRET,
-    });
-    log("MUX SDK initialized successfully", "mux");
+// Get MUX credentials from environment
+function getMuxCredentials() {
+  const tokenId = process.env.MUX_TOKEN_ID;
+  const tokenSecret = process.env.MUX_TOKEN_SECRET;
+  
+  if (!tokenId || !tokenSecret) {
+    log("MUX credentials not found. MUX features will be disabled.", "mux");
+    return null;
   }
   
-  return muxInstance;
+  return { tokenId, tokenSecret };
 }
 
-// Export Video API through a proxy for lazy access
-const Video = new Proxy({} as any, {
-  get: (target, prop) => {
-    return getMux().Video[prop];
+// Create a mock Video interface for testing without credentials
+function createMockVideoInterface() {
+  return {
+    liveStreams: {
+      create: async () => { throw new Error("MUX not configured"); },
+      disable: async () => { throw new Error("MUX not configured"); }
+    },
+    assets: {
+      get: async () => { throw new Error("MUX not configured"); }
+    }
+  };
+}
+
+// Compatibility layer for old API style vs new API style
+const Video = {
+  LiveStreams: {
+    create: async (params: any) => {
+      try {
+        if (!muxClient) {
+          const credentials = getMuxCredentials();
+          if (!credentials) {
+            throw new Error("MUX not configured");
+          }
+          
+          // Create new client
+          muxClient = new Mux.default(credentials);
+          log("MUX client initialized", "mux");
+        }
+        
+        // Use the video client from the SDK
+        const videoClient = muxClient.video || createMockVideoInterface();
+        
+        // Create the livestream
+        log("Creating livestream via Mux API", "mux");
+        const response = await videoClient.liveStreams.create(params);
+        return response.data;
+      } catch (error) {
+        log(`Error in LiveStreams.create: ${error}`, 'mux');
+        throw error;
+      }
+    },
+    disable: async (livestreamId: string) => {
+      try {
+        if (!muxClient) {
+          const credentials = getMuxCredentials();
+          if (!credentials) {
+            throw new Error("MUX not configured");
+          }
+          
+          // Create new client
+          muxClient = new Mux.default(credentials);
+          log("MUX client initialized", "mux");
+        }
+        
+        // Use the video client from the SDK
+        const videoClient = muxClient.video || createMockVideoInterface();
+        
+        // Disable the livestream
+        log(`Disabling livestream: ${livestreamId}`, "mux");
+        const response = await videoClient.liveStreams.disable(livestreamId);
+        return response.data;
+      } catch (error) {
+        log(`Error in LiveStreams.disable: ${error}`, 'mux');
+        throw error;
+      }
+    }
+  },
+  Assets: {
+    get: async (assetId: string) => {
+      try {
+        if (!muxClient) {
+          const credentials = getMuxCredentials();
+          if (!credentials) {
+            throw new Error("MUX not configured");
+          }
+          
+          // Create new client
+          muxClient = new Mux.default(credentials);
+          log("MUX client initialized", "mux");
+        }
+        
+        // Use the video client from the SDK
+        const videoClient = muxClient.video || createMockVideoInterface();
+        
+        // Get the asset
+        log(`Getting asset: ${assetId}`, "mux");
+        const response = await videoClient.assets.get(assetId);
+        return response.data;
+      } catch (error) {
+        log(`Error in Assets.get: ${error}`, 'mux');
+        throw error;
+      }
+    }
   }
-});
+};
 
 // Types for MUX API responses
 interface MuxLiveStream {
