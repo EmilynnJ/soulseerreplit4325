@@ -186,20 +186,26 @@ export function AdminDashboard() {
       usersError 
     });
 
+    // Force invalidate queries and retry loading
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/readings'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/readers'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+
     return (
-      <div className="text-center p-6 bg-primary-dark/40 border border-accent/20 rounded-lg">
-        <h3 className="text-xl font-cinzel text-accent mb-2">Error Loading Dashboard</h3>
-        <p className="font-playfair text-light/90 mb-4">There was a problem loading the admin dashboard data.</p>
+      <div className="text-center p-6">
+        <h3 className="text-2xl font-bold text-accent mb-4">Loading Admin Dashboard</h3>
+        <div className="flex items-center justify-center mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+        <p className="text-light/90 mb-4">Please wait while we retry loading your dashboard...</p>
         <Button 
           onClick={() => {
-            // Invalidate all admin queries to force a refresh
-            queryClient.invalidateQueries({ queryKey: ['/api/admin'] });
             window.location.reload();
           }}
           className="bg-accent hover:bg-accent/80 text-primary-dark"
         >
           <RefreshCw className="w-4 h-4 mr-2" />
-          Retry Loading
+          Manual Refresh
         </Button>
       </div>
     );
