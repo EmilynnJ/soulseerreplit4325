@@ -1,16 +1,16 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { storage } from "./storage.js";
+import { setupAuth } from "./auth.js";
 import { z } from "zod";
-import { UserUpdate, Reading } from "@shared/schema";
-import { db } from "./db";
+import { UserUpdate, Reading } from "../shared/schema.js";
+import { db } from "./db.js";
 import { desc, asc } from "drizzle-orm";
-import { gifts } from "@shared/schema";
-import stripeClient from "./services/stripe-client";
+import { gifts } from "../shared/schema.js";
+import stripeClient from "./services/stripe-client.js";
 // TRTC has been completely removed
-import * as muxClient from "./services/mux-client";
+import * as muxClient from "./services/mux-client.js";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
