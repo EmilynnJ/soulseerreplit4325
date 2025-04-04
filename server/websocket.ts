@@ -18,8 +18,9 @@ class WebSocketManager {
     this.setupWebSocketServer();
   }
 
-  private setupWebSocketServer() {
+  public onConnection(callback: (ws: WebSocket) => void) {
     this.wss.on('connection', (ws: WebSocket) => {
+      callback(ws);
       const clientId = Math.random().toString(36).substring(7);
       console.log(`New WebSocket client connected: ${clientId}`);
 
@@ -186,6 +187,8 @@ class WebSocketManager {
 
 export function setupWebSocket(server: Server) {
   const wsManager = new WebSocketManager(server);
+  // Store the WebSocket manager instance globally
   (global as any).websocket = wsManager;
+  // Return the manager instance
   return wsManager;
 }
