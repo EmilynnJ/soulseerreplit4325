@@ -2564,6 +2564,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to update readers
+  app.patch("/api/admin/readers/:id", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
+    try {
+      const readerId = parseInt(req.params.id);
+      if (isNaN(readerId)) {
+        return res.status(400).json({ message: "Invalid reader ID" });
+      }
+
+      const reader = await storage.getUser(readerId);
+      if (!reader || reader.role !== 'reader') {
+        return res.status(404).json({ message: "Reader not found" });
+      }
+
+      const { fullName, bio, specialties } = req.body;
+      
+      // Parse specialties if it's a JSON string
+      let parsedSpecialties = [];
+      try {
+        parsedSpecialties = JSON.parse(specialties);
+      } catch (e) {
+        parsedSpecialties = specialties || [];
+      }
+
+      // Handle profile image if uploaded
+      let profileImageUrl = reader.profileImage;
+      if (req.file) {
+        const filename = `${Date.now()}-${req.file.originalname}`;
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        const filepath = path.join(uploadsDir, filename);
+        
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        fs.writeFileSync(filepath, req.file.buffer);
+        profileImageUrl = `/uploads/${filename}`;
+      }
+
+      // Update the reader
+      const updatedReader = await storage.updateUser(readerId, {
+        fullName,
+        bio,
+        specialties: parsedSpecialties,
+        profileImage: profileImageUrl
+      });
+
+      // Remove sensitive information
+      const { password: _, ...safeReader } = updatedReader;
+      res.json(safeReader);
+    } catch (error) {
+      console.error("Error updating reader:", error);
+      res.status(500).json({ message: "Failed to update reader profile" });
+    }
+  });
+
   // Admin endpoint to add new readers with profile image
   app.post("/api/admin/readers", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
     try {

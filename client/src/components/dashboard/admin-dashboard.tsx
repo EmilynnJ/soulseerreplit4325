@@ -388,6 +388,24 @@ export function AdminDashboard() {
                           <TableCell className="text-right">
                             {formatCurrency(reader.totalEarnings || 0)}
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const profileData = {
+                                  fullName: reader.fullName,
+                                  bio: reader.bio || '',
+                                  specialties: reader.specialties || [],
+                                  profileImage: reader.profileImage || null
+                                };
+                                // Open edit dialog
+                                setEditingReader({...reader, ...profileData});
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : (
@@ -446,6 +464,109 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Reader Dialog */}
+      {editingReader && (
+        <Dialog open={!!editingReader} onOpenChange={() => setEditingReader(null)}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Reader Profile</DialogTitle>
+              <DialogDescription>
+                Update the reader's profile information and image.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Profile Image</Label>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="h-24 w-24 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-muted overflow-hidden cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {(previewImage || editingReader.profileImage) ? (
+                      <img 
+                        src={previewImage || editingReader.profileImage} 
+                        alt="Profile Preview" 
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Change Image
+                    </Button>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Full Name</Label>
+                <Input 
+                  value={editingReader.fullName} 
+                  onChange={(e) => setEditingReader(prev => ({...prev, fullName: e.target.value}))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bio</Label>
+                <Textarea 
+                  value={editingReader.bio || ''} 
+                  onChange={(e) => setEditingReader(prev => ({...prev, bio: e.target.value}))}
+                  rows={4}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Specialties</Label>
+                <div className="flex flex-wrap gap-2">
+                  {editingReader.specialties?.map((specialty: string, index: number) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="pl-2 pr-1 py-1"
+                    >
+                      {specialty}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-destructive/20 rounded-full"
+                        onClick={() => {
+                          const newSpecialties = [...editingReader.specialties];
+                          newSpecialties.splice(index, 1);
+                          setEditingReader(prev => ({...prev, specialties: newSpecialties}));
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingReader(null)}>Cancel</Button>
+              <Button onClick={handleUpdateReader}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -458,6 +579,60 @@ function AddReaderForm() {
   const [specialties, setSpecialties] = useStateReact<string[]>([]);
   const [specialty, setSpecialty] = useStateReact<string>("");
   const [isLoading, setIsLoading] = useStateReact(false);
+  const [editingReader, setEditingReader] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Handle file selection for profile image
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPreviewImage(URL.createObjectURL(file));
+      setEditingReader(prev => ({...prev, newProfileImage: file}));
+    }
+  };
+
+  // Handle reader update
+  const handleUpdateReader = async () => {
+    try {
+      const formData = new FormData();
+      
+      // Add profile data
+      formData.append('fullName', editingReader.fullName);
+      formData.append('bio', editingReader.bio || '');
+      formData.append('specialties', JSON.stringify(editingReader.specialties || []));
+      
+      // Add profile image if changed
+      if (editingReader.newProfileImage) {
+        formData.append('profileImage', editingReader.newProfileImage);
+      }
+
+      const response = await fetch(`/api/admin/readers/${editingReader.id}`, {
+        method: 'PATCH',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update reader');
+      }
+
+      // Refresh readers list
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
+      setEditingReader(null);
+      setPreviewImage(null);
+      
+      toast({
+        title: "Reader Updated",
+        description: "The reader profile has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update reader",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Common reader specialties
   const commonSpecialties = [
