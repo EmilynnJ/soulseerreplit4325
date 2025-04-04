@@ -590,7 +590,14 @@ export function AdminDashboard() {
   );
 }
 
-// Form for adding new readers
+// Form for adding new readimport { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { X, UserIcon } from "lucide-react";
+
 function AddReaderForm() {
   const { toast } = useToast();
   const [profileImage, setProfileImage] = useStateReact<File | null>(null);
@@ -606,8 +613,14 @@ function AddReaderForm() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setPreviewImage(URL.createObjectURL(file));
-      setEditingReader(prev => ({...prev, newProfileImage: file}));
+      const previewUrl = URL.createObjectURL(file);
+      setPreviewImage(previewUrl);
+      setProfileImage(file);
+      setProfileImagePreview(previewUrl);
+      
+      if (editingReader) {
+        setEditingReader(prev => ({...prev, newProfileImage: file}));
+      }
     }
   };
 
