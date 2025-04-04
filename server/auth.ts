@@ -56,9 +56,11 @@ export function setupAuth(app: Express) {
         let user;
         
         if (isEmail) {
-          user = await storage.getUserByEmail(username);
+          user = await storage.getUserByEmail(username.toLowerCase());
         } else {
-          user = await storage.getUserByUsername(username);
+          // Make username comparison case-insensitive
+          const allUsers = await storage.getAllUsers();
+          user = allUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
         }
         
         if (!user || !(await comparePasswords(password, user.password))) {
