@@ -13,8 +13,20 @@ export function ReaderCard({ reader }: ReaderCardProps) {
   // Use a hardcoded static image path that always exists
   const defaultImage = "https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg";
   
+  // Convert relative path to absolute URL if needed
+  const getAbsoluteImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return defaultImage;
+    // If image path already starts with http(s), it's already absolute
+    if (imagePath.startsWith('http')) return imagePath;
+    // If it's a relative path starting with /uploads, prepend with host
+    if (imagePath.startsWith('/uploads')) {
+      return `${window.location.origin}${imagePath}`;
+    }
+    return imagePath;
+  };
+  
   // Determine profile image with fallback
-  const profileImage = reader.profileImage || defaultImage;
+  const profileImage = getAbsoluteImageUrl(reader.profileImage);
   
   // Parse specialties, ensuring they're always an array of strings
   const specialties: string[] = (() => {

@@ -22,6 +22,20 @@ import {
   Shield
 } from "lucide-react";
 
+// Helper function to get absolute image URLs for profile images
+const getAbsoluteImageUrl = (imagePath: string | null) => {
+  const defaultImage = "https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg";
+  
+  if (!imagePath) return defaultImage;
+  // If image path already starts with http(s), it's already absolute
+  if (imagePath.startsWith('http')) return imagePath;
+  // If it's a relative path starting with /uploads, prepend with host
+  if (imagePath.startsWith('/uploads')) {
+    return `${window.location.origin}${imagePath}`;
+  }
+  return imagePath;
+};
+
 export default function ReaderProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -230,7 +244,7 @@ export default function ReaderProfilePage() {
         <div className="md:col-span-1">
           <div className="relative">
             <img 
-              src={reader.profileImage || 'https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg'} 
+              src={getAbsoluteImageUrl(reader.profileImage)} 
               alt={reader.fullName}
               className="w-full rounded-lg shadow-lg aspect-square object-cover object-center object-top"
               loading="lazy"
