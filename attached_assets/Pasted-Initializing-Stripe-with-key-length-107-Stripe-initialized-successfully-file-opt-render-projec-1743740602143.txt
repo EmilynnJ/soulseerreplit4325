@@ -1,0 +1,29 @@
+Initializing Stripe with key length: 107
+Stripe initialized successfully
+file:///opt/render/project/src/dist/index.js:1326
+var uploadsPath = process.env.NODE_ENV === "production" ? path3.join(__dirname, "public", "uploads") : path3.join(process.cwd(), "public", "uploads");
+                                                                     ^
+ReferenceError: __dirname is not defined in ES module scope
+This file is being treated as an ES module because it has a '.js' file extension and '/opt/render/project/src/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+    at file:///opt/render/project/src/dist/index.js:1326:70
+    at ModuleJob.run (node:internal/modules/esm/module_job:271:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:547:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+Node.js v22.12.0
+==> Exited with status 1
+==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+==> Running 'npm run start'
+> rest-express@1.0.0 start
+> NODE_ENV=production node dist/index.js
+Initializing Stripe with key length: 107
+Stripe initialized successfully
+file:///opt/render/project/src/dist/index.js:1326
+var uploadsPath = process.env.NODE_ENV === "production" ? path3.join(__dirname, "public", "uploads") : path3.join(process.cwd(), "public", "uploads");
+                                                                     ^
+ReferenceError: __dirname is not defined in ES module scope
+This file is being treated as an ES module because it has a '.js' file extension and '/opt/render/project/src/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+    at file:///opt/render/project/src/dist/index.js:1326:70
+    at ModuleJob.run (node:internal/modules/esm/module_job:271:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:547:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+Node.js v22.12.0

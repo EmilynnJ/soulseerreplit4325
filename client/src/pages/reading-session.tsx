@@ -11,7 +11,7 @@ import { InfoIcon } from 'lucide-react';
 export default function ReadingSessionPage() {
   const [_, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   useEffect(() => {
     toast({
       title: "Reading System Removed",
@@ -19,7 +19,7 @@ export default function ReadingSessionPage() {
       variant: "destructive",
     });
   }, []);
-  
+
   return (
     <div className="container mx-auto py-8 cosmic-bg min-h-screen">
       <Card className="max-w-4xl mx-auto">
@@ -29,7 +29,7 @@ export default function ReadingSessionPage() {
             Reading System Removed
           </CardTitle>
         </CardHeader>
-        
+
         <CardContent className="p-6">
           <div className="text-center py-10">
             <h2 className="text-2xl font-semibold mb-4">

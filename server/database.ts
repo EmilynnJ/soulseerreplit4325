@@ -1,4 +1,3 @@
-
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { log } from './vite';
 
@@ -38,4 +37,4 @@ sql('SELECT 1')
     console.error('Database connection error:', err);
   });
 
-export { sql };
+export default sql;

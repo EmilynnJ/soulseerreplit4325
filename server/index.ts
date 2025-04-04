@@ -1,8 +1,10 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { initializeDatabase } from "./migrations/migration-manager";
+import { registerRoutes } from "./routes.js";
+import { setupVite, serveStatic, log } from "./vite.js";
+import { initializeDatabase } from "./migrations/migration-manager.js";
 import { config } from "dotenv";
+import path from "path";
+import cors from "cors";
 
 // Load environment variables
 config();
@@ -10,6 +12,30 @@ config();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configure CORS based on environment
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://soulseer.app', 'https://www.soulseer.app']
+    : ['http://localhost:5000', 'https://localhost:5000', 'http://localhost:3000', 'https://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
+};
+app.use(cors(corsOptions));
+
+// Log the CORS configuration
+console.log("CORS configured for domains:", corsOptions.origin);
+
+// Serve uploads directory directly in both development and production
+const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
+const imagesPath = path.join(process.cwd(), 'public', 'images');
+
+// Serve uploads and images directories
+app.use('/uploads', express.static(uploadsPath));
+app.use('/images', express.static(imagesPath));
+
+console.log(`Serving uploads from: ${uploadsPath} with fallback to default images`);
 
 // Add health check endpoint for Render
 app.get('/api/health', (req: Request, res: Response) => {
@@ -52,13 +78,26 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  try {
-    // Initialize database before registering routes
-    await initializeDatabase();
-    log('Database initialized successfully', 'database');
-  } catch (error) {
-    log(`Failed to initialize database: ${error}`, 'database');
-    // Continue with server startup even if database initialization fails
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = 5000; // 5 seconds
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Initialize database before registering routes
+      await initializeDatabase();
+      log('Database initialized successfully', 'database');
+      break;
+    } catch (error) {
+      log(`Database initialization attempt ${attempt} failed: ${error}`, 'database');
+      
+      if (attempt === MAX_RETRIES) {
+        log('All database initialization attempts failed. Exiting.', 'database');
+        process.exit(1);
+      }
+      
+      log(`Retrying in ${RETRY_DELAY/1000} seconds...`, 'database');
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+    }
   }
   
   const server = await registerRoutes(app);
@@ -85,7 +124,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = process.env.PORT || 5000;
-  server.listen(port, "0.0.0.0", () => {
+  server.listen(Number(port), "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
 })();

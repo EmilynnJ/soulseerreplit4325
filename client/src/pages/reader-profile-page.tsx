@@ -22,6 +22,9 @@ import {
   Shield
 } from "lucide-react";
 
+// Default image for fallback - use a local image in our project
+const defaultImage = "/images/default-profile.jpg";
+
 export default function ReaderProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -229,17 +232,18 @@ export default function ReaderProfilePage() {
         {/* Profile Image */}
         <div className="md:col-span-1">
           <div className="relative">
-            {reader.profileImage ? (
-              <img 
-                src={reader.profileImage} 
-                alt={reader.fullName}
-                className="w-full rounded-lg shadow-lg aspect-square object-cover"
-              />
-            ) : (
-              <div className="w-full rounded-lg shadow-lg aspect-square bg-gradient-to-r from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
-                <span className="text-7xl font-playfair text-accent/50">{reader.fullName.charAt(0)}</span>
-              </div>
-            )}
+            <img 
+              src={reader.profileImage || defaultImage}
+              alt={reader.fullName}
+              className="w-full rounded-lg shadow-lg aspect-square object-cover object-center object-top"
+              loading="lazy"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.onerror = null; // Prevent infinite loop
+                target.src = defaultImage;
+                console.log(`Reader profile image failed to load, using default. Failed URL: ${(e.target as HTMLImageElement).src}`);
+              }}
+            />
 
             {reader.isOnline && (
               <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full flex items-center">

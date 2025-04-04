@@ -1,0 +1,97 @@
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+✘ [ERROR] "@replit/vite-plugin-shadcn-theme-json" resolved to an ESM file. ESM file cannot be loaded by `require`. See https://vite.dev/guide/troubleshooting.html#this-package-is-esm-only for more details. [plugin externalize-deps]
+
+    node_modules/vite/node_modules/esbuild/lib/main.js:1225:27:
+      1225 │         let result = await callback({
+           ╵                            ^
+
+    at file:///home/runner/workspace/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:66819:23
+    at requestCallbacks.on-resolve (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1225:28)
+    at handleRequest (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:647:17)
+    at handleIncomingPacket (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:672:7)
+    at Socket.readFromStdout (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:600:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)
+
+  This error came from the "onResolve" callback registered here:
+
+    node_modules/vite/node_modules/esbuild/lib/main.js:1150:20:
+      1150 │       let promise = setup({
+           ╵                     ^
+
+    at setup (file:///home/runner/workspace/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:66781:18)
+    at handlePlugins (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1150:21)
+    at buildOrContextImpl (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:873:5)
+    at Object.buildOrContext (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:699:5)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:2023:15
+    at new Promise (<anonymous>)
+    at Object.build (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:2022:25)
+    at build (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1873:51)
+    at bundleConfigFile (file:///home/runner/workspace/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:66736:24)
+
+  The plugin "externalize-deps" was triggered by this import
+
+    vite.config.ts:4:24:
+      4 │ import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
+        ╵                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+✘ [ERROR] "@replit/vite-plugin-runtime-error-modal" resolved to an ESM file. ESM file cannot be loaded by `require`. See https://vite.dev/guide/troubleshooting.html#this-package-is-esm-only for more details. [plugin externalize-deps]
+
+    node_modules/vite/node_modules/esbuild/lib/main.js:1225:27:
+      1225 │         let result = await callback({
+           ╵                            ^
+
+    at file:///home/runner/workspace/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:66819:23
+    at requestCallbacks.on-resolve (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1225:28)
+    at handleRequest (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:647:17)
+    at handleIncomingPacket (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:672:7)
+    at Socket.readFromStdout (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:600:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23)
+
+  This error came from the "onResolve" callback registered here:
+
+    node_modules/vite/node_modules/esbuild/lib/main.js:1150:20:
+      1150 │       let promise = setup({
+           ╵                     ^
+
+    at setup (file:///home/runner/workspace/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:66781:18)
+    at handlePlugins (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1150:21)
+    at buildOrContextImpl (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:873:5)
+    at Object.buildOrContext (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:699:5)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:2023:15
+    at new Promise (<anonymous>)
+    at Object.build (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:2022:25)
+    at build (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1873:51)
+    at bundleConfigFile (file:///home/runner/workspace/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:66736:24)
+
+  The plugin "externalize-deps" was triggered by this import
+
+    vite.config.ts:6:32:
+      6 │ ...runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+        ╵                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+failed to load config from /home/runner/workspace/vite.config.ts
+error during build:
+Error: Build failed with 2 errors:
+node_modules/vite/node_modules/esbuild/lib/main.js:1225:27: ERROR: [plugin: externalize-deps] "@replit/vite-plugin-runtime-error-modal" resolved to an ESM file. ESM file cannot be loaded by `require`. See https://vite.dev/guide/troubleshooting.html#this-package-is-esm-only for more details.
+node_modules/vite/node_modules/esbuild/lib/main.js:1225:27: ERROR: [plugin: externalize-deps] "@replit/vite-plugin-shadcn-theme-json" resolved to an ESM file. ESM file cannot be loaded by `require`. See https://vite.dev/guide/troubleshooting.html#this-package-is-esm-only for more details.
+    at failureErrorWithLog (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1472:15)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:945:25
+    at runOnEndCallbacks (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1315:45)
+    at buildResponseToResult (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:943:7)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:970:16
+    at responseCallbacks.<computed> (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:622:9)
+    at handleIncomingPacket (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:677:12)
+    at Socket.readFromStdout (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:600:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)

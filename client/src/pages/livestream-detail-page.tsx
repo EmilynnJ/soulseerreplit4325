@@ -90,97 +90,158 @@ export default function LivestreamDetailPage() {
   const [showCustomAmount, setShowCustomAmount] = useState(false);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   
-  // Connect to websocket
+  // Connect to websocket - use websocket context
   useEffect(() => {
-    // Function to create WebSocket connection
-    const connectWebSocket = () => {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      const socket = new WebSocket(wsUrl);
-      
-      socket.onopen = () => {
-        console.log("WebSocket connected");
+    // Import WebSocket context
+    const getWebSocketContext = async () => {
+      try {
+        const { useWebSocketContext } = await import('@/hooks/websocket-provider');
+        const ws = useWebSocketContext();
         
-        // Authenticate with the server if user is logged in
-        if (user?.id) {
-          socket.send(JSON.stringify({
-            type: 'authenticate',
-            userId: user.id
-          }));
-        }
-        
-        // Subscribe to livestream channel
-        socket.send(JSON.stringify({
-          type: 'subscribe',
-          channel: `livestream:${livestreamId}`
-        }));
-      };
-      
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+        // When connection is open, subscribe to livestream channel
+        if (ws.status === 'open' && user?.id) {
+          console.log("WebSocket connected - subscribing to livestream channel");
           
-          // Handle different message types
-          if (data.type === 'chat_message' && data.livestreamId === livestreamId) {
-            setChatMessages(prev => [...prev, data]);
-            
-            // Scroll to bottom when new messages arrive
-            if (chatContainerRef.current) {
-              setTimeout(() => {
-                chatContainerRef.current!.scrollTop = chatContainerRef.current!.scrollHeight;
-              }, 100);
-            }
-          } else if (data.type === 'new_gift' && data.gift.livestreamId === livestreamId) {
-            // Add gift notification to chat
-            setChatMessages(prev => [
-              ...prev, 
-              {
-                type: 'gift',
-                senderName: data.senderUsername,
-                recipientName: data.recipientUsername,
-                gift: data.gift,
-                timestamp: Date.now()
-              }
-            ]);
-            
-            // Invalidate gifts query to refresh the gifts list
-            queryClient.invalidateQueries({ queryKey: ['/api/gifts/livestream', livestreamId] });
-            
-            // Scroll to bottom when new gifts arrive
-            if (chatContainerRef.current) {
-              setTimeout(() => {
-                chatContainerRef.current!.scrollTop = chatContainerRef.current!.scrollHeight;
-              }, 100);
-            }
-          } else if (data.type === 'viewer_count_update' && data.livestreamId === livestreamId) {
-            // Update viewer count in UI
-            queryClient.invalidateQueries({ queryKey: ['/api/livestreams', livestreamId] });
-          }
-        } catch (err) {
-          console.error("Error parsing WebSocket message:", err);
+          // Subscribe to livestream channel
+          ws.sendMessage({
+            type: 'subscribe',
+            channel: `livestream:${livestreamId}`
+          });
         }
-      };
-      
-      socket.onclose = () => {
-        console.log("WebSocket disconnected. Reconnecting...");
-        setTimeout(connectWebSocket, 3000); // Reconnect after 3 seconds
-      };
-      
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-      };
-      
-      return socket;
+        
+        // Set up message handling for WebSocket context
+        if (ws.lastMessage) {
+          try {
+            let data = ws.lastMessage;
+            
+            // Parse string messages if needed
+            if (typeof data === 'string' && data !== 'pong') {
+              data = JSON.parse(data);
+            }
+            
+            // Handle different message types
+            if (data.type === 'chat_message' && data.livestreamId === livestreamId) {
+              setChatMessages(prev => [...prev, data]);
+              
+              // Scroll to bottom when new messages arrive
+              if (chatContainerRef.current) {
+                setTimeout(() => {
+                  chatContainerRef.current!.scrollTop = chatContainerRef.current!.scrollHeight;
+                }, 100);
+              }
+            } else if (data.type === 'new_gift' && data.gift?.livestreamId === livestreamId) {
+              // Add gift notification to chat
+              setChatMessages(prev => [
+                ...prev, 
+                {
+                  type: 'gift',
+                  senderName: data.senderUsername,
+                  recipientName: data.recipientUsername,
+                  gift: data.gift,
+                  timestamp: Date.now()
+                }
+              ]);
+              
+              // Invalidate gifts query to refresh the gifts list
+              queryClient.invalidateQueries({ queryKey: ['/api/gifts/livestream', livestreamId] });
+              
+              // Scroll to bottom when new gifts arrive
+              if (chatContainerRef.current) {
+                setTimeout(() => {
+                  chatContainerRef.current!.scrollTop = chatContainerRef.current!.scrollHeight;
+                }, 100);
+              }
+            } else if (data.type === 'viewer_count_update' && data.livestreamId === livestreamId) {
+              // Update viewer count in UI
+              queryClient.invalidateQueries({ queryKey: ['/api/livestreams', livestreamId] });
+            }
+          } catch (err) {
+            console.error("Error handling WebSocket message:", err);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to access WebSocket context:", error);
+        // Fall back to direct WebSocket connection
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.host;
+        // Handle soulseer.app domain specially
+        const wsUrl = host.includes('soulseer.app') 
+          ? `${protocol}//soulseer.app/ws` 
+          : `${protocol}//${host}/ws`;
+        
+        console.log(`Creating direct WebSocket connection to ${wsUrl}`);
+        
+        try {
+          const socket = new WebSocket(wsUrl);
+          
+          socket.onopen = () => {
+            console.log("Direct WebSocket connected");
+            
+            // Authenticate with the server if user is logged in
+            if (user?.id) {
+              socket.send(JSON.stringify({
+                type: 'authenticate',
+                userId: user.id
+              }));
+            }
+            
+            // Subscribe to livestream channel
+            socket.send(JSON.stringify({
+              type: 'subscribe',
+              channel: `livestream:${livestreamId}`
+            }));
+          };
+          
+          socket.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              
+              // Handle different message types
+              if (data.type === 'chat_message' && data.livestreamId === livestreamId) {
+                setChatMessages(prev => [...prev, data]);
+                
+                // Scroll to bottom when new messages arrive
+                if (chatContainerRef.current) {
+                  setTimeout(() => {
+                    chatContainerRef.current!.scrollTop = chatContainerRef.current!.scrollHeight;
+                  }, 100);
+                }
+              } else if (data.type === 'new_gift' && data.gift?.livestreamId === livestreamId) {
+                // Add gift notification to chat
+                setChatMessages(prev => [
+                  ...prev, 
+                  {
+                    type: 'gift',
+                    senderName: data.senderUsername,
+                    recipientName: data.recipientUsername,
+                    gift: data.gift,
+                    timestamp: Date.now()
+                  }
+                ]);
+                
+                // Invalidate gifts query to refresh the gifts list
+                queryClient.invalidateQueries({ queryKey: ['/api/gifts/livestream', livestreamId] });
+              } else if (data.type === 'viewer_count_update' && data.livestreamId === livestreamId) {
+                // Update viewer count in UI
+                queryClient.invalidateQueries({ queryKey: ['/api/livestreams', livestreamId] });
+              }
+            } catch (err) {
+              console.error("Error parsing WebSocket message:", err);
+            }
+          };
+          
+          // Clean up the socket when the component unmounts
+          return () => {
+            socket.close();
+          };
+        } catch (wsError) {
+          console.error("Failed to create direct WebSocket connection:", wsError);
+        }
+      }
     };
     
-    // Initialize WebSocket
-    const socket = connectWebSocket();
-    
-    // Cleanup on component unmount
-    return () => {
-      socket.close();
-    };
-  }, [livestreamId, user?.id]);
+    getWebSocketContext();
+  }, [livestreamId, user?.id, queryClient]);
   
   // Fetch livestream data
   const { 
@@ -213,31 +274,67 @@ export default function LivestreamDetailPage() {
   // Mutation for sending a chat message
   const sendChatMutation = useMutation({
     mutationFn: async (message: string) => {
-      // This is handled through WebSocket, so we don't need an API call
-      // Just need to send the message via WebSocket
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      const socket = new WebSocket(wsUrl);
-      
-      return new Promise<void>((resolve, reject) => {
-        socket.onopen = () => {
-          socket.send(JSON.stringify({
+      try {
+        // Try to use the WebSocket context first
+        const { useWebSocketContext } = await import('@/hooks/websocket-provider');
+        const ws = useWebSocketContext();
+        
+        if (ws.status === 'open') {
+          ws.sendMessage({
             type: 'chat_message',
             livestreamId: livestreamId,
             senderId: user?.id,
             senderName: user?.username || 'Anonymous',
             message: message
-          }));
+          });
+          return Promise.resolve();
+        } else {
+          // Fallback to direct WebSocket connection
+          const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          const host = window.location.host;
+          // Handle soulseer.app domain specially
+          const wsUrl = host.includes('soulseer.app')
+            ? `${protocol}//soulseer.app/ws`
+            : `${protocol}//${host}/ws`;
+            
+          console.log(`Creating direct WebSocket for chat message to ${wsUrl}`);
           
-          resolve();
-          socket.close();
-        };
-        
-        socket.onerror = (error) => {
-          reject(error);
-          socket.close();
-        };
-      });
+          return new Promise<void>((resolve, reject) => {
+            const socket = new WebSocket(wsUrl);
+            
+            socket.onopen = () => {
+              socket.send(JSON.stringify({
+                type: 'chat_message',
+                livestreamId: livestreamId,
+                senderId: user?.id,
+                senderName: user?.username || 'Anonymous',
+                message: message
+              }));
+              
+              resolve();
+              socket.close();
+            };
+            
+            socket.onerror = (error) => {
+              console.error("WebSocket error when sending message:", error);
+              reject(error);
+              socket.close();
+            };
+            
+            // Set timeout in case connection hangs
+            setTimeout(() => {
+              if (socket.readyState !== WebSocket.OPEN) {
+                console.warn("WebSocket connection timed out");
+                reject(new Error("Connection timed out"));
+                socket.close();
+              }
+            }, 5000);
+          });
+        }
+      } catch (error) {
+        console.error("Failed to access WebSocket context:", error);
+        return Promise.reject(error);
+      }
     },
     onSuccess: () => {
       setChatMessage("");

@@ -1,20 +1,31 @@
 import Stripe from 'stripe';
 
-let stripe: Stripe | null = null;
+// Initialize stripe lazily to avoid startup issues
+let stripeInstance: Stripe | null = null;
 
-try {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    console.error('Error: STRIPE_SECRET_KEY environment variable is missing');
-  } else {
+// Getter function to safely access the Stripe instance
+function getStripe(): Stripe {
+  if (!stripeInstance) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY environment variable is missing');
+    }
+    
     console.log('Initializing Stripe with key length:', process.env.STRIPE_SECRET_KEY.length);
-    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16'
+    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2023-10-16' as any // Cast to any to bypass TypeScript version mismatch
     });
     console.log('Stripe initialized successfully');
   }
-} catch (error) {
-  console.error('Error initializing Stripe:', error);
+  return stripeInstance;
 }
+
+// For consistency with existing code
+const stripe = new Proxy({} as Stripe, {
+  get: (target, prop) => {
+    const instance = getStripe();
+    return instance[prop as keyof Stripe];
+  }
+});
 
 export interface CreatePaymentIntentParams {
   amount: number;
@@ -314,4 +325,11 @@ export default {
   createOnDemandReadingPayment,
   fetchStripeProducts,
   syncProductWithStripe,
+  // Export Stripe's native clients for direct access
+  accounts: stripe.accounts,
+  accountLinks: stripe.accountLinks,
+  customers: stripe.customers,
+  paymentIntents: stripe.paymentIntents,
+  prices: stripe.prices,
+  products: stripe.products
 };

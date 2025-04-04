@@ -58,7 +58,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                   <Input
                     placeholder="Enter your username or email"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-light"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
                 </FormControl>
                 <FormMessage />
@@ -77,7 +77,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
                     type="password"
                     placeholder="Enter your password"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-light"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
                 </FormControl>
                 <FormMessage />

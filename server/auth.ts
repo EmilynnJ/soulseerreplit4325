@@ -31,17 +31,29 @@ async function comparePasswords(supplied: string, stored: string) {
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET || "soul-seer-secret-key-change-in-production";
   
+  // Determine if we're in production based on the NODE_ENV
+  const isProduction = process.env.NODE_ENV === "production";
+  console.log(`Setting up auth in ${isProduction ? 'production' : 'development'} mode`);
+  
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true, // Changed to true to save all sessions
     store: storage.sessionStore,
     cookie: {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax"
+      secure: false, // False always for now to fix login issues
+      sameSite: "lax", // Consistent setting
+      domain: undefined // No domain specification for now
     }
   };
+  
+  // Log the session configuration for debugging
+  console.log("Session settings:", {
+    secure: sessionSettings.cookie?.secure,
+    sameSite: sessionSettings.cookie?.sameSite,
+    domain: sessionSettings.cookie?.domain
+  });
 
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
@@ -56,9 +68,11 @@ export function setupAuth(app: Express) {
         let user;
         
         if (isEmail) {
-          user = await storage.getUserByEmail(username);
+          user = await storage.getUserByEmail(username.toLowerCase());
         } else {
-          user = await storage.getUserByUsername(username);
+          // Make username comparison case-insensitive
+          const allUsers = await storage.getAllUsers();
+          user = allUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
         }
         
         if (!user || !(await comparePasswords(password, user.password))) {
@@ -95,6 +109,14 @@ export function setupAuth(app: Express) {
     try {
       const { username, email, password, fullName, role } = req.body;
       
+      // Force role to be client regardless of what was sent
+      // This ensures only clients can self-register
+      if (role !== "client") {
+        return res.status(403).json({ 
+          message: "Only client accounts can be registered. Please contact administration for reader accounts." 
+        });
+      }
+      
       // Check if username exists
       const existingUsername = await storage.getUserByUsername(username);
       if (existingUsername) {
@@ -107,13 +129,13 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already exists" });
       }
       
-      // Create user with hashed password
+      // Create user with hashed password (always as client)
       const user = await storage.createUser({
         username,
         email,
         password: await hashPassword(password),
         fullName,
-        role: role || "client",
+        role: "client", // Force role to client
         bio: "",
         specialties: [],
         pricing: null,
@@ -122,11 +144,10 @@ export function setupAuth(app: Express) {
         profileImage: ""
       });
       
-      // Remove password from response
-      const userResponse = { ...user };
-      delete userResponse.password;
+      // Create a new object without the password
+      const { password: pwd, ...userResponse } = user;
 
-      req.login(user, (err) => {
+      req.login(user, (err: any) => {
         if (err) return next(err);
         res.status(201).json(userResponse);
       });
@@ -136,16 +157,15 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: any, user: Express.User | false, info: { message?: string } | undefined) => {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Authentication failed" });
       
-      req.login(user, (err) => {
+      req.login(user, (err: any) => {
         if (err) return next(err);
         
-        // Remove password from response
-        const userResponse = { ...user };
-        delete userResponse.password;
+        // Create a new object from user data without the password
+        const { password: pwd, ...userResponse } = user;
         
         res.status(200).json(userResponse);
       });
@@ -153,7 +173,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res, next) => {
-    req.logout((err) => {
+    req.logout((err: any) => {
       if (err) return next(err);
       res.sendStatus(200);
     });
@@ -162,9 +182,8 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
-    // Remove password from response
-    const userResponse = { ...req.user } as SelectUser;
-    delete userResponse.password;
+    // Create a new object from user data without the password
+    const { password: pwd, ...userResponse } = req.user as SelectUser;
     
     res.json(userResponse);
   });

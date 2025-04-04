@@ -1,16 +1,9 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import { storage } from "./storage";
-import { setupAuth } from "./auth";
+import { storage } from "./storage.js";
+import { setupAuth } from "./auth.js";
+import readingRouter from "./routes/readings.js";
 import { z } from "zod";
-import { UserUpdate } from "@shared/schema";
-import { db } from "./db";
-import { desc, asc } from "drizzle-orm";
-import { gifts } from "@shared/schema";
-import stripeClient from "./services/stripe-client";
-// LiveKit will be implemented later
-import * as livekitClient from "./services/livekit-client";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
@@ -30,6 +23,19 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// Handle uploads directory path based on environment
+// Use fileURLToPath and dirname for ES modules
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ES Module alternative for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const uploadsPath = process.env.NODE_ENV === 'production' 
+  ? path.join(dirname(dirname(__filename)), 'public', 'uploads')  // Go up two levels from routes.ts
+  : path.join(process.cwd(), 'public', 'uploads');
+
 // Password hashing function
 const scryptAsync = promisify(scrypt);
 
@@ -42,6 +48,7 @@ async function scrypt_hash(password: string) {
 // Removed helper function for processing reading payments
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
   // Setup authentication routes
   setupAuth(app);
   
@@ -49,7 +56,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Setup WebSocket server for live readings and real-time communication
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wsManager = setupWebSocket(httpServer);
+  (global as any).wsManager = wsManager;
+
+  // Handle WebSocket client connections through the WebSocket manager
+  wsManager.onConnection((ws) => {
+    // Note: The WebSocketManager class now handles client IDs internally
+    
+    // Handle client disconnection
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+    });
+  });
   
   // LiveKit webhook endpoint (placeholder for future implementation)
   app.post('/api/webhooks/livekit', express.json(), async (req, res) => {
@@ -67,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`Broadcasting message to all clients: ${messageStr}`);
     
     let sentCount = 0;
-    wss.clients.forEach((client) => {
+    wsManager.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(messageStr);
@@ -95,12 +113,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   };
   
-  // Make WebSocket methods available globally
-  (global as any).websocket = {
-    broadcastToAll,
-    notifyUser
-  };
-  
   // Broadcast activity to keep readings page updated in real-time
   const broadcastReaderActivity = async (readerId: number, status: string) => {
     try {
@@ -121,11 +133,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
   
-  wss.on('connection', (ws, req) => {
+  wsManager.on('connection', (ws) => {
     const clientId = clientIdCounter++;
-    let userId: number | null = null;
-    
-    console.log(`WebSocket client connected [id=${clientId}]`);
+    console.log(`New WebSocket client connected with ID ${clientId}`);
     
     // Store client connection
     connectedClients.set(clientId, { socket: ws, userId });
@@ -280,6 +290,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     broadcastReaderActivity
   };
   
+  // Serve uploads directory in all environments
+  app.use('/uploads', express.static(uploadsPath));
+  console.log(`Serving uploads from: ${uploadsPath}`);
+  
+  // Add debug endpoint to check available files in uploads
+  app.get('/api/debug/uploads', async (req, res) => {
+    try {
+      // Get all files in uploads directory
+      const files = fs.readdirSync(uploadsPath);
+      return res.json({ 
+        path: uploadsPath,
+        files: files,
+        count: files.length
+      });
+    } catch (error) {
+      console.error("Error listing uploads directory:", error);
+      return res.status(500).json({ 
+        message: "Failed to list uploads directory", 
+        error: String(error) 
+      });
+    }
+  });
+
   // API Routes
   
   // Readers
@@ -399,7 +432,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.updateUser(req.user.id, update);
       
       // Remove sensitive data before returning
-      const { password, ...safeUser } = updatedUser;
+      const safeUser = updatedUser ? { ...updatedUser } : null;
+      if (safeUser && 'password' in safeUser) {
+        delete (safeUser as any).password;
+      }
       
       res.json({ success: true, user: safeUser });
     } catch (error) {
@@ -412,7 +448,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Placeholder endpoints to maintain API compatibility during transition
 
   app.post("/api/readings", async (req, res) => {
+<<<<<<< HEAD
     res.status(501).json({ message: "Reading system has been removed" });
+=======
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      const readingData = req.body;
+      
+      // Calculate the price based on duration and pricePerMinute or use a default
+      const duration = readingData.duration || 30; // Default to 30 minutes if not specified
+      const pricePerMinute = readingData.pricePerMinute || 100; // Default to $1/minute if not specified
+      const totalPrice = duration * pricePerMinute; // Total price in cents
+      
+      const reading = await storage.createReading({
+        readerId: readingData.readerId,
+        clientId: req.user.id,
+        status: "scheduled",
+        type: readingData.type,
+        readingMode: "scheduled",
+        scheduledFor: readingData.scheduledFor ? new Date(readingData.scheduledFor) : null,
+        duration: duration, // Use the defined duration
+        price: totalPrice, // Set the required price field
+        pricePerMinute: pricePerMinute, // Use the defined pricePerMinute
+        notes: readingData.notes || null
+      });
+      
+      res.status(201).json(reading);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create reading" });
+    }
+>>>>>>> origin
   });
   
   app.get("/api/readings/client", async (req, res) => {
@@ -437,7 +505,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.post("/api/readings/:id/end", async (req, res) => {
+<<<<<<< HEAD
     res.status(501).json({ message: "Reading system has been removed" });
+=======
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid reading ID" });
+      }
+      
+      const reading = await storage.getReading(id);
+      if (!reading) {
+        return res.status(404).json({ message: "Reading not found" });
+      }
+      
+      // Check if user is authorized (client or reader of this reading)
+      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const { duration } = req.body;
+      
+      if (!duration || isNaN(duration)) {
+        return res.status(400).json({ message: "Valid duration is required" });
+      }
+      
+      // Calculate final cost based on duration and price per minute
+      const durationInMinutes = Math.ceil(duration / 60); // Convert seconds to minutes, round up
+      const totalCost = reading.pricePerMinute * durationInMinutes;
+      
+      // Update reading with duration, status, and end time
+      const updatedReading = await storage.updateReading(id, {
+        status: "completed",
+        duration,
+        totalPrice: totalCost, // Using totalPrice instead of totalCost to match schema
+        completedAt: new Date() // Using completedAt instead of endedAt to match schema
+      });
+      
+      // Process the payment if this is an on-demand reading
+      if (reading.readingMode === 'on_demand') {
+        try {
+          await processCompletedReadingPayment(
+            reading.id,
+            totalCost,
+            durationInMinutes
+          );
+        } catch (paymentError) {
+          console.error('Error processing payment:', paymentError);
+          // Continue anyway as the reading is completed
+        }
+      }
+      
+      // Notify both client and reader about the end of the session
+      (global as any).websocket.broadcastToAll({
+        type: 'reading_ended',
+        readingId: reading.id,
+        duration,
+        totalCost,
+        timestamp: Date.now()
+      });
+      
+      res.json(updatedReading);
+    } catch (error) {
+      console.error('Error ending reading:', error);
+      res.status(500).json({ message: "Failed to end reading session" });
+    }
+>>>>>>> origin
   });
   
   // Products
@@ -1353,6 +1490,248 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
+  // Endpoint to create a new livestream
+  app.post('/api/livestreams', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Only readers can create livestreams
+      if (req.user.role !== 'reader') {
+        return res.status(403).json({ message: "Only readers can create livestreams" });
+      }
+      
+      const { title, description, category } = req.body;
+      
+      if (!title || !description) {
+        return res.status(400).json({ message: "Title and description are required" });
+      }
+      
+      // Use mux-bridge to create the livestream with Mux integration
+      const livestream = await muxClient.createLivestream(req.user, title, description);
+      
+      // Add additional metadata
+      if (category) {
+        await storage.updateLivestream(livestream.id, { category });
+      }
+      
+      res.status(201).json(livestream);
+    } catch (error) {
+      console.error('Error creating livestream:', error);
+      res.status(500).json({ 
+        message: "Failed to create livestream",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Get all active/live livestreams
+  app.get('/api/livestreams', async (req: Request, res: Response) => {
+    try {
+      // Check for userId query param to filter by reader/creator
+      const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
+      
+      let livestreams;
+      if (userId) {
+        // Get livestreams for a specific user
+        livestreams = await muxClient.getLivestreamsForUser(userId);
+      } else {
+        // Get all public livestreams (status='live')
+        livestreams = await muxClient.getPublicLivestreams();
+      }
+      
+      // Add reader info to each livestream
+      const livestreamsWithReaders = await Promise.all(
+        livestreams.map(async (stream) => {
+          const reader = await storage.getUser(stream.userId);
+          if (!reader) return stream;
+          
+          // Remove sensitive reader info
+          const { password, email, stripeCustomerId, stripeAccountId, ...safeReader } = reader;
+          
+          return {
+            ...stream,
+            reader: safeReader
+          };
+        })
+      );
+      
+      res.json(livestreamsWithReaders);
+    } catch (error) {
+      console.error('Error fetching livestreams:', error);
+      res.status(500).json({ message: "Failed to fetch livestreams" });
+    }
+  });
+  
+  // Get a single livestream by ID
+  app.get('/api/livestreams/:id', async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid livestream ID" });
+      }
+      
+      // Get the livestream details with the latest Mux data
+      const livestream = await muxClient.getLivestreamDetails(id);
+      
+      if (!livestream) {
+        return res.status(404).json({ message: "Livestream not found" });
+      }
+      
+      // Get reader info
+      const reader = await storage.getUser(livestream.userId);
+      
+      // Prepare response with reader info (excluding sensitive data)
+      let response = { ...livestream };
+      
+      if (reader) {
+        const { password, email, stripeCustomerId, stripeAccountId, ...safeReader } = reader;
+        response.reader = safeReader;
+      }
+      
+      res.json(response);
+    } catch (error) {
+      console.error(`Error fetching livestream ${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to fetch livestream details" });
+    }
+  });
+  
+  // Start a livestream 
+  app.post('/api/livestreams/:id/start', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid livestream ID" });
+      }
+      
+      const livestream = await storage.getLivestream(id);
+      
+      if (!livestream) {
+        return res.status(404).json({ message: "Livestream not found" });
+      }
+      
+      // Verify ownership
+      if (livestream.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to start this livestream" });
+      }
+      
+      // Start the livestream
+      const updatedLivestream = await muxClient.startLivestream(id);
+      
+      // Broadcast livestream start to all connected clients
+      (global as any).websocket.broadcastToAll({
+        type: 'livestream_started',
+        livestream: updatedLivestream,
+        timestamp: Date.now()
+      });
+      
+      res.json(updatedLivestream);
+    } catch (error) {
+      console.error(`Error starting livestream ${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to start livestream" });
+    }
+  });
+  
+  // End a livestream
+  app.post('/api/livestreams/:id/end', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid livestream ID" });
+      }
+      
+      const livestream = await storage.getLivestream(id);
+      
+      if (!livestream) {
+        return res.status(404).json({ message: "Livestream not found" });
+      }
+      
+      // Verify ownership
+      if (livestream.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to end this livestream" });
+      }
+      
+      // End the livestream
+      const updatedLivestream = await muxClient.endLivestream(id);
+      
+      // Broadcast livestream end to all connected clients
+      (global as any).websocket.broadcastToAll({
+        type: 'livestream_ended',
+        livestream: updatedLivestream,
+        timestamp: Date.now()
+      });
+      
+      res.json(updatedLivestream);
+    } catch (error) {
+      console.error(`Error ending livestream ${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to end livestream" });
+    }
+  });
+  
+  // Stripe Connect endpoint to generate an account link for readers
+  app.get('/api/stripe/connect', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Only readers can connect to Stripe
+      if (req.user.role !== 'reader') {
+        return res.status(403).json({ message: "Only readers can connect to Stripe" });
+      }
+      
+      // Initialize Stripe account for the reader if they don't have one
+      let stripeAccountId = req.user.stripeAccountId;
+      
+      if (!stripeAccountId) {
+        // Create a new Stripe Connect account
+        const account = await stripeClient.accounts.create({
+          type: 'express',
+          country: 'US',
+          email: req.user.email,
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          business_type: 'individual',
+          business_profile: {
+            name: req.user.fullName || req.user.username,
+            url: `${req.protocol}://${req.get('host')}/readers/${req.user.id}`
+          }
+        });
+        
+        stripeAccountId = account.id;
+        
+        // Update the user with their Stripe account ID
+        await storage.updateUser(req.user.id, {
+          stripeAccountId: stripeAccountId
+        });
+      }
+      
+      // Generate an account link for onboarding
+      const accountLink = await stripeClient.accountLinks.create({
+        account: stripeAccountId,
+        refresh_url: `${req.protocol}://${req.get('host')}/dashboard`,
+        return_url: `${req.protocol}://${req.get('host')}/dashboard?stripe_success=true`,
+        type: 'account_onboarding',
+      });
+      
+      res.json({ url: accountLink.url });
+    } catch (error) {
+      console.error('Error creating Stripe Connect account link:', error);
+      res.status(500).json({ message: "Failed to create Stripe Connect account link" });
+    }
+  });
+  
   // Create a payment intent for on-demand readings
   app.post("/api/stripe/create-payment-intent", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -1486,6 +1865,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create a new reading record
+      // Set a minimum price for the reading (pricePerMinute * 5 minutes minimum)
+      const minimumPrice = pricePerMinute * 5;
+      
       const reading = await storage.createReading({
         readerId,
         clientId: req.user.id,
@@ -1493,9 +1875,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type,
         readingMode: "on_demand",
         pricePerMinute: pricePerMinute,
-        duration: 0, // Start with 0 and track actual duration during the session
-        price: 0, // Database requires this field (legacy)
-        totalPrice: 0, // Will be calculated based on duration after the reading is completed
+        duration: 5, // Start with 5 minute minimum
+        price: minimumPrice, // Required non-zero price
+        totalPrice: 0, // Will be calculated based on actual duration after reading is completed
         notes: null
       });
       
@@ -1619,18 +2001,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Create the reading in "waiting_payment" status
+        // Calculate price per minute
+        const pricePerMinute = Math.round(price / duration);
+        
         const reading = await storage.createReading({
           readerId,
           clientId,
           type,
           status: "waiting_payment",
-          price: price / duration, // Store the per-minute rate
+          price: price, // Store the total price (required field)
+          pricePerMinute: pricePerMinute, // Store the per-minute rate
           duration,
           totalPrice: price,
           scheduledFor: scheduledDate,
           notes: notes || null,
           readingMode: "scheduled",
-          stripePaymentIntentId: paymentIntent.id
+          paymentId: paymentIntent.id // Use paymentId instead of stripePaymentIntentId to match schema
         });
         
         // Notify the reader
@@ -2221,7 +2607,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return without password information
       const sanitizedUsers = users.map(user => {
-        const { password, ...userWithoutPassword } = user;
+        const userWithoutPassword = { ...user };
+        if ('password' in userWithoutPassword) {
+          delete (userWithoutPassword as any).password;
+        }
         return userWithoutPassword;
       });
       
@@ -2229,6 +2618,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching all users:", error);
       return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Admin endpoint to update readers
+  app.patch("/api/admin/readers/:id", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
+    try {
+      const readerId = parseInt(req.params.id);
+      if (isNaN(readerId)) {
+        return res.status(400).json({ message: "Invalid reader ID" });
+      }
+
+      const reader = await storage.getUser(readerId);
+      if (!reader || reader.role !== 'reader') {
+        return res.status(404).json({ message: "Reader not found" });
+      }
+
+      const { fullName, bio, specialties } = req.body;
+      
+      // Parse specialties if it's a JSON string
+      let parsedSpecialties = [];
+      try {
+        parsedSpecialties = JSON.parse(specialties);
+      } catch (e) {
+        parsedSpecialties = specialties || [];
+      }
+
+      // Handle profile image if uploaded
+      let profileImageUrl = reader.profileImage;
+      if (req.file) {
+        const filename = `${Date.now()}-${req.file.originalname}`;
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        const filepath = path.join(uploadsDir, filename);
+        
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        fs.writeFileSync(filepath, req.file.buffer);
+        profileImageUrl = `/uploads/${filename}`;
+      }
+
+      // Update the reader
+      const updatedReader = await storage.updateUser(readerId, {
+        fullName,
+        bio,
+        specialties: parsedSpecialties,
+        profileImage: profileImageUrl
+      });
+
+      // Remove sensitive information
+      const safeReader = updatedReader ? { ...updatedReader } : null;
+      if (safeReader && 'password' in safeReader) {
+        delete (safeReader as any).password;
+      }
+      res.json(safeReader);
+    } catch (error) {
+      console.error("Error updating reader:", error);
+      res.status(500).json({ message: "Failed to update reader profile" });
     }
   });
 
@@ -2276,7 +2723,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.file) {
         // Generate a unique filename
         const filename = `${Date.now()}-${req.file.originalname}`;
-        const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
         const filepath = path.join(uploadsDir, filename);
         
         // Ensure uploads directory exists
@@ -2296,10 +2743,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create the reader account
       const newReader = await storage.createUser({
-        username,
+        username: fullName, // Use fullName as username
         password: hashedPassword,
         email,
-        fullName,
+        fullName: username, // Use username field as fullName
         role: 'reader',
         bio: bio || '',
         profileImage: profileImageUrl,
@@ -2319,7 +2766,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Successfully created reader:", newReader.id);
       
       // Remove sensitive information from the response
-      const { password: _, ...safeReader } = newReader;
+      const safeReader = { ...newReader };
+      if ('password' in safeReader) {
+        delete (safeReader as any).password;
+      }
       
       res.status(201).json(safeReader);
     } catch (error) {

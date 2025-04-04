@@ -1,9 +1,10 @@
+import React, { useState as useStateReact, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Reading, Product } from "@shared/schema";
-import { Loader2, User as UserIcon, BookOpen, Users, Package, RefreshCw, X } from "lucide-react";
+import { Loader2, User as UserIcon, BookOpen, Users, Package, RefreshCw, X, CreditCard, Gift } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -17,7 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState, useRef } from "react";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { GiftManagement } from "./gift-management";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // Helper function to get status color for readings
 function getStatusColor(status: string): string {
@@ -59,85 +60,44 @@ interface ReaderWithStats extends User {
 
 // Interface for reading data with names
 interface ReadingWithNames extends Reading {
-  clientName: string;
-  readerName: string;
+  clientName?: string;
+  readerName?: string;
 }
 
-export function AdminDashboard() {
-  const { toast } = useToast();
-
-  // Fetch all readings
-  const {
-    data: readings,
-    error: readingsError,
-    isLoading: readingsLoading,
-  } = useQuery<ReadingWithNames[]>({
-    queryKey: ["/api/admin/readings"],
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-
-  // Fetch all readers
-  const {
-    data: readers,
-    error: readersError,
-    isLoading: readersLoading,
-  } = useQuery<User[]>({
-    queryKey: ["/api/admin/readers"],
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-
-  // Fetch all users
-  const {
-    data: users,
-    error: usersError,
-    isLoading: usersLoading,
-  } = useQuery<User[]>({
-    queryKey: ["/api/admin/users"],
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
-
-  // Calculate reader stats
-  const readersWithStats: ReaderWithStats[] = readers?.map(reader => {
-    const readerReadings = readings?.filter(reading => reading.readerId === reader.id) || [];
-    const completedReadings = readerReadings.filter(reading => reading.status === "completed");
-    const totalEarnings = completedReadings.reduce((sum, reading) => sum + (reading.totalPrice || 0), 0);
-    
-    return {
-      ...reader,
-      sessionCount: readerReadings.length,
-      totalEarnings,
-    };
-  }) || [];
-
-  // Calculate platform stats
-  const totalUsers = users?.length || 0;
-  const totalReaders = readers?.length || 0;
-  const totalClients = users?.filter(user => user.role === "client")?.length || 0;
-  const totalReadings = readings?.length || 0;
-  const completedReadings = readings?.filter(reading => reading.status === "completed")?.length || 0;
-  const totalRevenue = readings?.filter(reading => reading.status === "completed")
-    .reduce((sum, reading) => sum + (reading.totalPrice || 0), 0) || 0;
-
-  if (readingsLoading || readersLoading || usersLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
-      </div>
-    );
+// Error boundary for admin dashboard
+export class ErrorBoundary extends React.Component<{children: React.ReactNode, fallback: React.ReactNode}, {hasError: boolean}> {
+  constructor(props: {children: React.ReactNode, fallback: React.ReactNode}) {
+    super(props);
+    this.state = { hasError: false };
   }
 
-  // Enhanced error handling with more detailed fallback
-  if (readingsError || readersError || usersError) {
-    console.error('Admin dashboard errors:', { 
-      readingsError, 
-      readersError, 
-      usersError 
-    });
-    
-    return (
-      <div className="text-center p-6 bg-primary-dark/40 border border-accent/20 rounded-lg">
-        <h3 className="text-xl font-cinzel text-accent mb-2">Error Loading Dashboard</h3>
-        <p className="font-playfair text-light/90 mb-4">There was a problem loading the admin dashboard data.</p>
+  static getDerivedStateFromError(error: any) {
+    // Update state so the next render will show the fallback UI
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    // Log the error to console
+    console.error("Admin Dashboard Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // You can render any custom fallback UI
+      return this.props.fallback;
+    }
+
+    return this.props.children;
+  }
+}
+
+// Fallback component to show when admin dashboard errors
+export function AdminDashboardFallback() {
+  return (
+    <div className="cosmic-bg min-h-screen p-6">
+      <div className="max-w-4xl mx-auto bg-primary-dark/30 backdrop-blur-md p-8 rounded-lg border border-accent/30 text-center">
+        <h2 className="text-2xl font-bold mb-4">Dashboard Error</h2>
+        <p className="mb-6">There was a problem loading the admin dashboard data. Please try refreshing the page.</p>
         <Button 
           onClick={() => {
             // Invalidate all admin queries to force a refresh
@@ -147,7 +107,162 @@ export function AdminDashboard() {
           className="bg-accent hover:bg-accent/80 text-primary-dark"
         >
           <RefreshCw className="w-4 h-4 mr-2" />
-          Retry Loading
+          Reload Dashboard
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Main Admin Dashboard component
+export function AdminDashboard() {
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useStateReact("readings");
+  const [editingReader, setEditingReader] = useStateReact<any>(null);
+  const [previewImage, setPreviewImage] = useStateReact<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Handle file selection for profile image
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const previewUrl = URL.createObjectURL(file);
+      setPreviewImage(previewUrl);
+      
+      if (editingReader) {
+        setEditingReader((prev: any) => ({...prev, newProfileImage: file}));
+      }
+    }
+  };
+  
+  // Handle reader profile update
+  const handleUpdateReader = async () => {
+    try {
+      const formData = new FormData();
+
+      // Add profile data
+      formData.append('fullName', editingReader.fullName);
+      formData.append('bio', editingReader.bio || '');
+      formData.append('specialties', JSON.stringify(editingReader.specialties || []));
+
+      // Add profile image if changed
+      if (editingReader.newProfileImage) {
+        formData.append('profileImage', editingReader.newProfileImage);
+      }
+
+      const response = await fetch(`/api/admin/readers/${editingReader.id}`, {
+        method: 'PATCH',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update reader');
+      }
+
+      // Refresh readers list
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
+      setEditingReader(null);
+      setPreviewImage(null);
+
+      toast({
+        title: "Reader Updated",
+        description: "The reader profile has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update reader",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Fetch all readings
+  const {
+    data: readings,
+    error: readingsError,
+    isLoading: readingsLoading,
+  } = useQuery<ReadingWithNames[]>({
+    queryKey: ["/api/admin/readings"],
+  });
+
+  // Fetch all readers
+  const {
+    data: readers,
+    error: readersError,
+    isLoading: readersLoading,
+  } = useQuery<User[]>({
+    queryKey: ["/api/admin/readers"],
+  });
+
+  // Fetch all users
+  const {
+    data: users,
+    error: usersError,
+    isLoading: usersLoading,
+  } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+  });
+
+  // Calculate reader stats
+  const readersWithStats = useMemo(() => {
+    if (!readers || !readings) return [];
+
+    return readers.map(reader => {
+      const readerReadings = readings.filter(reading => reading.readerId === reader.id) || [];
+      const completedReadings = readerReadings.filter(reading => reading.status === "completed");
+      const totalEarnings = completedReadings.reduce((sum, reading) => sum + (reading.totalPrice || 0), 0);
+
+      return {
+        ...reader,
+        sessionCount: readerReadings.length,
+        totalEarnings,
+      };
+    });
+  }, [readers, readings]);
+
+  // Calculate platform stats
+  const platformStats = useMemo(() => ({
+    totalUsers: users?.length || 0,
+    totalReaders: readers?.length || 0,
+    totalClients: users?.filter(user => user.role === "client")?.length || 0,
+    totalReadings: readings?.length || 0,
+    completedReadings: readings?.filter(reading => reading.status === "completed")?.length || 0,
+    totalRevenue: readings?.filter(reading => reading.status === "completed")
+      .reduce((sum, reading) => sum + (reading.totalPrice || 0), 0) || 0
+  }), [users, readers, readings]);
+
+
+  if (readingsLoading || readersLoading || usersLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+      </div>
+    );
+  }
+
+  if (readingsError || readersError || usersError) {
+    console.error('Admin dashboard errors:', { 
+      readingsError, 
+      readersError, 
+      usersError 
+    });
+
+    return (
+      <div className="text-center p-6">
+        <h3 className="text-2xl font-bold text-accent mb-4">Dashboard Error</h3>
+        <div className="flex items-center justify-center mb-4">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+        <p className="text-light/90 mb-4">Please wait while we retry loading your dashboard...</p>
+        <Button 
+          onClick={() => {
+            window.location.reload();
+          }}
+          className="bg-accent hover:bg-accent/80 text-primary-dark"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Manual Refresh
         </Button>
       </div>
     );
@@ -163,10 +278,10 @@ export function AdminDashboard() {
           <CardContent className="p-3 md:p-6">
             <div className="flex items-center space-x-2">
               <UserIcon className="h-4 w-4 md:h-5 md:w-5 text-indigo-500" />
-              <span className="text-xl md:text-2xl font-bold text-indigo-800">{totalUsers}</span>
+              <span className="text-xl md:text-2xl font-bold text-indigo-800">{platformStats.totalUsers}</span>
             </div>
             <p className="text-xs md:text-sm text-indigo-600 mt-1">
-              {totalClients} Clients, {totalReaders} Readers
+              {platformStats.totalClients} Clients, {platformStats.totalReaders} Readers
             </p>
           </CardContent>
         </Card>
@@ -178,10 +293,10 @@ export function AdminDashboard() {
           <CardContent className="p-3 md:p-6">
             <div className="flex items-center space-x-2">
               <BookOpen className="h-4 w-4 md:h-5 md:w-5 text-cyan-500" />
-              <span className="text-xl md:text-2xl font-bold text-cyan-800">{totalReadings}</span>
+              <span className="text-xl md:text-2xl font-bold text-cyan-800">{platformStats.totalReadings}</span>
             </div>
             <p className="text-xs md:text-sm text-cyan-600 mt-1">
-              {completedReadings} Completed
+              {platformStats.completedReadings} Completed
             </p>
           </CardContent>
         </Card>
@@ -192,10 +307,10 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent className="p-3 md:p-6">
             <div className="text-xl md:text-2xl font-bold text-emerald-800">
-              {formatCurrency(totalRevenue)}
+              {formatCurrency(platformStats.totalRevenue)}
             </div>
             <p className="text-xs md:text-sm text-emerald-600 mt-1">
-              From {completedReadings} completed readings
+              From {platformStats.completedReadings} completed readings
             </p>
           </CardContent>
         </Card>
@@ -212,13 +327,13 @@ export function AdminDashboard() {
               </span>
             </div>
             <p className="text-xs md:text-sm text-amber-600 mt-1">
-              Of {totalReaders} total readers
+              Of {platformStats.totalReaders} total readers
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="readings" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="readings">All Readings</TabsTrigger>
           <TabsTrigger value="readers">Reader Performance</TabsTrigger>
@@ -255,8 +370,12 @@ export function AdminDashboard() {
                       readings.map((reading) => (
                         <TableRow key={reading.id}>
                           <TableCell className="font-medium">{reading.id}</TableCell>
-                          <TableCell className="hidden md:table-cell">{reading.clientName}</TableCell>
-                          <TableCell>{reading.readerName}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {'clientName' in reading ? reading.clientName : 'Unknown'}
+                          </TableCell>
+                          <TableCell>
+                            {'readerName' in reading ? reading.readerName : 'Unknown'}
+                          </TableCell>
                           <TableCell className="hidden sm:table-cell capitalize">{reading.type}</TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(reading.status)}>
@@ -305,13 +424,31 @@ export function AdminDashboard() {
                       <TableHead className="hidden sm:table-cell">Sessions</TableHead>
                       <TableHead className="hidden md:table-cell">Specialties</TableHead>
                       <TableHead className="text-right">Earnings</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {readersWithStats && readersWithStats.length > 0 ? (
                       readersWithStats.map((reader) => (
                         <TableRow key={reader.id}>
-                          <TableCell className="font-medium">{reader.username}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-shrink-0 h-8 w-8 rounded-full overflow-hidden bg-muted">
+                                {reader.profileImage ? (
+                                  <img 
+                                    src={reader.profileImage.startsWith('/uploads') 
+                                      ? reader.profileImage 
+                                      : `/uploads/${reader.profileImage}`} 
+                                    alt={reader.username}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <UserIcon className="h-4 w-4 m-auto mt-2" />
+                                )}
+                              </div>
+                              <span>{reader.username}</span>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge className={reader.isOnline ? "bg-green-500" : "bg-gray-500"}>
                               {reader.isOnline ? "Online" : "Offline"}
@@ -329,11 +466,29 @@ export function AdminDashboard() {
                           <TableCell className="text-right">
                             {formatCurrency(reader.totalEarnings || 0)}
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                const profileData = {
+                                  fullName: reader.fullName,
+                                  bio: reader.bio || '',
+                                  specialties: reader.specialties || [],
+                                  profileImage: reader.profileImage || null
+                                };
+                                // Open edit dialog
+                                setEditingReader({...reader, ...profileData});
+                              }}
+                            >
+                              Edit
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
                           No readers found
                         </TableCell>
                       </TableRow>
@@ -368,7 +523,6 @@ export function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 sm:p-6">
-              {/* Products Data and Management */}
               <ProductsManagement />
             </CardContent>
           </Card>
@@ -388,19 +542,143 @@ export function AdminDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Reader Dialog */}
+      {editingReader && (
+        <Dialog open={!!editingReader} onOpenChange={() => setEditingReader(null)}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Reader Profile</DialogTitle>
+              <DialogDescription>
+                Update the reader's profile information and image.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Profile Image</Label>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="h-24 w-24 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-muted overflow-hidden cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {(previewImage || editingReader.profileImage) ? (
+                      <img 
+                        src={previewImage || (editingReader.profileImage?.startsWith('/uploads') 
+                          ? editingReader.profileImage 
+                          : `/uploads/${editingReader.profileImage}`)} 
+                        alt="Profile Preview" 
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Change Image
+                    </Button>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Full Name</Label>
+                <Input 
+                  value={editingReader.fullName} 
+                  onChange={(e) => setEditingReader((prev: any) => ({...prev, fullName: e.target.value}))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Bio</Label>
+                <Textarea 
+                  value={editingReader.bio || ''} 
+                  onChange={(e) => setEditingReader((prev: any) => ({...prev, bio: e.target.value}))}
+                  rows={4}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Specialties</Label>
+                <div className="flex flex-wrap gap-2">
+                  {editingReader.specialties?.map((specialty: string, index: number) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="pl-2 pr-1 py-1"
+                    >
+                      {specialty}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1 hover:bg-destructive/20 rounded-full"
+                        onClick={() => {
+                          const newSpecialties = [...editingReader.specialties];
+                          newSpecialties.splice(index, 1);
+                          setEditingReader((prev: any) => ({...prev, specialties: newSpecialties}));
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingReader(null)}>Cancel</Button>
+              <Button onClick={handleUpdateReader}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
 
-// Form for adding new readers
+
+
 function AddReaderForm() {
   const { toast } = useToast();
-  const [profileImage, setProfileImage] = useState<File | null>(null);
-  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
-  const [specialties, setSpecialties] = useState<string[]>([]);
-  const [specialty, setSpecialty] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
-  
+  const [profileImage, setProfileImage] = useStateReact<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useStateReact<string | null>(null);
+  const [specialties, setSpecialties] = useStateReact<string[]>([]);
+  const [specialty, setSpecialty] = useStateReact<string>("");
+  const [isLoading, setIsLoading] = useStateReact(false);
+  const [editingReader, setEditingReader] = useStateReact<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewImage, setPreviewImage] = useStateReact<string | null>(null);
+
+  // Handle file selection for profile image
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const previewUrl = URL.createObjectURL(file);
+      setPreviewImage(previewUrl);
+      setProfileImage(file);
+      setProfileImagePreview(previewUrl);
+      
+      if (editingReader) {
+        setEditingReader((prev: any) => ({...prev, newProfileImage: file}));
+      }
+    }
+  };
+
   // Common reader specialties
   const commonSpecialties = [
     "Tarot Reading", "Astrology", "Medium", "Clairvoyant", "Energy Healing",
@@ -408,7 +686,7 @@ function AddReaderForm() {
     "Aura Reading", "Crystal Healing", "Chakra Balancing", "Rune Casting",
     "Spirit Guides", "Angel Reading", "Spiritual Counseling"
   ];
-  
+
   // Form state
   const form = useForm({
     defaultValues: {
@@ -423,25 +701,9 @@ function AddReaderForm() {
       videoReading: true,
     },
   });
-  
-  // File input ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setProfileImage(file);
-      
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-  
+
+  // Using the existing fileInputRef and handleFileChange from above
+
   // Handle adding a specialty
   const handleAddSpecialty = () => {
     if (specialty && !specialties.includes(specialty)) {
@@ -449,21 +711,21 @@ function AddReaderForm() {
       setSpecialty("");
     }
   };
-  
+
   // Handle selecting a common specialty
   const handleSelectCommonSpecialty = (value: string) => {
     if (!specialties.includes(value)) {
       setSpecialties([...specialties, value]);
     }
   };
-  
+
   // Handle removing a specialty
   const handleRemoveSpecialty = (index: number) => {
     const updatedSpecialties = [...specialties];
     updatedSpecialties.splice(index, 1);
     setSpecialties(updatedSpecialties);
   };
-  
+
   // Create reader mutation
   const createReaderMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -472,13 +734,13 @@ function AddReaderForm() {
           method: 'POST',
           body: data,
         });
-        
+
         const responseData = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(responseData.message || 'Failed to create reader');
         }
-        
+
         return responseData;
       } catch (error) {
         console.error('Error creating reader:', error);
@@ -491,14 +753,14 @@ function AddReaderForm() {
       setProfileImage(null);
       setProfileImagePreview(null);
       setSpecialties([]);
-      
+
       // Show success message
       toast({
         title: "Reader Added Successfully",
         description: "The new reader account has been created.",
         variant: "default",
       });
-      
+
       // Refresh readers list
       queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
     },
@@ -510,15 +772,15 @@ function AddReaderForm() {
       });
     }
   });
-  
+
   // Form submission handler
   const onSubmit = async (values: any) => {
     try {
       setIsLoading(true);
-      
+
       // Create FormData object to handle file upload
       const formData = new FormData();
-      
+
       // Add all form values to FormData
       Object.keys(values).forEach(key => {
         if (key === 'ratePerMinute') {
@@ -528,16 +790,16 @@ function AddReaderForm() {
           formData.append(key, values[key]);
         }
       });
-      
+
       // Add role and specialties
       formData.append('role', 'reader');
       formData.append('specialties', JSON.stringify(specialties));
-      
+
       // Add profile image if exists
       if (profileImage) {
         formData.append('profileImage', profileImage);
       }
-      
+
       // Call the mutation to create reader
       await createReaderMutation.mutateAsync(formData);
     } catch (error) {
@@ -546,7 +808,7 @@ function AddReaderForm() {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="space-y-8">
       <Form {...form}>
@@ -558,7 +820,7 @@ function AddReaderForm() {
                 <h3 className="text-lg font-semibold">Account Information</h3>
                 <p className="text-sm text-muted-foreground">Basic login and contact details for the reader.</p>
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="username"
@@ -573,7 +835,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -588,7 +850,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -609,7 +871,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="fullName"
@@ -625,14 +887,14 @@ function AddReaderForm() {
                 )}
               />
             </div>
-            
+
             {/* Right Column - Profile Information */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">Profile Information</h3>
                 <p className="text-sm text-muted-foreground">Reader's public profile details and specialties.</p>
               </div>
-              
+
               {/* Profile Image Upload */}
               <div className="space-y-2">
                 <Label htmlFor="profile-image">Profile Image</Label>
@@ -654,7 +916,7 @@ function AddReaderForm() {
                   <div>
                     <Button 
                       type="button" 
-                      variant="outline" 
+                      variant="outline"
                       size="sm"
                       onClick={() => fileInputRef.current?.click()}
                     >
@@ -674,7 +936,7 @@ function AddReaderForm() {
                   </div>
                 </div>
               </div>
-              
+
               <FormField
                 control={form.control}
                 name="bio"
@@ -693,7 +955,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               {/* Specialties Selection */}
               <div className="space-y-2">
                 <Label>Specialties</Label>
@@ -713,7 +975,7 @@ function AddReaderForm() {
                     Add
                   </Button>
                 </div>
-                
+
                 {/* Common specialties */}
                 <div className="flex flex-wrap gap-2 mt-2">
                   {commonSpecialties.map((item) => (
@@ -727,7 +989,7 @@ function AddReaderForm() {
                     </Badge>
                   ))}
                 </div>
-                
+
                 {/* Selected specialties */}
                 <div className="flex flex-wrap gap-2 mt-3">
                   {specialties.map((item, index) => (
@@ -757,14 +1019,14 @@ function AddReaderForm() {
               </div>
             </div>
           </div>
-          
+
           {/* Rate and Reading Type Settings */}
           <div className="border rounded-lg p-4 space-y-4 bg-secondary/5">
             <div className="space-y-2">
               <h3 className="text-lg font-semibold">Reading Settings</h3>
               <p className="text-sm text-muted-foreground">Configure the reader's rates and available reading types.</p>
             </div>
-            
+
             <FormField
               control={form.control}
               name="ratePerMinute"
@@ -791,7 +1053,7 @@ function AddReaderForm() {
                 </FormItem>
               )}
             />
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField
                 control={form.control}
@@ -813,7 +1075,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="phoneReading"
@@ -834,7 +1096,7 @@ function AddReaderForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="videoReading"
@@ -857,7 +1119,7 @@ function AddReaderForm() {
               />
             </div>
           </div>
-          
+
           {/* Submit Button */}
           <Button 
             type="submit"
@@ -878,7 +1140,7 @@ function AddReaderForm() {
 // Create a separate component for Products Management to keep the main component clean
 function ProductsManagement() {
   const { toast } = useToast();
-  
+
   // Fetch all products
   const {
     data: products,
@@ -916,7 +1178,7 @@ function ProductsManagement() {
       });
     },
   });
-  
+
   // Mutation for importing products from Stripe
   const importProductsMutation = useMutation({
     mutationFn: async () => {
@@ -989,7 +1251,7 @@ function ProductsManagement() {
           </Button>
         </div>
       </div>
-      
+
       <div className="overflow-x-auto">
         <Table>
           <TableCaption>Shop products inventory</TableCaption>

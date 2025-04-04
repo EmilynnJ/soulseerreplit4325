@@ -133,13 +133,13 @@ export function Header() {
         
         {/* Mobile Navigation */}
         <div 
-          className={`lg:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+          className={`lg:hidden transition-all duration-300 ease-in-out ${
             mobileMenuOpen 
-              ? 'max-h-[500px] opacity-100 border-t border-accent/20 mt-3' 
-              : 'max-h-0 opacity-0'
+              ? 'opacity-100 border-t border-accent/20 mt-3' 
+              : 'max-h-0 opacity-0 overflow-hidden'
           }`}
         >
-          <nav className="py-3 space-y-3 cosmic-bg backdrop-blur-md rounded-lg">
+          <nav className="py-3 space-y-3 cosmic-bg backdrop-blur-md rounded-lg max-h-[80vh] overflow-y-auto">
             {!user && (
               <>
                 <Link

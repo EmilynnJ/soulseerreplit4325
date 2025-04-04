@@ -31,7 +31,8 @@ const registerSchema = z.object({
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
   fullName: z.string().min(2, "Full name is required"),
-  role: z.enum(["client", "reader"]),
+  // Role is always client for self-registration
+  role: z.literal("client"),
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -42,7 +43,7 @@ interface RegisterFormProps {
 
 export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const { registerMutation } = useAuth();
-  
+
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -62,7 +63,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   return (
     <GlowCard className="p-6">
       <h2 className="text-3xl font-alex text-secondary text-center mb-6">Join SoulSeer</h2>
-      
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -75,14 +76,14 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                   <Input
                     placeholder="Enter your full name"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+
           <FormField
             control={form.control}
             name="username"
@@ -93,14 +94,14 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                   <Input
                     placeholder="Choose a unique username"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+
           <FormField
             control={form.control}
             name="email"
@@ -112,14 +113,14 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                     type="email"
                     placeholder="Enter your email address"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          
+
           <FormField
             control={form.control}
             name="password"
@@ -131,40 +132,30 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
                     type="password"
                     placeholder="Create a secure password"
                     {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair"
+                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          {/* Hidden field for role which is always client */}
+          <input type="hidden" {...form.register("role")} value="client" />
           
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-light font-playfair">I am a</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger className="bg-primary-light/30 border-accent-gold/30 font-playfair">
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="client" className="font-playfair">Client seeking guidance</SelectItem>
-                    <SelectItem value="reader" className="font-playfair">Psychic reader offering services</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
+          {/* Information about reader registration */}
+          <div className="rounded-md bg-purple-50 p-3 border border-purple-100">
+            <p className="text-sm text-purple-800 font-playfair">
+              <strong>Note:</strong> This registration is for clients only. 
+              If you are a psychic reader interested in offering services on SoulSeer, 
+              please contact our team for the application process.
+            </p>
+          </div>
+
           <div className="pt-4">
             <CelestialButton
               type="submit"
-              variant="primary"
+              variant="default"
               className="w-full"
               disabled={registerMutation.isPending}
             >

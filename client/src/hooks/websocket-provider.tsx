@@ -4,10 +4,15 @@ import env from '@/lib/env';
 
 type WebSocketStatus = 'connecting' | 'open' | 'closed' | 'error';
 
+type WebSocketMessage = {
+  type: string;
+  [key: string]: any;
+};
+
 interface WebSocketContextType {
   status: WebSocketStatus;
-  lastMessage: any;
-  sendMessage: (message: any) => void;
+  lastMessage: WebSocketMessage | null;
+  sendMessage: (message: WebSocketMessage | string) => void;
   reconnect: () => void;
 }
 
@@ -16,7 +21,7 @@ const WebSocketContext = createContext<WebSocketContextType | null>(null);
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [status, setStatus] = useState<WebSocketStatus>('closed');
-  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const { user } = useAuth();
   
   // Create WebSocket connection
@@ -40,18 +45,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         return null;
       }
       
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // For Railway deployment, use the proper host
+      // Always use secure WebSocket on Render and production
+      const protocol = env.IS_PRODUCTION ? 'wss:' : (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws`;
       
-      console.log(`Creating WebSocket connection to ${wsUrl}`);
+      // Use the configured WebSocket URL if available, otherwise construct from current host
+      const wsUrl = env.WEBSOCKET_URL || `${protocol}//${host}/ws`;
+      
+      // Ensure secure WebSocket for soulseer.app and onrender.com domains
+      const adjustedWsUrl = (host.includes('soulseer.app') || host.includes('onrender.com') || host.includes('render.com')) 
+        ? `wss://${host}/ws`
+        : wsUrl;
+      
+      console.log(`Creating WebSocket connection to ${adjustedWsUrl}`);
       setStatus('connecting');
       
       // Create a new socket with error handling
       let newSocket: WebSocket;
       try {
-        newSocket = new WebSocket(wsUrl);
+        newSocket = new WebSocket(adjustedWsUrl);
       } catch (socketError) {
         console.error('Failed to create WebSocket instance:', socketError);
         setStatus('error');
@@ -69,10 +81,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         
         // Authenticate with the server
         try {
+          // Get the session token from the cookie
+          const cookies = document.cookie.split(';');
+          const sessionCookie = cookies.find(c => c.trim().startsWith('connect.sid='));
+          const sessionToken = sessionCookie ? sessionCookie.split('=')[1] : null;
+
           newSocket.send(JSON.stringify({
             type: 'authenticate',
             userId: user.id,
-            authToken: 'session-token' // In a real app, you'd use a proper token
+            authToken: sessionToken
           }));
           
           // Start ping interval to keep connection alive
@@ -96,11 +113,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       newSocket.onmessage = (event) => {
         try {
           // Parse JSON messages
-          if (typeof event.data === 'string' && event.data !== 'pong') {
-            const data = JSON.parse(event.data);
-            setLastMessage(data);
+          if (typeof event.data === 'string') {
+            if (event.data === 'pong') {
+              // Handle pong response
+              console.log('Received pong response');
+              return;
+            }
+            try {
+              const data = JSON.parse(event.data);
+              if (typeof data === 'object' && data !== null && 'type' in data) {
+                setLastMessage(data as WebSocketMessage);
+              } else {
+                console.warn('Received malformed WebSocket message:', data);
+              }
+            } catch (parseError) {
+              console.error('Error parsing WebSocket message:', parseError);
+            }
           } else {
-            setLastMessage(event.data);
+            console.warn('Received non-string WebSocket message:', event.data);
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -169,7 +199,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [handleReconnect]);
   
   // Send message through WebSocket with error handling
-  const sendMessage = useCallback((message: any) => {
+  const sendMessage = useCallback((message: WebSocketMessage | string) => {
     if (!env.ENABLE_WEBSOCKET) {
       console.warn('WebSockets are disabled, message not sent');
       return;

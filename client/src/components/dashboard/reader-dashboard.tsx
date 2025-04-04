@@ -6,13 +6,14 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageCircle, Phone, Video } from "lucide-react";
+import { Loader2, MessageCircle, Phone, Video, UserIcon, X, Radio, Wifi, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Dialog,
   DialogContent,
@@ -60,6 +61,57 @@ export function ReaderDashboard() {
     } catch (err) {
       console.error("Failed to update online status:", err);
       setIsOnline(!checked); // Revert on failure
+    }
+  };
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    username: user?.username || '',
+    fullName: user?.fullName || '',
+    bio: user?.bio || '',
+    specialties: user?.specialties || [],
+    profileImage: null as File | null
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpdateProfile = async () => {
+    try {
+      const formData = new FormData();
+      
+      // Add all profile data to formData
+      Object.entries(profileData).forEach(([key, value]) => {
+        if (key === 'specialties') {
+          formData.append(key, JSON.stringify(value));
+        } else if (key === 'profileImage' && value) {
+          formData.append(key, value);
+        } else {
+          formData.append(key, String(value));
+        }
+      });
+
+      const response = await fetch('/api/readers/profile', {
+        method: 'PATCH',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      // Refresh user data
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      setIsEditingProfile(false);
+      
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
     }
   };
 
@@ -118,6 +170,101 @@ export function ReaderDashboard() {
 
   return (
     <DashboardLayout title="Reader Dashboard">
+      {/* Quick Actions Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
+        <Button 
+          className="bg-purple-600 hover:bg-purple-700 text-white p-6 h-auto flex flex-col items-center justify-center gap-2"
+          size="lg"
+          onClick={async () => {
+            try {
+              toast({
+                title: "Starting Livestream",
+                description: "Setting up your live stream...",
+              });
+              
+              // Create a livestream
+              const response = await fetch('/api/livestreams', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  title: `${user?.fullName || 'Reader'}'s Live Session`,
+                  description: 'Live psychic reading session. Join now to interact!',
+                  category: 'Readings'
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to create livestream');
+              }
+              
+              const livestream = await response.json();
+              
+              // Redirect to the livestream page
+              window.location.href = `/livestream/${livestream.id}`;
+            } catch (error) {
+              console.error('Error starting livestream:', error);
+              toast({
+                title: "Error",
+                description: "Failed to start livestream. Please try again.",
+                variant: "destructive"
+              });
+            }
+          }}
+        >
+          <div className="w-full flex items-center justify-center">
+            <Radio className="h-8 w-8 text-white mb-2" />
+          </div>
+          <span className="text-xl font-medium">Go Live Now</span>
+          <p className="text-sm opacity-90 font-normal">Start a livestream for your followers</p>
+        </Button>
+
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700 text-white p-6 h-auto flex flex-col items-center justify-center gap-2"
+          size="lg"
+          onClick={async () => {
+            try {
+              const response = await fetch('/api/stripe/connect', {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to get Stripe Connect URL');
+              }
+              
+              const data = await response.json();
+              
+              if (data.url) {
+                toast({
+                  title: "Redirecting to Stripe",
+                  description: "You will be redirected to Stripe to set up payouts.",
+                });
+                window.location.href = data.url;
+              } else {
+                throw new Error('Invalid response from server');
+              }
+            } catch (error) {
+              console.error('Stripe Connect error:', error);
+              toast({
+                title: "Connection Error",
+                description: "Unable to connect to Stripe at this time. Please try again later.",
+                variant: "destructive"
+              });
+            }
+          }}
+        >
+          <div className="w-full flex items-center justify-center">
+            <CreditCard className="h-8 w-8 text-white mb-2" />
+          </div>
+          <span className="text-xl font-medium">Connect Stripe</span>
+          <p className="text-sm opacity-90 font-normal">Set up payouts for your readings</p>
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
         <Card className="glow-card">
           <CardHeader className="p-3 md:p-6">
@@ -160,6 +307,139 @@ export function ReaderDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
+
+        <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full mt-4">Edit Profile</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+              <DialogDescription>
+                Update your reader profile information.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="profile-image">Profile Image</Label>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="h-24 w-24 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-muted overflow-hidden cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {user?.profileImage ? (
+                      <img 
+                        src={user.profileImage} 
+                        alt="Profile" 
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                    )}
+                  </div>
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        setProfileData(prev => ({
+                          ...prev,
+                          profileImage: e.target.files![0]
+                        }));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  value={profileData.username}
+                  onChange={(e) => setProfileData(prev => ({
+                    ...prev,
+                    username: e.target.value
+                  }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={profileData.fullName}
+                  onChange={(e) => setProfileData(prev => ({
+                    ...prev,
+                    fullName: e.target.value
+                  }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
+                  value={profileData.bio}
+                  onChange={(e) => setProfileData(prev => ({
+                    ...prev,
+                    bio: e.target.value
+                  }))}
+                  className="min-h-[100px]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Specialties</Label>
+                <div className="flex flex-wrap gap-2">
+                  {profileData.specialties.map((specialty, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setProfileData(prev => ({
+                          ...prev,
+                          specialties: prev.specialties.filter((_, i) => i !== index)
+                        }));
+                      }}
+                    >
+                      {specialty}
+                      <X className="w-3 h-3 ml-1" />
+                    </Badge>
+                  ))}
+                </div>
+                <Input
+                  placeholder="Add a specialty..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const value = (e.target as HTMLInputElement).value.trim();
+                      if (value && !profileData.specialties.includes(value)) {
+                        setProfileData(prev => ({
+                          ...prev,
+                          specialties: [...prev.specialties, value]
+                        }));
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditingProfile(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateProfile}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
                   <Phone className="h-4 w-4 mr-2" />
                   <span className="text-sm">Voice:</span>
                 </div>
