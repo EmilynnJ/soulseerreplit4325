@@ -30,6 +30,11 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// Handle uploads directory path based on environment
+const uploadsPath = process.env.NODE_ENV === 'production' 
+  ? path.join(__dirname, 'public', 'uploads')
+  : path.join(process.cwd(), 'public', 'uploads');
+
 // Password hashing function
 const scryptAsync = promisify(scrypt);
 
@@ -415,6 +420,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     broadcastReaderActivity
   };
   
+  // Serve uploads directory in development mode
+  if (process.env.NODE_ENV !== 'production') {
+    app.use('/uploads', express.static(uploadsPath));
+    console.log(`Serving uploads from: ${uploadsPath}`);
+  }
+
   // API Routes
   
   // Readers

@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initializeDatabase } from "./migrations/migration-manager";
 import { config } from "dotenv";
+import path from "path";
 
 // Load environment variables
 config();
@@ -10,6 +11,11 @@ config();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Serve uploads directory directly in both development and production
+const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
+app.use('/uploads', express.static(uploadsPath));
+console.log(`Serving uploads from: ${uploadsPath}`);
 
 // Add health check endpoint for Render
 app.get('/api/health', (req: Request, res: Response) => {

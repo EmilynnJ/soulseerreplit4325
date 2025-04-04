@@ -121,6 +121,61 @@ export function AdminDashboard() {
   const [editingReader, setEditingReader] = useStateReact<any>(null);
   const [previewImage, setPreviewImage] = useStateReact<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Handle file selection for profile image
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const previewUrl = URL.createObjectURL(file);
+      setPreviewImage(previewUrl);
+      
+      if (editingReader) {
+        setEditingReader(prev => ({...prev, newProfileImage: file}));
+      }
+    }
+  };
+  
+  // Handle reader profile update
+  const handleUpdateReader = async () => {
+    try {
+      const formData = new FormData();
+
+      // Add profile data
+      formData.append('fullName', editingReader.fullName);
+      formData.append('bio', editingReader.bio || '');
+      formData.append('specialties', JSON.stringify(editingReader.specialties || []));
+
+      // Add profile image if changed
+      if (editingReader.newProfileImage) {
+        formData.append('profileImage', editingReader.newProfileImage);
+      }
+
+      const response = await fetch(`/api/admin/readers/${editingReader.id}`, {
+        method: 'PATCH',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update reader');
+      }
+
+      // Refresh readers list
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
+      setEditingReader(null);
+      setPreviewImage(null);
+
+      toast({
+        title: "Reader Updated",
+        description: "The reader profile has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update reader",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Fetch all readings
   const {
@@ -372,7 +427,22 @@ export function AdminDashboard() {
                       readersWithStats.map((reader) => (
                         <TableRow key={reader.id}>
                           <TableCell className="font-medium">
-                            {reader.username}
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-shrink-0 h-8 w-8 rounded-full overflow-hidden bg-muted">
+                                {reader.profileImage ? (
+                                  <img 
+                                    src={reader.profileImage.startsWith('/uploads') 
+                                      ? reader.profileImage 
+                                      : `/uploads/${reader.profileImage}`} 
+                                    alt={reader.username}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <UserIcon className="h-4 w-4 m-auto mt-2" />
+                                )}
+                              </div>
+                              <span>{reader.username}</span>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge className={reader.isOnline ? "bg-green-500" : "bg-gray-500"}>
@@ -506,7 +576,9 @@ export function AdminDashboard() {
                   >
                     {(previewImage || editingReader.profileImage) ? (
                       <img 
-                        src={previewImage || editingReader.profileImage} 
+                        src={previewImage || (editingReader.profileImage?.startsWith('/uploads') 
+                          ? editingReader.profileImage 
+                          : `/uploads/${editingReader.profileImage}`)} 
                         alt="Profile Preview" 
                         className="h-full w-full object-cover"
                       />
@@ -616,48 +688,6 @@ function AddReaderForm() {
       if (editingReader) {
         setEditingReader(prev => ({...prev, newProfileImage: file}));
       }
-    }
-  };
-
-  // Handle reader update
-  const handleUpdateReader = async () => {
-    try {
-      const formData = new FormData();
-
-      // Add profile data
-      formData.append('fullName', editingReader.fullName);
-      formData.append('bio', editingReader.bio || '');
-      formData.append('specialties', JSON.stringify(editingReader.specialties || []));
-
-      // Add profile image if changed
-      if (editingReader.newProfileImage) {
-        formData.append('profileImage', editingReader.newProfileImage);
-      }
-
-      const response = await fetch(`/api/admin/readers/${editingReader.id}`, {
-        method: 'PATCH',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update reader');
-      }
-
-      // Refresh readers list
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
-      setEditingReader(null);
-      setPreviewImage(null);
-
-      toast({
-        title: "Reader Updated",
-        description: "The reader profile has been updated successfully.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update reader",
-        variant: "destructive",
-      });
     }
   };
 
