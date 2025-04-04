@@ -114,6 +114,7 @@ async function processCompletedReadingPayment(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
   // Setup authentication routes
   setupAuth(app);
   
@@ -217,7 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`Broadcasting message to all clients: ${messageStr}`);
     
     let sentCount = 0;
-    wss.clients.forEach((client) => {
+    wsManager.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         try {
           client.send(messageStr);
@@ -245,12 +246,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   };
   
-  // Make WebSocket methods available globally
-  (global as any).websocket = {
-    broadcastToAll,
-    notifyUser
-  };
-  
   // Broadcast activity to keep readings page updated in real-time
   const broadcastReaderActivity = async (readerId: number, status: string) => {
     try {
@@ -271,11 +266,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
   
-  wss.on('connection', (ws, req) => {
+  wsManager.on('connection', (ws) => {
     const clientId = clientIdCounter++;
-    let userId: number | null = null;
-    
-    console.log(`WebSocket client connected [id=${clientId}]`);
+    console.log(`New WebSocket client connected with ID ${clientId}`);
     
     // Store client connection
     connectedClients.set(clientId, { socket: ws, userId });

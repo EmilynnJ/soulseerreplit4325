@@ -164,6 +164,24 @@ class WebSocketManager {
       }
     }
   }
+
+  // Broadcast to all connected clients
+  public broadcastToAll(message: any) {
+    for (const [_, client] of this.connectedClients) {
+      if (client.socket.readyState === WebSocket.OPEN) {
+        try {
+          client.socket.send(JSON.stringify(message));
+        } catch (error) {
+          console.error('Error broadcasting message:', error);
+        }
+      }
+    }
+  }
+
+  // Get all connected clients
+  public get clients() {
+    return Array.from(this.connectedClients.values()).map(client => client.socket);
+  }
 }
 
 export function setupWebSocket(server: Server) {
