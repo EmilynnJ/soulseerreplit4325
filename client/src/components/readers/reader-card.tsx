@@ -33,7 +33,7 @@ export function ReaderCard({ reader }: ReaderCardProps) {
   return (
     <GlowCard className="p-0 flex flex-col h-full overflow-hidden max-w-[200px] mx-auto">
       {/* Extra tall portrait layout with larger image area */}
-      <div className="relative h-[320px] bg-primary-light/20">
+      <div className="relative h-[260px] bg-primary-light/20">
         {profileImage && (
           <img 
             src={profileImage} 
@@ -59,10 +59,10 @@ export function ReaderCard({ reader }: ReaderCardProps) {
         </div>
       </div>
       
-      {/* Card content section - more compact to emphasize portrait image */}
+      {/* Card content section - ultra compact to emphasize portrait image */}
       <div className="p-2 flex flex-col flex-grow">
-        {/* Rating and Price in single row */}
-        <div className="flex items-center justify-between">
+        {/* Rating, Price, and Specialties in a single horizontal row */}
+        <div className="flex items-center justify-between gap-1 mb-1">
           <div className="flex items-center gap-1">
             <div className="flex items-center bg-primary-dark/30 px-1.5 py-0.5 rounded-full">
               <StarIcon className="h-3 w-3 text-yellow-500 mr-0.5" />
@@ -75,26 +75,14 @@ export function ReaderCard({ reader }: ReaderCardProps) {
               </p>
             )}
           </div>
+          
+          {/* Show just one specialty or count */}
+          {Array.isArray(specialties) && specialties.length > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-light/20 text-light/80 font-playfair truncate max-w-[80px]">
+              {specialties.length > 1 ? `${specialties.length} specialties` : specialties[0]}
+            </span>
+          )}
         </div>
-        
-        {/* Specialties in compact format */}
-        {Array.isArray(specialties) && specialties.length > 0 && (
-          <div className="my-1.5">
-            <div className="flex flex-wrap gap-1">
-              {specialties.slice(0, 2).map((specialty: string, index: number) => (
-                <span 
-                  key={index} 
-                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-light/20 text-light/80 font-playfair"
-                >
-                  {specialty}
-                </span>
-              ))}
-              {specialties.length > 2 && (
-                <span className="text-[10px] bg-primary-light/10 px-1.5 py-0.5 rounded-full text-light/70">+{specialties.length - 2}</span>
-              )}
-            </div>
-          </div>
-        )}
         
         {/* Action buttons - simplified layout */}
         <div className="mt-auto flex pt-1.5">

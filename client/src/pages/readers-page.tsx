@@ -97,7 +97,7 @@ export default function ReadersPage() {
     : filterReaders(readers);
 
   return (
-    <div className="container mx-auto py-12 px-4">
+    <div className="max-w-6xl mx-auto py-12 px-4">
       {/* Header */}
       <div className="text-center mb-12 cosmic-bg p-8 rounded-lg">
         <h1 className="text-4xl md:text-5xl font-alex-brush text-accent mb-4">Our Psychic Readers</h1>
@@ -191,9 +191,9 @@ export default function ReadersPage() {
         </div>
       ) : displayedReaders.length > 0 ? (
         <div className="flex justify-center">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 justify-items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
             {displayedReaders.map(reader => (
-              <div key={reader.id} className="h-full w-full flex justify-center">
+              <div key={reader.id} className="h-[340px] w-full flex justify-center">
                 <ReaderCard reader={reader} />
               </div>
             ))}
