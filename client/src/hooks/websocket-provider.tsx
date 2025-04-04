@@ -41,17 +41,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       }
       
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // For Railway deployment, use the proper host
+      // Handle both the Replit environment and the soulseer.app domain
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws`;
+      // Use the configured WebSocket URL if available, otherwise construct from current host
+      const wsUrl = env.WEBSOCKET_URL || `${protocol}//${host}/ws`;
       
-      console.log(`Creating WebSocket connection to ${wsUrl}`);
+      // Add specific handling for soulseer.app domain
+      const adjustedWsUrl = host.includes('soulseer.app') 
+        ? `${protocol}//soulseer.app/ws` 
+        : wsUrl;
+      
+      console.log(`Creating WebSocket connection to ${adjustedWsUrl}`);
       setStatus('connecting');
       
       // Create a new socket with error handling
       let newSocket: WebSocket;
       try {
-        newSocket = new WebSocket(wsUrl);
+        newSocket = new WebSocket(adjustedWsUrl);
       } catch (socketError) {
         console.error('Failed to create WebSocket instance:', socketError);
         setStatus('error');

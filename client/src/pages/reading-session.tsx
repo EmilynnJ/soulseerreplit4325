@@ -43,6 +43,27 @@ export default function ReadingSessionPage() {
     queryKey: ['/api/user/balance'],
     enabled: !!user,
   });
+  
+  // Start reading session mutation
+  const startReadingMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', `/api/readings/${params?.id}/start`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/readings/${params?.id}`] });
+      toast({
+        title: 'Reading Started',
+        description: 'Your reading session has successfully started.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error Starting Reading',
+        description: error.message || 'Failed to start the reading session. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  });
 
   // End the reading session mutation
   const endReadingMutation = useMutation({
@@ -220,6 +241,27 @@ export default function ReadingSessionPage() {
     }
   }, [lastMessage, reading, user, chatMessages, sessionStarted]);
   
+  // Auto-start reading if needed
+  useEffect(() => {
+    if (!reading) return;
+    
+    // If the reading is in completed status, show a toast
+    if (reading.status === 'completed') {
+      toast({
+        title: 'Reading Completed',
+        description: `This reading session has already ended.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // If the reading is ready to be started, start it automatically
+    if ((reading.status === 'payment_completed' || reading.status === 'waiting_payment') && !startReadingMutation.isPending) {
+      console.log("Attempting to auto-start reading session:", reading.id);
+      startReadingMutation.mutate();
+    }
+  }, [reading, startReadingMutation, toast]);
+  
   // Update total cost whenever elapsed time changes
   useEffect(() => {
     if (reading) {
@@ -385,10 +427,18 @@ export default function ReadingSessionPage() {
                   <div className="flex flex-col gap-4">
                     {!sessionStarted ? (
                       <Button 
-                        onClick={() => setSessionStarted(true)} 
+                        onClick={() => {
+                          // Start the reading session via API if needed
+                          if (reading.status === 'payment_completed' || reading.status === 'waiting_payment') {
+                            startReadingMutation.mutate();
+                          }
+                          // Start the timer locally
+                          setSessionStarted(true);
+                        }} 
                         className="bg-green-600 hover:bg-green-700"
+                        disabled={startReadingMutation.isPending}
                       >
-                        Start Voice Session
+                        {startReadingMutation.isPending ? "Starting..." : "Start Voice Session"}
                       </Button>
                     ) : (
                       <div className="flex items-center justify-center gap-4">
@@ -431,14 +481,26 @@ export default function ReadingSessionPage() {
           <div className="text-sm text-muted-foreground">
             {reading.pricePerMinute ? `Rate: ${formatCost(reading.pricePerMinute)}/min` : 'Rate not set'}
           </div>
-          <Button 
-            variant="destructive" 
-            onClick={handleEndReading} 
-            disabled={endReadingMutation.isPending}
-            className="w-full sm:w-auto"
-          >
-            End Reading Session
-          </Button>
+          <div className="flex gap-2">
+            {(reading.status === 'payment_completed' || reading.status === 'waiting_payment') && (
+              <Button 
+                variant="default" 
+                onClick={() => startReadingMutation.mutate()} 
+                disabled={startReadingMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                {startReadingMutation.isPending ? "Starting..." : "Start Reading"}
+              </Button>
+            )}
+            <Button 
+              variant="destructive" 
+              onClick={handleEndReading} 
+              disabled={endReadingMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              End Reading Session
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>

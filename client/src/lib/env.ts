@@ -28,7 +28,7 @@ export const env = {
   WEBSOCKET_URL: getEnvVar('VITE_WEBSOCKET_URL', ''),
   
   // Feature flags
-  ENABLE_WEBSOCKET: getBoolEnvVar('VITE_ENABLE_WEBSOCKET', false),
+  ENABLE_WEBSOCKET: getBoolEnvVar('VITE_ENABLE_WEBSOCKET', true),
   ENABLE_LIVESTREAMS: getBoolEnvVar('VITE_ENABLE_LIVESTREAMS', true),
   ENABLE_CHECKOUT: getBoolEnvVar('VITE_ENABLE_CHECKOUT', true),
   
