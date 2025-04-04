@@ -1,4 +1,4 @@
-import React, { useState as useStateReact, useEffect, useMemo } from "react";
+import React, { useState as useStateReact, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -18,7 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useRef } from "react";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,7 +116,19 @@ export function AdminDashboardFallback() {
 // Main Admin Dashboard component
 export function AdminDashboard() {
   const { toast } = useToast();
+  const [editingReader, setEditingReader] = useState<any>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useStateReact("readings");
+
+  // Handle file selection for profile image
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setPreviewImage(URL.createObjectURL(file));
+      setEditingReader(prev => ({...prev, newProfileImage: file}));
+    }
+  };
 
   // Fetch all readings
   const {
@@ -492,7 +503,7 @@ export function AdminDashboard() {
                 Update the reader's profile information and image.
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Profile Image</Label>
@@ -613,12 +624,12 @@ function AddReaderForm() {
   const handleUpdateReader = async () => {
     try {
       const formData = new FormData();
-      
+
       // Add profile data
       formData.append('fullName', editingReader.fullName);
       formData.append('bio', editingReader.bio || '');
       formData.append('specialties', JSON.stringify(editingReader.specialties || []));
-      
+
       // Add profile image if changed
       if (editingReader.newProfileImage) {
         formData.append('profileImage', editingReader.newProfileImage);
@@ -637,7 +648,7 @@ function AddReaderForm() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/readers"] });
       setEditingReader(null);
       setPreviewImage(null);
-      
+
       toast({
         title: "Reader Updated",
         description: "The reader profile has been updated successfully.",
