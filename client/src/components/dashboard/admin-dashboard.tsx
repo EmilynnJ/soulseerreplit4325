@@ -674,23 +674,7 @@ function AddReaderForm() {
     },
   });
 
-  // File input ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setProfileImage(file);
-
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Using the existing fileInputRef and handleFileChange from above
 
   // Handle adding a specialty
   const handleAddSpecialty = () => {
