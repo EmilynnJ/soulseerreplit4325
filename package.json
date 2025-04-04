@@ -80,6 +80,7 @@
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "trtc-js-sdk": "^4.15.22",
+    "ts-node": "^10.9.2",
     "uuid": "^11.1.0",
     "vaul": "^1.1.0",
     "wouter": "^3.3.5",
