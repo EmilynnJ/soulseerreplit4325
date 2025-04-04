@@ -3,14 +3,43 @@ import { storage } from '../storage';
 import { Livestream, type User } from '@shared/schema';
 import { log } from '../vite';
 
-// Initialize Mux SDK
-if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-  throw new Error("MUX credentials are required. Please set MUX_TOKEN_ID and MUX_TOKEN_SECRET env variables.");
+// Lazy initialization for MUX
+let muxInstance: any = null;
+
+// Function to get or create MUX instance
+function getMux() {
+  if (!muxInstance) {
+    if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
+      log("MUX credentials not found. MUX features will be disabled.", "mux");
+      // Return a mock instance instead of throwing
+      return {
+        Video: {
+          LiveStreams: {
+            create: async () => { throw new Error("MUX not configured"); },
+            disable: async () => { throw new Error("MUX not configured"); }
+          },
+          Assets: {
+            get: async () => { throw new Error("MUX not configured"); }
+          }
+        }
+      };
+    }
+    
+    muxInstance = new Mux({
+      tokenId: process.env.MUX_TOKEN_ID,
+      tokenSecret: process.env.MUX_TOKEN_SECRET,
+    });
+    log("MUX SDK initialized successfully", "mux");
+  }
+  
+  return muxInstance;
 }
 
-const { Video } = new Mux({
-  tokenId: process.env.MUX_TOKEN_ID,
-  tokenSecret: process.env.MUX_TOKEN_SECRET,
+// Export Video API through a proxy for lazy access
+const Video = new Proxy({} as any, {
+  get: (target, prop) => {
+    return getMux().Video[prop];
+  }
 });
 
 // Types for MUX API responses

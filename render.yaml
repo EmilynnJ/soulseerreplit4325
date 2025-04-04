@@ -4,7 +4,7 @@ services:
     name: soulseer
     env: node
     plan: starter
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && chmod +x build.sh && ./build.sh
     startCommand: npm run start
     healthCheckPath: /api/health
     autoDeploy: true

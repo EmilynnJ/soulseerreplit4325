@@ -31,8 +31,16 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Handle uploads directory path based on environment
+// Use fileURLToPath and dirname for ES modules
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ES Module alternative for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const uploadsPath = process.env.NODE_ENV === 'production' 
-  ? path.join(__dirname, 'public', 'uploads')
+  ? path.join(dirname(dirname(__filename)), 'public', 'uploads')  // Go up two levels from routes.ts
   : path.join(process.cwd(), 'public', 'uploads');
 
 // Password hashing function
