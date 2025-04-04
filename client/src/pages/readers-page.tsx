@@ -166,14 +166,14 @@ export default function ReadersPage() {
               <Card className={`glow-card overflow-hidden h-full bg-primary-dark/40 border-accent/20 hover:border-accent/40 transition-all cursor-pointer ${reader.isOnline ? 'ring-2 ring-green-500/50' : ''}`}>
                 <div className="relative">
                   <img 
-                    src={reader.profileImage || '/images/default-profile.jpg'} 
+                    src={reader.profileImage || 'https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg'} 
                     alt={reader.fullName}
                     className="w-full h-48 object-cover object-center object-top"
                     loading="lazy"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.onerror = null; // Prevent infinite loop
-                      target.src = '/images/default-profile.jpg';
+                      target.src = 'https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg';
                     }}
                   />
                   

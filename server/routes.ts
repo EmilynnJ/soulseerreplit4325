@@ -553,7 +553,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedUser = await storage.updateUser(req.user.id, update);
       
       // Remove sensitive data before returning
-      const { password, ...safeUser } = updatedUser;
+      const safeUser = updatedUser ? { ...updatedUser } : null;
+      if (safeUser && 'password' in safeUser) {
+        delete (safeUser as any).password;
+      }
       
       res.json({ success: true, user: safeUser });
     } catch (error) {
@@ -2572,7 +2575,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return without password information
       const sanitizedUsers = users.map(user => {
-        const { password, ...userWithoutPassword } = user;
+        const userWithoutPassword = { ...user };
+        if ('password' in userWithoutPassword) {
+          delete (userWithoutPassword as any).password;
+        }
         return userWithoutPassword;
       });
       
@@ -2630,7 +2636,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Remove sensitive information
-      const { password: _, ...safeReader } = updatedReader;
+      const safeReader = updatedReader ? { ...updatedReader } : null;
+      if (safeReader && 'password' in safeReader) {
+        delete (safeReader as any).password;
+      }
       res.json(safeReader);
     } catch (error) {
       console.error("Error updating reader:", error);
@@ -2725,7 +2734,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Successfully created reader:", newReader.id);
       
       // Remove sensitive information from the response
-      const { password: _, ...safeReader } = newReader;
+      const safeReader = { ...newReader };
+      if ('password' in safeReader) {
+        delete (safeReader as any).password;
+      }
       
       res.status(201).json(safeReader);
     } catch (error) {

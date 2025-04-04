@@ -10,8 +10,8 @@ interface ReaderCardProps {
 }
 
 export function ReaderCard({ reader }: ReaderCardProps) {
-  // Use a common default image for all readers to ensure consistent display
-  const defaultImage = "/images/default-profile.jpg";
+  // Use a hardcoded static image path that always exists
+  const defaultImage = "https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg";
   
   // Determine profile image with fallback
   const profileImage = reader.profileImage || defaultImage;

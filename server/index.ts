@@ -16,21 +16,9 @@ app.use(express.urlencoded({ extended: false }));
 const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
 const imagesPath = path.join(process.cwd(), 'public', 'images');
 
-// Create custom middleware to handle missing files
-app.use('/uploads', (req, res, next) => {
-  const filePath = path.join(uploadsPath, req.path);
-  // Use fs to check if the file exists
-  const fs = require('fs');
-  
-  // If the requested file exists, serve it
-  if (fs.existsSync(filePath)) {
-    return res.sendFile(filePath);
-  }
-  
-  // If not, serve the default profile image
-  console.log(`File not found: ${filePath}, serving default image instead`);
-  return res.sendFile(path.join(imagesPath, 'default-profile.jpg'));
-});
+// Serve uploads and images directories
+app.use('/uploads', express.static(uploadsPath));
+app.use('/images', express.static(imagesPath));
 
 console.log(`Serving uploads from: ${uploadsPath} with fallback to default images`);
 
@@ -108,7 +96,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = process.env.PORT || 5000;
-  server.listen(port, "0.0.0.0", () => {
+  server.listen(Number(port), "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
 })();
