@@ -190,12 +190,14 @@ export default function ReadersPage() {
           <p className="text-light/80 font-playfair">Loading readers...</p>
         </div>
       ) : displayedReaders.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {displayedReaders.map(reader => (
-            <div key={reader.id} className="h-full">
-              <ReaderCard reader={reader} />
-            </div>
-          ))}
+        <div className="flex justify-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 justify-items-center">
+            {displayedReaders.map(reader => (
+              <div key={reader.id} className="h-full w-full flex justify-center">
+                <ReaderCard reader={reader} />
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-12 cosmic-bg p-8 rounded-lg">
