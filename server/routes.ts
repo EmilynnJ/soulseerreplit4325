@@ -428,11 +428,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     broadcastReaderActivity
   };
   
-  // Serve uploads directory in development mode
-  if (process.env.NODE_ENV !== 'production') {
-    app.use('/uploads', express.static(uploadsPath));
-    console.log(`Serving uploads from: ${uploadsPath}`);
-  }
+  // Serve uploads directory in all environments
+  app.use('/uploads', express.static(uploadsPath));
+  console.log(`Serving uploads from: ${uploadsPath}`);
+  
+  // Add debug endpoint to check available files in uploads
+  app.get('/api/debug/uploads', async (req, res) => {
+    try {
+      // Get all files in uploads directory
+      const files = fs.readdirSync(uploadsPath);
+      return res.json({ 
+        path: uploadsPath,
+        files: files,
+        count: files.length
+      });
+    } catch (error) {
+      console.error("Error listing uploads directory:", error);
+      return res.status(500).json({ 
+        message: "Failed to list uploads directory", 
+        error: String(error) 
+      });
+    }
+  });
 
   // API Routes
   

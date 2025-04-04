@@ -245,13 +245,13 @@ export default function ReaderProfilePage() {
                 if (reader.profileImage.startsWith('http')) 
                   return reader.profileImage;
                 
-                // If it's a relative path starting with /uploads, make it absolute
+                // If it's a relative path starting with /uploads, use it directly
                 if (reader.profileImage.startsWith('/uploads')) 
-                  return `${window.location.origin}${reader.profileImage}`;
+                  return reader.profileImage;
                 
                 // If just a filename was provided without path, assume it's in /uploads
                 if (!reader.profileImage.includes('/')) 
-                  return `${window.location.origin}/uploads/${reader.profileImage}`;
+                  return `/uploads/${reader.profileImage}`;
                 
                 // For any other path format, attempt to use as-is
                 return reader.profileImage;
