@@ -2105,6 +2105,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create a new reading record
+      // Set a minimum price for the reading (pricePerMinute * 5 minutes minimum)
+      const minimumPrice = pricePerMinute * 5;
+      
       const reading = await storage.createReading({
         readerId,
         clientId: req.user.id,
@@ -2112,9 +2115,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type,
         readingMode: "on_demand",
         pricePerMinute: pricePerMinute,
-        duration: 0, // Start with 0 and track actual duration during the session
-        price: 0, // Database requires this field (legacy)
-        totalPrice: 0, // Will be calculated based on duration after the reading is completed
+        duration: 5, // Start with 5 minute minimum
+        price: minimumPrice, // Required non-zero price
+        totalPrice: 0, // Will be calculated based on actual duration after reading is completed
         notes: null
       });
       
