@@ -126,13 +126,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   (global as any).wsManager = wsManager;
 
   // Handle WebSocket client connections through the WebSocket manager
-  wsManager.wss.on('connection', (ws) => {
-    const clientId = Math.random().toString(36).substring(7);
-    console.log(`New WebSocket client connected with ID ${clientId}`);
+  wsManager.onConnection((ws) => {
+    // Note: The WebSocketManager class now handles client IDs internally
     
     // Handle client disconnection
     ws.on('close', () => {
-      console.log(`WebSocket client ${clientId} disconnected`);
+      console.log('WebSocket client disconnected');
     });
   });
   
