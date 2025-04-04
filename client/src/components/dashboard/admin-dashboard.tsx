@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { GiftManagement } from "./gift-management";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // Helper function to get status color for readings
 function getStatusColor(status: string): string {
@@ -590,12 +591,7 @@ export function AdminDashboard() {
   );
 }
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { X, UserIcon } from "lucide-react";
+
 
 function AddReaderForm() {
   const { toast } = useToast();
