@@ -2,6 +2,11 @@
 import Mux from '@mux/mux-node';
 import { storage } from '../storage';
 import { Livestream, type User } from '@shared/schema';
+import type { MuxError } from '@mux/mux-node';
+
+// Explicitly import node types
+import { createHmac } from 'crypto';
+import type { Response } from 'express';
 
 // Helper function for logging
 function log(message: string, tag = 'mux') {
@@ -24,8 +29,25 @@ function getMuxCredentials() {
 
 // Initialize the Mux client once at module load time
 const credentials = getMuxCredentials();
-const muxClient = credentials ? new Mux(credentials) : null;
-log(muxClient ? "MUX client initialized on startup" : "MUX client initialization failed - missing credentials");
+let muxClient: Mux | null = null;
+
+try {
+  if (credentials) {
+    muxClient = new Mux(credentials);
+    log("MUX client initialized successfully");
+    // Verify credentials by making a test API call
+    muxClient.video.liveStreams.list().then(() => {
+      log("MUX credentials verified successfully");
+    }).catch((error) => {
+      log(`MUX credentials verification failed: ${error.message}`);
+    });
+  } else {
+    log("MUX client initialization failed - missing credentials");
+  }
+} catch (error) {
+  log(`Error initializing MUX client: ${error}`);
+  muxClient = null;
+}
 
 // Types for MUX API responses
 interface MuxLiveStream {

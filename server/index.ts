@@ -13,17 +13,14 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Configure CORS to allow requests from soulseer.app
+// Configure CORS based on environment
 const corsOptions = {
-  origin: [
-    'http://localhost:5000', 
-    'https://localhost:5000',
-    'https://soulseer.app',
-    'https://www.soulseer.app'
-  ],
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://soulseer.app', 'https://www.soulseer.app']
+    : ['http://localhost:5000', 'https://localhost:5000', 'http://localhost:3000', 'https://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
 };
 app.use(cors(corsOptions));
 
@@ -81,13 +78,26 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  try {
-    // Initialize database before registering routes
-    await initializeDatabase();
-    log('Database initialized successfully', 'database');
-  } catch (error) {
-    log(`Failed to initialize database: ${error}`, 'database');
-    // Continue with server startup even if database initialization fails
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = 5000; // 5 seconds
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Initialize database before registering routes
+      await initializeDatabase();
+      log('Database initialized successfully', 'database');
+      break;
+    } catch (error) {
+      log(`Database initialization attempt ${attempt} failed: ${error}`, 'database');
+      
+      if (attempt === MAX_RETRIES) {
+        log('All database initialization attempts failed. Exiting.', 'database');
+        process.exit(1);
+      }
+      
+      log(`Retrying in ${RETRY_DELAY/1000} seconds...`, 'database');
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+    }
   }
   
   const server = await registerRoutes(app);

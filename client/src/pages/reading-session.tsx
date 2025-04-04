@@ -199,6 +199,27 @@ export default function ReadingSessionPage() {
         console.log("Received pong response");
         return;
       }
+
+      // Handle reading status updates
+      if (lastMessage.type === 'reading_started' && lastMessage.reading?.id === reading.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/readings/${reading.id}`] });
+        toast({
+          title: 'Reading Started',
+          description: 'Your reading session has begun.',
+        });
+        return;
+      }
+
+      if (lastMessage.type === 'reading_completed' && lastMessage.reading?.id === reading.id) {
+        queryClient.invalidateQueries({ queryKey: [`/api/readings/${reading.id}`] });
+        queryClient.invalidateQueries({ queryKey: ['/api/user/balance'] });
+        toast({
+          title: 'Reading Completed',
+          description: `Your reading session has ended. Total cost: ${formatCost(lastMessage.totalPrice)}`,
+        });
+        setLocation('/readings');
+        return;
+      }
       
       // Handle authentication success
       if (lastMessage.type === 'authentication_success') {
@@ -245,22 +266,31 @@ export default function ReadingSessionPage() {
   useEffect(() => {
     if (!reading) return;
     
-    // If the reading is in completed status, show a toast
+    // If the reading is in completed status, show a toast and redirect
     if (reading.status === 'completed') {
       toast({
         title: 'Reading Completed',
         description: `This reading session has already ended.`,
         variant: 'destructive',
       });
+      setLocation('/readings');
       return;
     }
     
     // If the reading is ready to be started, start it automatically
-    if ((reading.status === 'payment_completed' || reading.status === 'waiting_payment') && !startReadingMutation.isPending) {
+    if (reading.status === 'payment_completed' && !startReadingMutation.isPending) {
       console.log("Attempting to auto-start reading session:", reading.id);
       startReadingMutation.mutate();
+    } else if (reading.status === 'waiting_payment') {
+      toast({
+        title: 'Payment Required',
+        description: 'Please complete the payment to start the reading session.',
+        variant: 'destructive',
+      });
+      // Redirect to payment page or show payment modal
+      return;
     }
-  }, [reading, startReadingMutation, toast]);
+  }, [reading, startReadingMutation, toast, setLocation]);
   
   // Update total cost whenever elapsed time changes
   useEffect(() => {

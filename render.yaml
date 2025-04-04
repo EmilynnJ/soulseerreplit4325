@@ -14,7 +14,7 @@ services:
       - key: PORT
         value: 10000
       - key: VITE_ENABLE_WEBSOCKET
-        value: false
+        value: true
       - key: VITE_ENABLE_LIVESTREAMS
         value: true
       - key: VITE_ENABLE_CHECKOUT

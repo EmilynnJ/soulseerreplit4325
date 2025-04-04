@@ -3,14 +3,16 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage.js";
 import { setupAuth } from "./auth.js";
+import readingRouter from "./routes/readings.js";
 import { z } from "zod";
 import { UserUpdate, Reading } from "../shared/schema.js";
 import { db } from "./db.js";
 import { desc, asc } from "drizzle-orm";
 import { gifts } from "../shared/schema.js";
 import stripeClient from "./services/stripe-client.js";
-// Use the mux bridge that includes all the fixed Mux client implementation functions
-import * as muxClient from "./services/mux-bridge.js";
+// Use the fixed MUX client implementation
+import * as muxClient from "./services/mux-client.fixed.js";
+import { setupWebSocket } from "./websocket.js";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
@@ -120,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Setup WebSocket server for live readings and real-time communication
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  setupWebSocket(httpServer);
   
   // MUX Webhook endpoint
   app.post('/api/webhooks/mux', express.raw({type: 'application/json'}), async (req, res) => {
