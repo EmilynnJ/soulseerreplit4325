@@ -9,8 +9,8 @@ import { db } from "./db.js";
 import { desc, asc } from "drizzle-orm";
 import { gifts } from "../shared/schema.js";
 import stripeClient from "./services/stripe-client.js";
-// TRTC has been completely removed
-import * as muxClient from "./services/mux-client.js";
+// Use the mux bridge that includes all the fixed Mux client implementation functions
+import * as muxClient from "./services/mux-bridge.js";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
@@ -1742,23 +1742,172 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Title and description are required" });
       }
       
-      // Create the livestream
-      const livestream = await storage.createLivestream({
-        userId: req.user.id,
-        title,
-        description,
-        category: category || 'General',
-        status: 'created',
-        scheduledFor: null,
-        thumbnailUrl: null,
-        streamKey: `sk_${Math.random().toString(36).substring(2, 15)}`, // Generate random stream key
-        playbackId: null
-      });
+      // Use mux-bridge to create the livestream with Mux integration
+      const livestream = await muxClient.createLivestream(req.user, title, description);
+      
+      // Add additional metadata
+      if (category) {
+        await storage.updateLivestream(livestream.id, { category });
+      }
       
       res.status(201).json(livestream);
     } catch (error) {
       console.error('Error creating livestream:', error);
-      res.status(500).json({ message: "Failed to create livestream" });
+      res.status(500).json({ 
+        message: "Failed to create livestream",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Get all active/live livestreams
+  app.get('/api/livestreams', async (req: Request, res: Response) => {
+    try {
+      // Check for userId query param to filter by reader/creator
+      const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
+      
+      let livestreams;
+      if (userId) {
+        // Get livestreams for a specific user
+        livestreams = await muxClient.getLivestreamsForUser(userId);
+      } else {
+        // Get all public livestreams (status='live')
+        livestreams = await muxClient.getPublicLivestreams();
+      }
+      
+      // Add reader info to each livestream
+      const livestreamsWithReaders = await Promise.all(
+        livestreams.map(async (stream) => {
+          const reader = await storage.getUser(stream.userId);
+          if (!reader) return stream;
+          
+          // Remove sensitive reader info
+          const { password, email, stripeCustomerId, stripeAccountId, ...safeReader } = reader;
+          
+          return {
+            ...stream,
+            reader: safeReader
+          };
+        })
+      );
+      
+      res.json(livestreamsWithReaders);
+    } catch (error) {
+      console.error('Error fetching livestreams:', error);
+      res.status(500).json({ message: "Failed to fetch livestreams" });
+    }
+  });
+  
+  // Get a single livestream by ID
+  app.get('/api/livestreams/:id', async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid livestream ID" });
+      }
+      
+      // Get the livestream details with the latest Mux data
+      const livestream = await muxClient.getLivestreamDetails(id);
+      
+      if (!livestream) {
+        return res.status(404).json({ message: "Livestream not found" });
+      }
+      
+      // Get reader info
+      const reader = await storage.getUser(livestream.userId);
+      
+      // Prepare response with reader info (excluding sensitive data)
+      let response = { ...livestream };
+      
+      if (reader) {
+        const { password, email, stripeCustomerId, stripeAccountId, ...safeReader } = reader;
+        response.reader = safeReader;
+      }
+      
+      res.json(response);
+    } catch (error) {
+      console.error(`Error fetching livestream ${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to fetch livestream details" });
+    }
+  });
+  
+  // Start a livestream 
+  app.post('/api/livestreams/:id/start', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid livestream ID" });
+      }
+      
+      const livestream = await storage.getLivestream(id);
+      
+      if (!livestream) {
+        return res.status(404).json({ message: "Livestream not found" });
+      }
+      
+      // Verify ownership
+      if (livestream.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to start this livestream" });
+      }
+      
+      // Start the livestream
+      const updatedLivestream = await muxClient.startLivestream(id);
+      
+      // Broadcast livestream start to all connected clients
+      (global as any).websocket.broadcastToAll({
+        type: 'livestream_started',
+        livestream: updatedLivestream,
+        timestamp: Date.now()
+      });
+      
+      res.json(updatedLivestream);
+    } catch (error) {
+      console.error(`Error starting livestream ${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to start livestream" });
+    }
+  });
+  
+  // End a livestream
+  app.post('/api/livestreams/:id/end', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid livestream ID" });
+      }
+      
+      const livestream = await storage.getLivestream(id);
+      
+      if (!livestream) {
+        return res.status(404).json({ message: "Livestream not found" });
+      }
+      
+      // Verify ownership
+      if (livestream.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized to end this livestream" });
+      }
+      
+      // End the livestream
+      const updatedLivestream = await muxClient.endLivestream(id);
+      
+      // Broadcast livestream end to all connected clients
+      (global as any).websocket.broadcastToAll({
+        type: 'livestream_ended',
+        livestream: updatedLivestream,
+        timestamp: Date.now()
+      });
+      
+      res.json(updatedLivestream);
+    } catch (error) {
+      console.error(`Error ending livestream ${req.params.id}:`, error);
+      res.status(500).json({ message: "Failed to end livestream" });
     }
   });
   

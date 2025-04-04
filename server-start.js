@@ -1,19 +1,42 @@
-// A simplified server starter for SoulSeer
+// Server startup script that avoids vite.config.ts issues
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
+const { createServer } = require('http');
+const { Pool } = require('pg');
+const { WebSocketServer } = require('ws');
 const cors = require('cors');
-const { pool } = require('./server/db');
+const session = require('express-session');
+const Mux = require('@mux/mux-node');
+const path = require('path');
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const MemoryStore = require('memorystore')(session);
+const fs = require('fs');
 
-// Check PostgreSQL connection
+// Create Express app
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Basic middleware
+app.use(cors());
+app.use(express.json());
+
+// Basic logging function
+function log(message, tag = 'server') {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] [${tag}] ${message}`);
+}
+
+// Test database connection
 async function checkDbConnection() {
   try {
-    const client = await pool.connect();
-    console.log('Successfully connected to PostgreSQL');
-    client.release();
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const result = await pool.query('SELECT NOW()');
+    log(`Database connection successful: ${result.rows[0].now}`, 'db');
+    await pool.end();
     return true;
-  } catch (err) {
-    console.error('PostgreSQL connection error:', err.message);
+  } catch (error) {
+    log(`Database connection error: ${error.message}`, 'db');
     return false;
   }
 }
@@ -21,80 +44,106 @@ async function checkDbConnection() {
 // Test MUX connection
 async function testMuxConnection() {
   try {
-    const Mux = require('@mux/mux-node');
+    const tokenId = process.env.MUX_TOKEN_ID;
+    const tokenSecret = process.env.MUX_TOKEN_SECRET;
     
-    if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-      console.log("MUX credentials not found. MUX features will be disabled.");
+    if (!tokenId || !tokenSecret) {
+      log('Missing MUX credentials', 'mux');
       return false;
     }
     
-    console.log(`MUX_TOKEN_ID exists with length: ${process.env.MUX_TOKEN_ID.length}`);
-    console.log(`MUX_TOKEN_SECRET exists with length: ${process.env.MUX_TOKEN_SECRET.length}`);
+    const muxClient = new Mux({ tokenId, tokenSecret });
+    log('MUX client created', 'mux');
     
-    const { Video } = new Mux({
-      tokenId: process.env.MUX_TOKEN_ID,
-      tokenSecret: process.env.MUX_TOKEN_SECRET,
-    });
-    
-    console.log('MUX SDK initialized successfully');
+    const response = await muxClient.video.liveStreams.list();
+    log(`MUX connection successful, found ${response.data.length} livestreams`, 'mux');
     return true;
   } catch (error) {
-    console.error('Error initializing MUX SDK:', error.message);
+    log(`MUX connection error: ${error.message}`, 'mux');
     return false;
   }
 }
 
-// Initialize express app
-const app = express();
-const PORT = process.env.PORT || 5000;
-
-// Configure middleware
-app.use(cors());
-app.use(express.json());
-
-// Simple health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date() });
-});
-
-// Only load critical routes for testing
-app.get('/api/livestreams', async (req, res) => {
-  try {
-    const Mux = require('@mux/mux-node');
-    const { Video } = new Mux({
-      tokenId: process.env.MUX_TOKEN_ID,
-      tokenSecret: process.env.MUX_TOKEN_SECRET,
-    });
-    
-    const liveStreams = await Video.LiveStreams.list();
-    res.json({ liveStreams });
-  } catch (error) {
-    console.error('Error fetching livestreams:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Error handling
-app.use((err, _req, res, _next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
 // Start the server
 async function startServer() {
-  console.log('Starting SoulSeer server in diagnostic mode...');
+  // Check database connection
+  const dbOk = await checkDbConnection();
+  if (!dbOk) {
+    log('Database connection failed. Exiting.', 'fatal');
+    return;
+  }
   
-  // Run tests
-  await checkDbConnection();
-  await testMuxConnection();
+  // Test MUX connection
+  const muxOk = await testMuxConnection();
+  log(`MUX API ${muxOk ? 'connected successfully' : 'connection failed'}`, 'mux');
   
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Health check available at: http://localhost:${PORT}/api/health`);
-    console.log(`Livestreams API available at: http://localhost:${PORT}/api/livestreams`);
+  // Setup auth session
+  app.use(session({
+    cookie: { 
+      maxAge: 24 * 60 * 60 * 1000, 
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+    },
+    resave: false,
+    saveUninitialized: false,
+    secret: process.env.SESSION_SECRET || 'soulseer-dev-secret',
+    store: new MemoryStore({
+      checkPeriod: 24 * 60 * 60 * 1000 // Prune expired entries every 24h
+    })
+  }));
+  
+  // Initialize Passport
+  app.use(passport.initialize());
+  app.use(passport.session());
+  
+  // Create HTTP server
+  const server = createServer(app);
+  
+  // Setup WebSocket server
+  const wss = new WebSocketServer({ server, path: '/ws' });
+  
+  // Track connected clients
+  const connectedClients = new Map();
+  
+  // Handle WebSocket connections
+  wss.on('connection', (ws, req) => {
+    const clientId = Date.now();
+    log(`WebSocket client connected: ${clientId}`, 'ws');
+    
+    connectedClients.set(clientId, { socket: ws });
+    
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message);
+        log(`Received message from client ${clientId}: ${data.type}`, 'ws');
+      } catch (error) {
+        log(`Error parsing message from client ${clientId}: ${error.message}`, 'ws');
+      }
+    });
+    
+    ws.on('close', () => {
+      log(`WebSocket client disconnected: ${clientId}`, 'ws');
+      connectedClients.delete(clientId);
+    });
+  });
+  
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      time: new Date().toISOString(),
+      services: {
+        database: dbOk,
+        mux: muxOk
+      }
+    });
+  });
+  
+  // Start the server
+  server.listen(port, '0.0.0.0', () => {
+    log(`Server listening on port ${port}`);
   });
 }
 
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-});
+// Start the server
+startServer();
