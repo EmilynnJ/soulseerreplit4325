@@ -2608,7 +2608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.file) {
         // Generate a unique filename
         const filename = `${Date.now()}-${req.file.originalname}`;
-        const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
         const filepath = path.join(uploadsDir, filename);
         
         // Ensure uploads directory exists
