@@ -13,30 +13,8 @@ export function ReaderCard({ reader }: ReaderCardProps) {
   // Use a local fallback image that definitely exists in our project
   const defaultImage = "/images/default-profile.jpg";
   
-  // Enhanced image path handling with multiple fallback options
-  const profileImage = (() => {
-    // If no image is provided, use default
-    if (!reader.profileImage) return defaultImage;
-    
-    // If image contains 'undefined' or 'null', it's likely a broken path
-    if (reader.profileImage.includes("undefined") || reader.profileImage.includes("null")) 
-      return defaultImage;
-    
-    // If it's already an absolute URL, use it directly
-    if (reader.profileImage.startsWith('http')) 
-      return reader.profileImage;
-    
-    // If it's a relative path starting with /uploads, use it directly
-    if (reader.profileImage.startsWith('/uploads')) 
-      return reader.profileImage;
-    
-    // If just a filename was provided without path, assume it's in /uploads
-    if (!reader.profileImage.includes('/')) 
-      return `/uploads/${reader.profileImage}`;
-    
-    // For any other path format, attempt to use as-is
-    return reader.profileImage;
-  })();
+  // Simple path handling - just use the default image if none is provided
+  const profileImage = reader.profileImage || defaultImage;
   
   // Parse specialties, ensuring they're always an array of strings
   const specialties: string[] = (() => {

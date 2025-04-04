@@ -12,7 +12,7 @@ function getStripe(): Stripe {
     
     console.log('Initializing Stripe with key length:', process.env.STRIPE_SECRET_KEY.length);
     stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16'
+      apiVersion: '2023-10-16' as any // Cast to any to bypass TypeScript version mismatch
     });
     console.log('Stripe initialized successfully');
   }
@@ -325,4 +325,11 @@ export default {
   createOnDemandReadingPayment,
   fetchStripeProducts,
   syncProductWithStripe,
+  // Export Stripe's native clients for direct access
+  accounts: stripe.accounts,
+  accountLinks: stripe.accountLinks,
+  customers: stripe.customers,
+  paymentIntents: stripe.paymentIntents,
+  prices: stripe.prices,
+  products: stripe.products
 };

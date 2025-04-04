@@ -233,29 +233,7 @@ export default function ReaderProfilePage() {
         <div className="md:col-span-1">
           <div className="relative">
             <img 
-              src={(() => {
-                // If no image is provided, use default
-                if (!reader.profileImage) return defaultImage;
-                
-                // If image contains 'undefined' or 'null', it's likely a broken path
-                if (reader.profileImage.includes("undefined") || reader.profileImage.includes("null")) 
-                  return defaultImage;
-                
-                // If it's already an absolute URL, use it directly
-                if (reader.profileImage.startsWith('http')) 
-                  return reader.profileImage;
-                
-                // If it's a relative path starting with /uploads, use it directly
-                if (reader.profileImage.startsWith('/uploads')) 
-                  return reader.profileImage;
-                
-                // If just a filename was provided without path, assume it's in /uploads
-                if (!reader.profileImage.includes('/')) 
-                  return `/uploads/${reader.profileImage}`;
-                
-                // For any other path format, attempt to use as-is
-                return reader.profileImage;
-              })()}
+              src={reader.profileImage || defaultImage}
               alt={reader.fullName}
               className="w-full rounded-lg shadow-lg aspect-square object-cover object-center object-top"
               loading="lazy"
