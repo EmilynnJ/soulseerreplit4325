@@ -42,22 +42,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<User | undefined, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
-    retry: 2 // Retry twice before giving up
+    retry: 1, // Reduce retries for faster feedback
+    staleTime: 0, // Always check for fresh data
+    gcTime: 1000 * 60 * 5, // 5 minutes (using gcTime instead of cacheTime for v5)
+    refetchOnWindowFocus: true, // Reload when tab gets focus
+    refetchOnMount: true // Reload when component mounts
   });
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
       console.log("Attempting login with credentials:", { username: credentials.username, passwordLength: credentials.password.length });
-      const res = await apiRequest("POST", "/api/login", credentials);
-      const userData = await res.json();
-      console.log("Login successful, user data received:", { id: userData.id, username: userData.username, role: userData.role });
-      return userData;
+      
+      // Set a longer timeout for the login request (10 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        const res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(credentials),
+          credentials: "include",
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(`Login failed with status ${res.status}: ${errorText}`);
+          throw new Error(errorText || "Authentication failed");
+        }
+        
+        const userData = await res.json();
+        console.log("Login successful, user data received:", { id: userData.id, username: userData.username, role: userData.role });
+        return userData;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     },
     onSuccess: (user: User) => {
+      // Clear any stale cache data
+      queryClient.clear();
+      
+      // Set the new user data
       queryClient.setQueryData(["/api/user"], user);
       console.log("User data set in query client cache");
+      
       // Force a refetch to ensure we have the latest data
-      refetchUser();
+      setTimeout(() => {
+        refetchUser();
+        console.log("Triggered user data refetch after login");
+      }, 500);
+      
       toast({
         title: "Welcome back!",
         description: `You're now logged in as ${user.fullName}`,
@@ -65,6 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onError: (error: Error) => {
       console.error("Login failed:", error);
+      // Clear any potentially stale user data
+      queryClient.removeQueries({ queryKey: ["/api/user"] });
+      
       toast({
         title: "Login failed",
         description: error.message || "Authentication failed. Please try again.",
@@ -82,16 +123,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName: userData.fullName,
         role: userData.role || "client"
       });
-      const res = await apiRequest("POST", "/api/register", userData);
-      const user = await res.json();
-      console.log("Registration successful, user data received:", { id: user.id, username: user.username, role: user.role });
-      return user;
+      
+      // Set a longer timeout for the registration request (10 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      try {
+        const res = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(userData),
+          credentials: "include",
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(`Registration failed with status ${res.status}: ${errorText}`);
+          throw new Error(errorText || "Registration failed");
+        }
+        
+        const user = await res.json();
+        console.log("Registration successful, user data received:", { id: user.id, username: user.username, role: user.role });
+        return user;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     },
     onSuccess: (user: User) => {
+      // Clear any stale cache data
+      queryClient.clear();
+      
+      // Set the new user data
       queryClient.setQueryData(["/api/user"], user);
       console.log("User data set in query client cache after registration");
+      
       // Force a refetch to ensure we have the latest data
-      refetchUser();
+      setTimeout(() => {
+        refetchUser();
+        console.log("Triggered user data refetch after registration");
+      }, 500);
+      
       toast({
         title: "Registration successful!",
         description: `Welcome to SoulSeer, ${user.fullName}`,
@@ -99,6 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onError: (error: Error) => {
       console.error("Registration failed:", error);
+      // Clear any potentially stale user data
+      queryClient.removeQueries({ queryKey: ["/api/user"] });
+      
       toast({
         title: "Registration failed",
         description: error.message || "Registration failed. Please try again with a different username or email.",
@@ -109,26 +187,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      console.log("Attempting to logout");
+      
+      // Set a longer timeout for the logout request (5 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      try {
+        const res = await fetch("/api/logout", {
+          method: "POST",
+          credentials: "include",
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(`Logout failed with status ${res.status}: ${errorText}`);
+          throw new Error(errorText || "Logout failed");
+        }
+        
+        console.log("Logout successful");
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     },
     onSuccess: () => {
+      // Clear all cache data to ensure clean state
+      queryClient.clear();
+      console.log("Query cache cleared after logout");
+      
+      // Set user to null explicitly
       queryClient.setQueryData(["/api/user"], null);
+      
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",
       });
     },
     onError: (error: Error) => {
+      console.error("Logout failed:", error);
       toast({
         title: "Logout failed",
-        description: error.message,
+        description: error.message || "Failed to logout. Please try again.",
         variant: "destructive",
       });
     },
   });
 
   // Convert undefined to null for proper typing
-  const safeUser = user === undefined ? null : user;
+  const safeUser: User | null = user === undefined ? null : user as User;
   
   return (
     <AuthContext.Provider

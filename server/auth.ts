@@ -38,13 +38,13 @@ export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true, // Changed to true to save all sessions
     store: storage.sessionStore,
     cookie: {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      secure: isProduction, // True in production, false in development
-      sameSite: isProduction ? "none" : "lax", // "none" allows cross-site cookies when secure is true
-      domain: isProduction ? ".soulseer.app" : undefined // Set domain in production for cross-subdomain support
+      secure: false, // False always for now to fix login issues
+      sameSite: "lax", // Consistent setting
+      domain: undefined // No domain specification for now
     }
   };
   
