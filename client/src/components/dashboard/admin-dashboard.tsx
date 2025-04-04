@@ -116,19 +116,10 @@ export function AdminDashboardFallback() {
 // Main Admin Dashboard component
 export function AdminDashboard() {
   const { toast } = useToast();
-  const [editingReader, setEditingReader] = useState<any>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useStateReact("readings");
-
-  // Handle file selection for profile image
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPreviewImage(URL.createObjectURL(file));
-      setEditingReader(prev => ({...prev, newProfileImage: file}));
-    }
-  };
+  const [editingReader, setEditingReader] = useStateReact<any>(null);
+  const [previewImage, setPreviewImage] = useStateReact<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch all readings
   const {
@@ -607,7 +598,7 @@ function AddReaderForm() {
   const [specialties, setSpecialties] = useStateReact<string[]>([]);
   const [specialty, setSpecialty] = useStateReact<string>("");
   const [isLoading, setIsLoading] = useStateReact(false);
-  const [editingReader, setEditingReader] = useState<any>(null);
+  const [editingReader, setEditingReader] = useStateReact<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -899,8 +890,7 @@ function AddReaderForm() {
                   <div>
                     <Button 
                       type="button" 
-                      variant="outline" 
-                      size="sm"
+                      variant="outline                      size="sm"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       Upload Image
