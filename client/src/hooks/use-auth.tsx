@@ -53,20 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: async (credentials: LoginData) => {
       console.log("Attempting login with credentials:", { username: credentials.username, passwordLength: credentials.password.length });
       
-      // Set a longer timeout for the login request (10 seconds)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
       try {
         const res = await fetch("/api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(credentials),
-          credentials: "include",
-          signal: controller.signal
+          credentials: "include"
         });
-        
-        clearTimeout(timeoutId);
         
         if (!res.ok) {
           const errorText = await res.text();
@@ -78,8 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Login successful, user data received:", { id: userData.id, username: userData.username, role: userData.role });
         return userData;
       } catch (err) {
-        clearTimeout(timeoutId);
-        throw err;
+        console.error("Login fetch error:", err);
+        throw new Error("Login failed - please try again");
       }
     },
     onSuccess: (user: User) => {
