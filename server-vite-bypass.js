@@ -8,6 +8,7 @@ const { createServer } = require('http');
 // Create Express app
 const app = express();
 const port = 5000;
+const host = '0.0.0.0';
 
 // Basic middleware
 app.use(cors());
@@ -59,6 +60,6 @@ app.get('*', (req, res) => {
 const server = createServer(app);
 
 // Start server
-server.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${port}`);
+server.listen(port, host, () => {
+  console.log(`Server running on http://${host}:${port}`);
 });
