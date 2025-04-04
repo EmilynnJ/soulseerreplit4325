@@ -1,6 +1,7 @@
 run = "npm run dev"
 hidden = [".config", "package-lock.json"]
 compile = "npm run build"
+modules = ["nodejs-20"]
 
 [packager]
 language = "nodejs"
