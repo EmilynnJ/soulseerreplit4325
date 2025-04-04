@@ -1707,6 +1707,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
+  // Endpoint to create a new livestream
+  app.post('/api/livestreams', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Only readers can create livestreams
+      if (req.user.role !== 'reader') {
+        return res.status(403).json({ message: "Only readers can create livestreams" });
+      }
+      
+      const { title, description, category } = req.body;
+      
+      if (!title || !description) {
+        return res.status(400).json({ message: "Title and description are required" });
+      }
+      
+      // Create the livestream
+      const livestream = await storage.createLivestream({
+        userId: req.user.id,
+        title,
+        description,
+        category: category || 'General',
+        status: 'created',
+        scheduledFor: null,
+        thumbnailUrl: null,
+        streamKey: `sk_${Math.random().toString(36).substring(2, 15)}`, // Generate random stream key
+        playbackId: null
+      });
+      
+      res.status(201).json(livestream);
+    } catch (error) {
+      console.error('Error creating livestream:', error);
+      res.status(500).json({ message: "Failed to create livestream" });
+    }
+  });
+  
+  // Stripe Connect endpoint to generate an account link for readers
+  app.get('/api/stripe/connect', async (req: Request, res: Response) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      // Only readers can connect to Stripe
+      if (req.user.role !== 'reader') {
+        return res.status(403).json({ message: "Only readers can connect to Stripe" });
+      }
+      
+      // Initialize Stripe account for the reader if they don't have one
+      let stripeAccountId = req.user.stripeAccountId;
+      
+      if (!stripeAccountId) {
+        // Create a new Stripe Connect account
+        const account = await stripeClient.accounts.create({
+          type: 'express',
+          country: 'US',
+          email: req.user.email,
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          business_type: 'individual',
+          business_profile: {
+            name: req.user.fullName || req.user.username,
+            url: `${req.protocol}://${req.get('host')}/readers/${req.user.id}`
+          }
+        });
+        
+        stripeAccountId = account.id;
+        
+        // Update the user with their Stripe account ID
+        await storage.updateUser(req.user.id, {
+          stripeAccountId: stripeAccountId
+        });
+      }
+      
+      // Generate an account link for onboarding
+      const accountLink = await stripeClient.accountLinks.create({
+        account: stripeAccountId,
+        refresh_url: `${req.protocol}://${req.get('host')}/dashboard`,
+        return_url: `${req.protocol}://${req.get('host')}/dashboard?stripe_success=true`,
+        type: 'account_onboarding',
+      });
+      
+      res.json({ url: accountLink.url });
+    } catch (error) {
+      console.error('Error creating Stripe Connect account link:', error);
+      res.status(500).json({ message: "Failed to create Stripe Connect account link" });
+    }
+  });
+  
   // Create a payment intent for on-demand readings
   app.post("/api/stripe/create-payment-intent", async (req, res) => {
     if (!req.isAuthenticated()) {

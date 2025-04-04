@@ -175,12 +175,42 @@ export function ReaderDashboard() {
         <Button 
           className="bg-purple-600 hover:bg-purple-700 text-white p-6 h-auto flex flex-col items-center justify-center gap-2"
           size="lg"
-          onClick={() => {
-            toast({
-              title: "Starting Livestream",
-              description: "Setting up your live stream...",
-            });
-            // Implement livestream start logic here
+          onClick={async () => {
+            try {
+              toast({
+                title: "Starting Livestream",
+                description: "Setting up your live stream...",
+              });
+              
+              // Create a livestream
+              const response = await fetch('/api/livestreams', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  title: `${user?.fullName || 'Reader'}'s Live Session`,
+                  description: 'Live psychic reading session. Join now to interact!',
+                  category: 'Readings'
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to create livestream');
+              }
+              
+              const livestream = await response.json();
+              
+              // Redirect to the livestream page
+              window.location.href = `/livestream/${livestream.id}`;
+            } catch (error) {
+              console.error('Error starting livestream:', error);
+              toast({
+                title: "Error",
+                description: "Failed to start livestream. Please try again.",
+                variant: "destructive"
+              });
+            }
           }}
         >
           <div className="w-full flex items-center justify-center">
@@ -193,12 +223,38 @@ export function ReaderDashboard() {
         <Button 
           className="bg-blue-600 hover:bg-blue-700 text-white p-6 h-auto flex flex-col items-center justify-center gap-2"
           size="lg"
-          onClick={() => {
-            toast({
-              title: "Connect with Stripe",
-              description: "You will be redirected to Stripe to set up payouts.",
-            });
-            // Implement Stripe Connect redirect here
+          onClick={async () => {
+            try {
+              const response = await fetch('/api/stripe/connect', {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to get Stripe Connect URL');
+              }
+              
+              const data = await response.json();
+              
+              if (data.url) {
+                toast({
+                  title: "Redirecting to Stripe",
+                  description: "You will be redirected to Stripe to set up payouts.",
+                });
+                window.location.href = data.url;
+              } else {
+                throw new Error('Invalid response from server');
+              }
+            } catch (error) {
+              console.error('Stripe Connect error:', error);
+              toast({
+                title: "Connection Error",
+                description: "Unable to connect to Stripe at this time. Please try again later.",
+                variant: "destructive"
+              });
+            }
           }}
         >
           <div className="w-full flex items-center justify-center">

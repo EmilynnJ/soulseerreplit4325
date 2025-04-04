@@ -22,19 +22,8 @@ import {
   Shield
 } from "lucide-react";
 
-// Helper function to get absolute image URLs for profile images
-const getAbsoluteImageUrl = (imagePath: string | null) => {
-  const defaultImage = "https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg";
-  
-  if (!imagePath) return defaultImage;
-  // If image path already starts with http(s), it's already absolute
-  if (imagePath.startsWith('http')) return imagePath;
-  // If it's a relative path starting with /uploads, prepend with host
-  if (imagePath.startsWith('/uploads')) {
-    return `${window.location.origin}${imagePath}`;
-  }
-  return imagePath;
-};
+// Default image for fallback - use a local image in our project
+const defaultImage = "/images/default-profile.jpg";
 
 export default function ReaderProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -244,14 +233,37 @@ export default function ReaderProfilePage() {
         <div className="md:col-span-1">
           <div className="relative">
             <img 
-              src={getAbsoluteImageUrl(reader.profileImage)} 
+              src={(() => {
+                // If no image is provided, use default
+                if (!reader.profileImage) return defaultImage;
+                
+                // If image contains 'undefined' or 'null', it's likely a broken path
+                if (reader.profileImage.includes("undefined") || reader.profileImage.includes("null")) 
+                  return defaultImage;
+                
+                // If it's already an absolute URL, use it directly
+                if (reader.profileImage.startsWith('http')) 
+                  return reader.profileImage;
+                
+                // If it's a relative path starting with /uploads, make it absolute
+                if (reader.profileImage.startsWith('/uploads')) 
+                  return `${window.location.origin}${reader.profileImage}`;
+                
+                // If just a filename was provided without path, assume it's in /uploads
+                if (!reader.profileImage.includes('/')) 
+                  return `${window.location.origin}/uploads/${reader.profileImage}`;
+                
+                // For any other path format, attempt to use as-is
+                return reader.profileImage;
+              })()}
               alt={reader.fullName}
               className="w-full rounded-lg shadow-lg aspect-square object-cover object-center object-top"
               loading="lazy"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.onerror = null; // Prevent infinite loop
-                target.src = 'https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg';
+                target.src = defaultImage;
+                console.log(`Reader profile image failed to load, using default. Failed URL: ${(e.target as HTMLImageElement).src}`);
               }}
             />
 

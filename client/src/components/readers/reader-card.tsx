@@ -10,23 +10,33 @@ interface ReaderCardProps {
 }
 
 export function ReaderCard({ reader }: ReaderCardProps) {
-  // Use a hardcoded static image path that always exists
-  const defaultImage = "https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg";
+  // Use a local fallback image that definitely exists in our project
+  const defaultImage = "/images/default-profile.jpg";
   
-  // Convert relative path to absolute URL if needed
-  const getAbsoluteImageUrl = (imagePath: string | null) => {
-    if (!imagePath) return defaultImage;
-    // If image path already starts with http(s), it's already absolute
-    if (imagePath.startsWith('http')) return imagePath;
-    // If it's a relative path starting with /uploads, prepend with host
-    if (imagePath.startsWith('/uploads')) {
-      return `${window.location.origin}${imagePath}`;
-    }
-    return imagePath;
-  };
-  
-  // Determine profile image with fallback
-  const profileImage = getAbsoluteImageUrl(reader.profileImage);
+  // Enhanced image path handling with multiple fallback options
+  const profileImage = (() => {
+    // If no image is provided, use default
+    if (!reader.profileImage) return defaultImage;
+    
+    // If image contains 'undefined' or 'null', it's likely a broken path
+    if (reader.profileImage.includes("undefined") || reader.profileImage.includes("null")) 
+      return defaultImage;
+    
+    // If it's already an absolute URL, use it directly
+    if (reader.profileImage.startsWith('http')) 
+      return reader.profileImage;
+    
+    // If it's a relative path starting with /uploads, make it absolute
+    if (reader.profileImage.startsWith('/uploads')) 
+      return `${window.location.origin}${reader.profileImage}`;
+    
+    // If just a filename was provided without path, assume it's in /uploads
+    if (!reader.profileImage.includes('/')) 
+      return `${window.location.origin}/uploads/${reader.profileImage}`;
+    
+    // For any other path format, attempt to use as-is
+    return reader.profileImage;
+  })();
   
   // Parse specialties, ensuring they're always an array of strings
   const specialties: string[] = (() => {
@@ -55,7 +65,8 @@ export function ReaderCard({ reader }: ReaderCardProps) {
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               target.onerror = null; // Prevent infinite loop
-              target.src = "https://static.vecteezy.com/system/resources/thumbnails/008/302/490/small/user-icon-set-avatar-user-icon-isolated-black-simple-line-vector.jpg";
+              target.src = defaultImage;
+              console.log(`Image failed to load: ${profileImage}, falling back to default`);
             }}
           />
         )}
