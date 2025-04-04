@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { initializeDatabase } from "./migrations/migration-manager";
 import { config } from "dotenv";
 import path from "path";
+import cors from "cors";
 
 // Load environment variables
 config();
@@ -11,6 +12,23 @@ config();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configure CORS to allow requests from soulseer.app
+const corsOptions = {
+  origin: [
+    'http://localhost:5000', 
+    'https://localhost:5000',
+    'https://soulseer.app',
+    'https://www.soulseer.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
+
+// Log the CORS configuration
+console.log("CORS configured for domains:", corsOptions.origin);
 
 // Serve uploads directory directly in both development and production
 const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
