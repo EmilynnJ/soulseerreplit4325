@@ -2683,10 +2683,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create the reader account
       const newReader = await storage.createUser({
-        username,
+        username: fullName, // Use fullName as username
         password: hashedPassword,
         email,
-        fullName,
+        fullName: username, // Use username field as fullName
         role: 'reader',
         bio: bio || '',
         profileImage: profileImageUrl,
