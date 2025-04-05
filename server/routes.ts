@@ -1,15 +1,26 @@
 import express, { type Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage.js";
-import { setupWebSocket } from "./websocket.js";
-import { setupAuth } from "./auth.js";
-import readingRouter from "./routes/readings.js";
+import { storage } from "./storage";
+import { setupWebSocket } from "./websocket";
+import { setupAuth } from "./auth";
+import readingRouter from "./routes/readings";
 import { z } from "zod";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { UserUpdate } from "../shared/schema";
+import { WebSocket } from "ws";
+
+// Authentication middleware
+const authenticate = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+  
+  next();
+};
 
 // Admin middleware
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
@@ -18,6 +29,16 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   }
   
   if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Unauthorized. Admin access required." });
+  }
+  
+  next();
+};
+
+// Admin-only middleware (for routes that already use authenticate)
+const adminOnly = (req: Request, res: Response, next: NextFunction) => {
+  // We can safely assume req.user exists because this middleware is used after authenticate
+  if (!req.user || req.user.role !== "admin") {
     return res.status(403).json({ message: "Unauthorized. Admin access required." });
   }
   
@@ -136,6 +157,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   wsManager.on('connection', (ws) => {
     const clientId = clientIdCounter++;
+    let userId: number | null = null;
     console.log(`New WebSocket client connected with ID ${clientId}`);
     
     // Store client connection

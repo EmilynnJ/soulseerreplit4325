@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
-import { storage } from './storage.js';
+import { storage } from './storage';
 
 interface ConnectedClient {
   socket: WebSocket;
@@ -139,6 +139,18 @@ class WebSocketManager {
 
   public get clients() {
     return Array.from(this.connectedClients.values()).map(client => client.socket);
+  }
+  
+  // Method to handle custom connection logic, used in routes.ts
+  public onConnection(callback: (ws: WebSocket) => void) {
+    this.wss.on('connection', callback);
+  }
+  
+  // Method to handle custom events
+  public on(event: string, callback: (ws: WebSocket, ...args: any[]) => void) {
+    if (event === 'connection') {
+      this.wss.on('connection', callback);
+    }
   }
 }
 
