@@ -69,10 +69,8 @@ export function ReaderDashboard() {
     username: user?.username || '',
     fullName: user?.fullName || '',
     bio: user?.bio || '',
-    specialties: user?.specialties || [],
-    profileImage: null as File | null
+    specialties: user?.specialties || []
   });
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpdateProfile = async () => {
     try {
@@ -82,8 +80,6 @@ export function ReaderDashboard() {
       Object.entries(profileData).forEach(([key, value]) => {
         if (key === 'specialties') {
           formData.append(key, JSON.stringify(value));
-        } else if (key === 'profileImage' && value) {
-          formData.append(key, value);
         } else {
           formData.append(key, String(value));
         }
@@ -320,48 +316,7 @@ export function ReaderDashboard() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="profile-image">Profile Image</Label>
-                <div className="flex items-center gap-4">
-                  <div 
-                    className="h-24 w-24 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-muted overflow-hidden cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {user?.profileImage ? (
-                      <img 
-                        src={user.profileImage}
-                        alt="Profile" 
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.onerror = null; // Prevent infinite loop
-                          target.src = "/images/placeholder-user.svg";
-                        }}
-                      />
-                    ) : (
-                      <img 
-                        src="/images/placeholder-user.svg"
-                        alt="Profile" 
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                  </div>
-                  <input 
-                    ref={fileInputRef}
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files?.[0]) {
-                        setProfileData(prev => ({
-                          ...prev,
-                          profileImage: e.target.files![0]
-                        }));
-                      }
-                    }}
-                  />
-                </div>
-              </div>
+              {/* Profile images have been removed from the system */}
 
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>

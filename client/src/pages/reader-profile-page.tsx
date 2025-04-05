@@ -229,28 +229,29 @@ export default function ReaderProfilePage() {
 
       {/* Reader Profile Header */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-        {/* Profile Image */}
+        {/* Decorative element instead of profile image */}
         <div className="md:col-span-1">
           <div className="relative">
-            <img 
-              src={reader.profileImage || defaultImage}
-              alt={reader.fullName}
-              className="w-full rounded-lg shadow-lg aspect-square object-cover object-center object-top"
-              loading="lazy"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.onerror = null; // Prevent infinite loop
-                target.src = defaultImage;
-                console.log(`Reader profile image failed to load, using default. Failed URL: ${(e.target as HTMLImageElement).src}`);
-              }}
-            />
-
-            {reader.isOnline && (
-              <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full flex items-center">
-                <span className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></span>
-                Online Now
-              </div>
-            )}
+            <div className="w-full bg-primary-dark/30 rounded-lg shadow-lg aspect-square flex flex-col items-center justify-center p-6">
+              <h2 className="font-alex text-5xl text-accent mb-4">{reader.fullName}</h2>
+              
+              {reader.specialties && reader.specialties.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {reader.specialties.slice(0, 3).map((specialty, index) => (
+                    <Badge key={index} variant="outline" className="bg-primary-light/10 text-accent">
+                      {specialty}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              
+              {reader.isOnline && (
+                <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full flex items-center">
+                  <span className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></span>
+                  Online Now
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

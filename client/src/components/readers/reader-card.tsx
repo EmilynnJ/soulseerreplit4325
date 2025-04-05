@@ -32,32 +32,15 @@ export function ReaderCard({ reader }: ReaderCardProps) {
   })();
   return (
     <GlowCard className="p-0 flex flex-col h-full overflow-hidden max-w-[200px] mx-auto">
-      {/* Extra tall portrait layout with larger image area */}
-      <div className="relative h-[260px] bg-primary-light/20">
-        {profileImage && (
-          <img 
-            src={profileImage} 
-            alt={`${reader.fullName} - Psychic Reader`}
-            className="w-full h-full object-cover object-center object-top"
-            loading="lazy"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.onerror = null; // Prevent infinite loop
-              target.src = defaultImage;
-              console.log(`Image failed to load: ${profileImage}, falling back to default`);
-            }}
-          />
-        )}
-        
-        {/* Online status - moved to top corner for better visibility */}
+      {/* Card header with reader name and status */}
+      <div className="relative p-6 bg-gradient-to-b from-primary-dark/80 to-primary-dark/40 text-center">
+        {/* Online status badge */}
         <div className="absolute top-2 right-2">
           <OnlineStatusBadge isOnline={reader.isOnline || false} className="bg-primary-dark/70 backdrop-blur-sm px-2 py-1 text-xs rounded-full shadow-md" />
         </div>
         
-        {/* Reader name overlay at bottom of image */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-primary-dark/90 to-transparent p-3 pt-8">
-          <h3 className="text-xl font-alex text-accent drop-shadow-md">{reader.fullName}</h3>
-        </div>
+        {/* Reader name as main focus */}
+        <h3 className="text-3xl font-alex text-accent drop-shadow-md mt-4 mb-2">{reader.fullName}</h3>
       </div>
       
       {/* Card content section - ultra compact to emphasize portrait image */}
