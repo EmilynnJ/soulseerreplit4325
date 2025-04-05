@@ -38,8 +38,15 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
   });
 
   async function onSubmit(data: LoginFormValues) {
-    await loginMutation.mutateAsync(data);
-    onSuccess();
+    try {
+      const result = await loginMutation.mutateAsync(data);
+      if (result) {
+        console.log("Login successful, triggering callback");
+        onSuccess();
+      }
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
   }
 
   return (

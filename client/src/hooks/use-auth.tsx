@@ -79,20 +79,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear any stale cache data
       queryClient.clear();
       
-      // Set the new user data
+      // Set the new user data immediately
       queryClient.setQueryData(["/api/user"], user);
       console.log("User data set in query client cache");
       
-      // Force a refetch to ensure we have the latest data
+      // Force an immediate refetch
+      refetchUser();
+      
+      // Schedule another refetch after a delay to ensure data consistency
       setTimeout(() => {
         refetchUser();
-        console.log("Triggered user data refetch after login");
-      }, 500);
+        console.log("Triggered follow-up user data refetch");
+      }, 1000);
       
       toast({
         title: "Welcome back!",
         description: `You're now logged in as ${user.fullName}`,
       });
+      
+      return user; // Return user data for the mutation
     },
     onError: (error: Error) => {
       console.error("Login failed:", error);
