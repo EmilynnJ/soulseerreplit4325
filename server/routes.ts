@@ -448,39 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Placeholder endpoints to maintain API compatibility during transition
 
   app.post("/api/readings", async (req, res) => {
-<<<<<<< HEAD
     res.status(501).json({ message: "Reading system has been removed" });
-=======
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const readingData = req.body;
-      
-      // Calculate the price based on duration and pricePerMinute or use a default
-      const duration = readingData.duration || 30; // Default to 30 minutes if not specified
-      const pricePerMinute = readingData.pricePerMinute || 100; // Default to $1/minute if not specified
-      const totalPrice = duration * pricePerMinute; // Total price in cents
-      
-      const reading = await storage.createReading({
-        readerId: readingData.readerId,
-        clientId: req.user.id,
-        status: "scheduled",
-        type: readingData.type,
-        readingMode: "scheduled",
-        scheduledFor: readingData.scheduledFor ? new Date(readingData.scheduledFor) : null,
-        duration: duration, // Use the defined duration
-        price: totalPrice, // Set the required price field
-        pricePerMinute: pricePerMinute, // Use the defined pricePerMinute
-        notes: readingData.notes || null
-      });
-      
-      res.status(201).json(reading);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to create reading" });
-    }
->>>>>>> origin
   });
   
   app.get("/api/readings/client", async (req, res) => {
@@ -505,76 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.post("/api/readings/:id/end", async (req, res) => {
-<<<<<<< HEAD
     res.status(501).json({ message: "Reading system has been removed" });
-=======
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid reading ID" });
-      }
-      
-      const reading = await storage.getReading(id);
-      if (!reading) {
-        return res.status(404).json({ message: "Reading not found" });
-      }
-      
-      // Check if user is authorized (client or reader of this reading)
-      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-      
-      const { duration } = req.body;
-      
-      if (!duration || isNaN(duration)) {
-        return res.status(400).json({ message: "Valid duration is required" });
-      }
-      
-      // Calculate final cost based on duration and price per minute
-      const durationInMinutes = Math.ceil(duration / 60); // Convert seconds to minutes, round up
-      const totalCost = reading.pricePerMinute * durationInMinutes;
-      
-      // Update reading with duration, status, and end time
-      const updatedReading = await storage.updateReading(id, {
-        status: "completed",
-        duration,
-        totalPrice: totalCost, // Using totalPrice instead of totalCost to match schema
-        completedAt: new Date() // Using completedAt instead of endedAt to match schema
-      });
-      
-      // Process the payment if this is an on-demand reading
-      if (reading.readingMode === 'on_demand') {
-        try {
-          await processCompletedReadingPayment(
-            reading.id,
-            totalCost,
-            durationInMinutes
-          );
-        } catch (paymentError) {
-          console.error('Error processing payment:', paymentError);
-          // Continue anyway as the reading is completed
-        }
-      }
-      
-      // Notify both client and reader about the end of the session
-      (global as any).websocket.broadcastToAll({
-        type: 'reading_ended',
-        readingId: reading.id,
-        duration,
-        totalCost,
-        timestamp: Date.now()
-      });
-      
-      res.json(updatedReading);
-    } catch (error) {
-      console.error('Error ending reading:', error);
-      res.status(500).json({ message: "Failed to end reading session" });
-    }
->>>>>>> origin
   });
   
   // Products

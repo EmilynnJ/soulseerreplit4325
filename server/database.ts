@@ -1,10 +1,10 @@
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { log } from './vite';
-import { Pool, types } from 'pg';
+import pg from 'pg';
 
 // Disable parsing of timestamps to JS Date objects to avoid version mismatches
-types.setTypeParser(1114, str => str); // timestamp without timezone
-types.setTypeParser(1184, str => str); // timestamp with timezone
+pg.types.setTypeParser(1114, str => str); // timestamp without timezone
+pg.types.setTypeParser(1184, str => str); // timestamp with timezone
 
 // Configure neon with retries and timeout
 neonConfig.fetchConnectionCache = true;

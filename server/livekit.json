@@ -1,0 +1,34 @@
+const { connect } = require('livekit-client'); // Import LiveKit SDK
+const { createLocalTracks } = require('livekit-client'); // To create local audio/video tracks
+
+const APIQdskTFWRcZvt = process.env.APIQdskTFWRcZvt;
+const y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb = process.env.y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb;
+
+async function connectToLiveKit() {
+    try {
+        // Create local tracks (audio and video)
+        const localTracks = await createLocalTracks({
+            audio: true,
+            video: { width: 640, height: 480 }
+        });
+
+        // Create the connection to LiveKit
+        const room = await connect(
+            'wss://soulseer-kawitbf3.livekit.cloud
+            {
+                apiKey: APIQdskTFWRcZvt,
+                apiSecret: y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb,
+                localTracks,
+            }
+        );
+
+        // Publish tracks to room (audio/video)
+        localTracks.forEach(track => room.localParticipant.publishTrack(track));
+
+        console.log('Successfully connected to LiveKit!');
+    } catch (error) {
+        console.error('Failed to connect to LiveKit:', error);
+    }
+}
+
+connectToLiveKit();

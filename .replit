@@ -1,7 +1,7 @@
 run = "npm run dev"
 hidden = [".config", "package-lock.json"]
 compile = "npm run build"
-modules = ["nodejs-20"]
+modules = ["nodejs-20", "postgresql-16"]
 
 [packager]
 language = "nodejs"
@@ -25,7 +25,6 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Build and Start"
 
 [[workflows.workflow]]
 name = "Project"
