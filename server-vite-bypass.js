@@ -19,12 +19,13 @@ app.use(express.json());
 // Serve static files
 app.use(express.static('dist/public'));
 app.use('/uploads', express.static('public/uploads'));
+app.use('/images', express.static('public/images'));
 
-// Real database API Routes
+// API Routes
 app.get('/api/readers', async (req, res) => {
   try {
     const readers = await sql`
-      SELECT id, username, fullName, role, specialties, rating, isOnline, pricing, profileImage 
+      SELECT id, username, full_name, role, specialties, rating, is_online, pricing_chat, pricing_voice, pricing_video, profile_image 
       FROM users 
       WHERE role = 'reader'
     `;
@@ -38,9 +39,9 @@ app.get('/api/readers', async (req, res) => {
 app.get('/api/readers/online', async (req, res) => {
   try {
     const onlineReaders = await sql`
-      SELECT id, username, fullName, role, specialties, rating, isOnline, pricing, profileImage 
+      SELECT id, username, full_name, role, specialties, rating, is_online, pricing_chat, pricing_voice, pricing_video, profile_image 
       FROM users 
-      WHERE role = 'reader' AND isOnline = true
+      WHERE role = 'reader' AND is_online = true
     `;
     res.json(onlineReaders);
   } catch (error) {
@@ -51,6 +52,9 @@ app.get('/api/readers/online', async (req, res) => {
 
 // SPA fallback
 app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: "API endpoint not found" });
+  }
   res.sendFile(path.join(__dirname, 'dist/public/index.html'));
 });
 
