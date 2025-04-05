@@ -3,67 +3,60 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
-import { createServer } from 'http';
 import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
 
-// Create Express app
 const app = express();
-const port = 5000;
-const host = '0.0.0.0';
-
-// Basic middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from dist/public (built client)
-const publicDir = path.join(__dirname, 'dist/public');
-app.use(express.static(publicDir));
+// Serve static files
+app.use(express.static('dist/public'));
+app.use('/uploads', express.static('public/uploads'));
 
-// Serve uploads and images directories
-app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
-app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
+// Mock readers data for testing
+const mockReaders = [
+  {
+    id: 1,
+    fullName: "Luna Starweaver",
+    role: "reader",
+    specialties: ["Tarot", "Astrology"],
+    rating: 4.9,
+    isOnline: true,
+    pricing: 299,
+    profileImage: "/images/default-profile.jpg"
+  },
+  {
+    id: 2, 
+    fullName: "Sage Moonwhisper",
+    role: "reader",
+    specialties: ["Medium", "Energy Healing"],
+    rating: 4.8,
+    isOnline: true,
+    pricing: 399,
+    profileImage: "/images/default-profile.jpg"
+  }
+];
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    time: new Date().toISOString(),
-  });
+// API Routes
+app.get('/api/readers', (req, res) => {
+  res.json(mockReaders);
 });
 
-// Catch-all route for SPA
+app.get('/api/readers/online', (req, res) => {
+  const onlineReaders = mockReaders.filter(reader => reader.isOnline);
+  res.json(onlineReaders);
+});
+
+// SPA fallback
 app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: "API endpoint not found" });
-  }
-
-  const indexPath = path.join(publicDir, 'index.html');
-  
-  if (fs.existsSync(indexPath)) {
-    return res.sendFile(indexPath);
-  } else {
-    res.send(`
-      <html>
-        <head><title>SoulSeer</title></head>
-        <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
-          <h1>SoulSeer App</h1>
-          <p>Server is running but client is not built yet.</p>
-          <p>Please run: <code>npm run build</code> first.</p>
-          <button onclick="window.location.reload()">Refresh</button>
-        </body>
-      </html>
-    `);
-  }
+  res.sendFile(path.join(__dirname, 'dist/public/index.html'));
 });
 
-// Create HTTP server
-const server = createServer(app);
-
-// Start server
-server.listen(port, host, () => {
-  console.log(`Server running on http://${host}:${port}`);
+const port = process.env.PORT || 5000;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Server running on http://0.0.0.0:${port}`);
 });
