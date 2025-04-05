@@ -139,11 +139,13 @@ export class LiveKitSessionManager {
         ttl
       });
       
+      // Add grant with default values or provided options
       at.addGrant({
         roomJoin: true,
         room: roomName,
-        canPublish: true,
-        canSubscribe: true,
+        canPublish: options?.canPublish !== undefined ? options.canPublish : true,
+        canSubscribe: options?.canSubscribe !== undefined ? options.canSubscribe : true,
+        recorder: options?.recorder || false,
       });
       
       return at.toJwt();
