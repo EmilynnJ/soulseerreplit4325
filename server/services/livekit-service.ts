@@ -122,6 +122,7 @@ export class LiveKitSessionManager {
     roomName: string,
     participantIdentity: string,
     participantName: string,
+    options?: any,
     ttl: number = 3600
   ): string {
     const apiKey = process.env.LIVEKIT_API_KEY;
@@ -596,6 +597,26 @@ export class LiveKitSessionManager {
   public startLivestreamSession(roomName: string): void {
     this.sessionType = SessionType.LIVESTREAM;
     console.log(`Livestream session started: ${roomName}`);
+  }
+  
+  /**
+   * Start a specific livestream by ID
+   * @param id - Livestream ID
+   */
+  public async startLivestream(id: number): Promise<any> {
+    console.log(`Starting livestream with ID: ${id}`);
+    // This is basic functionality - just returning the ID since the DB operations are handled in routes.ts
+    return { id, status: 'live', updatedAt: new Date() };
+  }
+
+  /**
+   * End a specific livestream by ID
+   * @param id - Livestream ID
+   */
+  public async endLivestream(id: number): Promise<any> {
+    console.log(`Ending livestream with ID: ${id}`);
+    // This is basic functionality - just returning the ID since the DB operations are handled in routes.ts
+    return { id, status: 'ended', updatedAt: new Date() };
   }
 }
 
