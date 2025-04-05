@@ -1,13 +1,16 @@
 
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { neon } from '@neondatabase/serverless';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Initialize database connection
+const sql = neon(process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_GvNe3Z2qKHoB@ep-lively-frog-a66uvr1j.us-west-2.aws.neon.tech/neondb?sslmode=require');
 
 const app = express();
 app.use(cors());
@@ -17,38 +20,33 @@ app.use(express.json());
 app.use(express.static('dist/public'));
 app.use('/uploads', express.static('public/uploads'));
 
-// Mock readers data for testing
-const mockReaders = [
-  {
-    id: 1,
-    fullName: "Luna Starweaver",
-    role: "reader",
-    specialties: ["Tarot", "Astrology"],
-    rating: 4.9,
-    isOnline: true,
-    pricing: 299,
-    profileImage: "/images/default-profile.jpg"
-  },
-  {
-    id: 2, 
-    fullName: "Sage Moonwhisper",
-    role: "reader",
-    specialties: ["Medium", "Energy Healing"],
-    rating: 4.8,
-    isOnline: true,
-    pricing: 399,
-    profileImage: "/images/default-profile.jpg"
+// Real database API Routes
+app.get('/api/readers', async (req, res) => {
+  try {
+    const readers = await sql`
+      SELECT id, username, fullName, role, specialties, rating, isOnline, pricing, profileImage 
+      FROM users 
+      WHERE role = 'reader'
+    `;
+    res.json(readers);
+  } catch (error) {
+    console.error('Error fetching readers:', error);
+    res.status(500).json({ error: 'Failed to fetch readers' });
   }
-];
-
-// API Routes
-app.get('/api/readers', (req, res) => {
-  res.json(mockReaders);
 });
 
-app.get('/api/readers/online', (req, res) => {
-  const onlineReaders = mockReaders.filter(reader => reader.isOnline);
-  res.json(onlineReaders);
+app.get('/api/readers/online', async (req, res) => {
+  try {
+    const onlineReaders = await sql`
+      SELECT id, username, fullName, role, specialties, rating, isOnline, pricing, profileImage 
+      FROM users 
+      WHERE role = 'reader' AND isOnline = true
+    `;
+    res.json(onlineReaders);
+  } catch (error) {
+    console.error('Error fetching online readers:', error);
+    res.status(500).json({ error: 'Failed to fetch online readers' });
+  }
 });
 
 // SPA fallback
