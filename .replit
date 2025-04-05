@@ -16,8 +16,8 @@ channel = "stable-22_11"
 PORT = "5000"
 
 [deployment]
-build = "npm run build"
-run = ["node", "server-vite-bypass.js"]
+build = ["sh", "-c", "npm run build"]
+run = ["sh", "-c", "node dist/server/index.js"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
@@ -112,4 +112,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build && node server-vite-bypass.js"
+args = "npm run dev"
