@@ -382,10 +382,13 @@ export class LiveKitSessionManager {
 
   /**
    * Get remote participants in the room
-   * @returns Map of participant identities to RemoteParticipant objects
+   * @returns Array of RemoteParticipant objects
    */
-  public getRemoteParticipants(): Map<string, RemoteParticipant> | null {
-    return this.room?.participants || null;
+  public getRemoteParticipants(): RemoteParticipant[] | null {
+    if (!this.room) {
+      return null;
+    }
+    return Array.from(this.room.remoteParticipants.values());
   }
 
   /**
@@ -546,7 +549,9 @@ export class LiveKitSessionManager {
     const encoder = new TextEncoder();
     const data = encoder.encode(JSON.stringify(giftData));
     
-    await this.room.localParticipant.publishData(data, DataPacket_Kind.RELIABLE);
+    await this.room.localParticipant.publishData(data, { 
+      reliable: true 
+    });
     
     return completeGift;
   }
