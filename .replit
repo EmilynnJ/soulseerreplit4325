@@ -112,4 +112,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node server-vite-bypass.js"
+args = "npm run build && node server-vite-bypass.js"
