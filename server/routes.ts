@@ -809,7 +809,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const livestreamData = req.body;
       
       // Create the livestream with LiveKit integration (placeholder)
-      const livestream = await livekitClient.createLivestream(
+      const { livekitService } = await import('./services/livekit-service');
+      const livestream = await livekitService.createLivestream(
         req.user,
         livestreamData.title,
         livestreamData.description
@@ -857,7 +858,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (status === "live") {
         // Start the livestream with LiveKit
-        updatedLivestream = await livekitClient.startLivestream(id);
+        const { livekitService } = await import('./services/livekit-service');
+        updatedLivestream = await livekitService.startLivestream(id);
         
         // Broadcast to all connected clients that a new livestream is starting
         (global as any).websocket?.broadcastToAll?.({
@@ -873,7 +875,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else if (status === "ended") {
         // End the livestream with LiveKit
-        updatedLivestream = await livekitClient.endLivestream(id);
+        const { livekitService } = await import('./services/livekit-service');
+        updatedLivestream = await livekitService.endLivestream(id);
         
         // Broadcast to all connected clients that the livestream has ended
         (global as any).websocket?.broadcastToAll?.({
@@ -2705,7 +2708,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      const updatedLivestream = await livekitClient.startLivestream(livestreamId);
+      const { livekitService } = await import('./services/livekit-service');
+      const updatedLivestream = await livekitService.startLivestream(livestreamId);
       
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -2736,12 +2740,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      const updatedLivestream = await livekitClient.endLivestream(livestreamId);
+      const { livekitService } = await import('./services/livekit-service');
+      const updatedLivestream = await livekitService.endLivestream(livestreamId);
       
       res.status(200).json(updatedLivestream);
     } catch (error) {
       console.error("Failed to end livestream:", error);
       res.status(500).json({ message: "Failed to end livestream" });
+    }
+  });
+
+  // API endpoint for LiveKit tokens
+  app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { name, room } = req.body;
+      
+      if (!name || !room) {
+        return res.status(400).json({ error: 'Missing name or room' });
+      }
+      
+      // Use livekitService from our server/services/livekit-service.ts
+      const { livekitService } = await import('./services/livekit-service');
+      const token = livekitService.createToken(room, name, name);
+      
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error('Error generating LiveKit token:', error);
+      res.status(500).json({ error: 'Failed to generate token' });
+    }
+  });
+  
+  // API endpoint for LiveKit livestream tokens
+  app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { name, room, isPublisher } = req.body;
+      
+      if (!name || !room) {
+        return res.status(400).json({ error: 'Missing name or room' });
+      }
+      
+      // Use livekitService for token generation with appropriate permissions
+      const { livekitService } = await import('./services/livekit-service');
+      
+      // For publishers (streamers), grant additional permissions
+      const token = isPublisher 
+        ? livekitService.createToken(room, name, name, { canPublish: true, canSubscribe: true })
+        : livekitService.createToken(room, name, name, { canPublish: false, canSubscribe: true });
+      
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error('Error generating LiveKit livestream token:', error);
+      res.status(500).json({ error: 'Failed to generate livestream token' });
+    }
+  });
+  
+  // API endpoint for LiveKit recording tokens
+  app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
+    try {
+      const { room } = req.body;
+      
+      if (!room) {
+        return res.status(400).json({ error: 'Missing room name' });
+      }
+      
+      // Use livekitService for recording token generation
+      const { livekitService } = await import('./services/livekit-service');
+      const token = livekitService.createToken(room, 'recording-service', 'Recording Service', {
+        canPublish: false,
+        canSubscribe: true,
+        recorder: true
+      });
+      
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error('Error generating LiveKit recording token:', error);
+      res.status(500).json({ error: 'Failed to generate recording token' });
     }
   });
 

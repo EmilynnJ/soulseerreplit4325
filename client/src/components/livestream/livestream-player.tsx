@@ -1,38 +1,32 @@
-import { Video } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { MonitorPlay } from 'lucide-react';
 
 /**
- * LiveKit player component for the livestream (placeholder)
+ * LiveKit player component for the livestream
  */
 export function LiveKitPlayer() {
   return (
-    <div className="flex items-center justify-center bg-dark/50 h-full">
-      <div className="text-center p-8">
-        <Video className="h-16 w-16 mx-auto mb-4 text-accent/60" />
-        <h3 className="text-xl font-cinzel text-secondary mb-2">LiveKit Integration</h3>
-        <p className="text-light/70">
-          Livestream functionality is being updated with LiveKit integration.
-        </p>
-        <p className="text-light/70 mt-4">
-          This placeholder will be replaced with a LiveKit video player.
-        </p>
-      </div>
+    <div className="flex flex-col items-center justify-center h-full bg-muted/30 rounded-lg p-6">
+      <MonitorPlay className="h-12 w-12 text-muted-foreground mb-4" />
+      <h3 className="text-xl font-semibold mb-2">LiveKit Livestream</h3>
+      <p className="text-center text-muted-foreground">
+        The livestream system is being updated with LiveKit integration for improved performance and reliability.
+      </p>
     </div>
   );
 }
 
 /**
- * LiveKit recording player component (placeholder)
+ * LiveKit recording player component 
  */
 export function LiveKitRecordingPlayer() {
   return (
-    <div className="flex items-center justify-center bg-dark/50 h-full">
-      <div className="text-center p-8">
-        <Video className="h-16 w-16 mx-auto mb-4 text-accent/60" />
-        <h3 className="text-xl font-cinzel text-secondary mb-2">Recorded Session</h3>
-        <p className="text-light/70">
-          Recorded session playback is being updated with LiveKit integration.
-        </p>
-      </div>
+    <div className="flex flex-col items-center justify-center h-full bg-muted/30 rounded-lg p-6">
+      <MonitorPlay className="h-12 w-12 text-muted-foreground mb-4" />
+      <h3 className="text-xl font-semibold mb-2">LiveKit Recording</h3>
+      <p className="text-center text-muted-foreground">
+        The recorded session playback is being updated with LiveKit integration for improved performance and reliability.
+      </p>
     </div>
   );
 }
