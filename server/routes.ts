@@ -390,6 +390,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "isOnline status is required" });
       }
       
+      // Log the status change for debugging
+      console.log(`Reader ${req.user.id} changing status to: ${isOnline ? 'online' : 'offline'}`);
+      
       const updatedUser = await storage.updateUser(req.user.id, {
         isOnline,
         lastActive: new Date()
@@ -400,6 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true, user: updatedUser });
     } catch (error) {
+      console.error("Failed to update reader status:", error);
       res.status(500).json({ message: "Failed to update status" });
     }
   });
@@ -1512,85 +1516,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Start a livestream 
-  app.post('/api/livestreams/:id/start', async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid livestream ID" });
-      }
-      
-      const livestream = await storage.getLivestream(id);
-      
-      if (!livestream) {
-        return res.status(404).json({ message: "Livestream not found" });
-      }
-      
-      // Verify ownership
-      if (livestream.userId !== req.user.id) {
-        return res.status(403).json({ message: "Not authorized to start this livestream" });
-      }
-      
-      // Start the livestream
-      const updatedLivestream = await muxClient.startLivestream(id);
-      
-      // Broadcast livestream start to all connected clients
-      (global as any).websocket.broadcastToAll({
-        type: 'livestream_started',
-        livestream: updatedLivestream,
-        timestamp: Date.now()
-      });
-      
-      res.json(updatedLivestream);
-    } catch (error) {
-      console.error(`Error starting livestream ${req.params.id}:`, error);
-      res.status(500).json({ message: "Failed to start livestream" });
-    }
-  });
+  // Start a livestream - removed duplicate route
   
-  // End a livestream
-  app.post('/api/livestreams/:id/end', async (req: Request, res: Response) => {
-    try {
-      if (!req.isAuthenticated()) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid livestream ID" });
-      }
-      
-      const livestream = await storage.getLivestream(id);
-      
-      if (!livestream) {
-        return res.status(404).json({ message: "Livestream not found" });
-      }
-      
-      // Verify ownership
-      if (livestream.userId !== req.user.id) {
-        return res.status(403).json({ message: "Not authorized to end this livestream" });
-      }
-      
-      // End the livestream
-      const updatedLivestream = await muxClient.endLivestream(id);
-      
-      // Broadcast livestream end to all connected clients
-      (global as any).websocket.broadcastToAll({
-        type: 'livestream_ended',
-        livestream: updatedLivestream,
-        timestamp: Date.now()
-      });
-      
-      res.json(updatedLivestream);
-    } catch (error) {
-      console.error(`Error ending livestream ${req.params.id}:`, error);
-      res.status(500).json({ message: "Failed to end livestream" });
-    }
-  });
+  // End a livestream - removed duplicate route
   
   // Stripe Connect endpoint to generate an account link for readers
   app.get('/api/stripe/connect', async (req: Request, res: Response) => {

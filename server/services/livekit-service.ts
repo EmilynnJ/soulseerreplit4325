@@ -602,13 +602,62 @@ export class LiveKitSessionManager {
   }
   
   /**
+   * Create a new livestream
+   * @param user - The user who is creating the livestream
+   * @param title - The title of the livestream
+   * @param description - The description of the livestream
+   */
+  public async createLivestream(user: any, title: string, description: string): Promise<any> {
+    console.log(`Creating new livestream for user ${user.id}: ${title}`);
+    
+    try {
+      // Generate a unique room name using the user ID and current timestamp
+      const roomName = `livekit-stream-${user.id}-${Date.now()}`;
+      
+      // Create a new livestream record that matches the InsertLivestream schema
+      // Note: the database operations will be handled in routes.ts
+      const livestream = {
+        id: 0, // This will be set by the database
+        userId: user.id,
+        title,
+        description,
+        status: 'scheduled' as 'scheduled' | 'created' | 'live' | 'idle' | 'ended',
+        category: 'General', // Default category
+        streamKey: roomName, // We're using the LiveKit room name as the stream key
+        playbackId: roomName, // For compatibility, using room name
+        thumbnailUrl: null,
+        scheduledFor: null,
+      };
+      
+      return livestream;
+    } catch (error) {
+      console.error("Error creating livestream:", error);
+      throw error;
+    }
+  }
+  
+  /**
    * Start a specific livestream by ID
    * @param id - Livestream ID
    */
   public async startLivestream(id: number): Promise<any> {
     console.log(`Starting livestream with ID: ${id}`);
-    // This is basic functionality - just returning the ID since the DB operations are handled in routes.ts
-    return { id, status: 'live', updatedAt: new Date() };
+    
+    try {
+      // This will just handle the database operations
+      // Update the status to live and set startedAt time
+      const updatedLivestream = {
+        id,
+        status: 'live',
+        startedAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error("Error starting livestream:", error);
+      throw error;
+    }
   }
 
   /**
@@ -617,8 +666,21 @@ export class LiveKitSessionManager {
    */
   public async endLivestream(id: number): Promise<any> {
     console.log(`Ending livestream with ID: ${id}`);
-    // This is basic functionality - just returning the ID since the DB operations are handled in routes.ts
-    return { id, status: 'ended', updatedAt: new Date() };
+    
+    try {
+      // Update the status to ended and set endedAt time
+      const updatedLivestream = {
+        id,
+        status: 'ended',
+        endedAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error("Error ending livestream:", error);
+      throw error;
+    }
   }
 }
 
