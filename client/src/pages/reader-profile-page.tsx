@@ -135,30 +135,36 @@ export default function ReaderProfilePage() {
       
       // Get price from reader's fixed-price scheduled reading rates
       if (scheduledReadingOptions.type === "chat") {
-        if (scheduledReadingOptions.duration === 30) {
+        if (scheduledReadingOptions.duration === 15) {
+          fixedPrice = reader.scheduledChatPrice15 || 0;
+        } else if (scheduledReadingOptions.duration === 30) {
           fixedPrice = reader.scheduledChatPrice30 || 0;
         } else if (scheduledReadingOptions.duration === 60) {
           fixedPrice = reader.scheduledChatPrice60 || 0;
         } else {
-          // If not a 30/60 minute session, use per-minute rate as fallback
+          // If not a fixed-price duration, use per-minute rate as fallback
           fixedPrice = (reader.pricingChat || 0) * scheduledReadingOptions.duration;
         }
       } else if (scheduledReadingOptions.type === "voice") {
-        if (scheduledReadingOptions.duration === 30) {
+        if (scheduledReadingOptions.duration === 15) {
+          fixedPrice = reader.scheduledVoicePrice15 || 0;
+        } else if (scheduledReadingOptions.duration === 30) {
           fixedPrice = reader.scheduledVoicePrice30 || 0;
         } else if (scheduledReadingOptions.duration === 60) {
           fixedPrice = reader.scheduledVoicePrice60 || 0;
         } else {
-          // If not a 30/60 minute session, use per-minute rate as fallback
+          // If not a fixed-price duration, use per-minute rate as fallback
           fixedPrice = (reader.pricingVoice || 0) * scheduledReadingOptions.duration;
         }
       } else if (scheduledReadingOptions.type === "video") {
-        if (scheduledReadingOptions.duration === 30) {
+        if (scheduledReadingOptions.duration === 15) {
+          fixedPrice = reader.scheduledVideoPrice15 || 0;
+        } else if (scheduledReadingOptions.duration === 30) {
           fixedPrice = reader.scheduledVideoPrice30 || 0;
         } else if (scheduledReadingOptions.duration === 60) {
           fixedPrice = reader.scheduledVideoPrice60 || 0;
         } else {
-          // If not a 30/60 minute session, use per-minute rate as fallback
+          // If not a fixed-price duration, use per-minute rate as fallback
           fixedPrice = (reader.pricingVideo || 0) * scheduledReadingOptions.duration;
         }
       }
@@ -637,6 +643,17 @@ export default function ReaderProfilePage() {
                       <label className="text-light font-medium mb-1 block">Duration (minutes)</label>
                       <div className="flex gap-2">
                         <button
+                          onClick={() => setScheduledReadingOptions(prev => ({ ...prev, duration: 15 }))}
+                          className={`flex-1 px-4 py-2 rounded-md flex items-center justify-center ${
+                            scheduledReadingOptions.duration === 15 
+                              ? "bg-accent/30 text-accent border border-accent/50" 
+                              : "bg-primary-dark/30 text-light/70 border border-accent/10 hover:bg-primary-dark/50"
+                          }`}
+                        >
+                          15 Minutes
+                        </button>
+                        
+                        <button
                           onClick={() => setScheduledReadingOptions(prev => ({ ...prev, duration: 30 }))}
                           className={`flex-1 px-4 py-2 rounded-md flex items-center justify-center ${
                             scheduledReadingOptions.duration === 30 
@@ -660,7 +677,7 @@ export default function ReaderProfilePage() {
                       </div>
                       
                       <p className="text-xs text-light/60 mt-1">
-                        Fixed-price readings are available in 30 or 60 minute increments.
+                        Fixed-price readings available in 15, 30, or 60 minute increments.
                       </p>
                     </div>
 
@@ -695,7 +712,7 @@ export default function ReaderProfilePage() {
                   <div className="border-t border-accent/10 pt-4">
                     <h4 className="text-accent font-medium mb-2">Price Summary</h4>
                     {/* First check if we have fixed pricing for this duration */}
-                    {scheduledReadingOptions.duration === 30 || scheduledReadingOptions.duration === 60 ? (
+                    {scheduledReadingOptions.duration === 15 || scheduledReadingOptions.duration === 30 || scheduledReadingOptions.duration === 60 ? (
                       <>
                         <div className="flex justify-between mb-1 text-light/80 text-sm">
                           <span>Reading type:</span>
@@ -710,13 +727,22 @@ export default function ReaderProfilePage() {
                           <span className="font-bold text-accent">
                             {formatPrice(
                               scheduledReadingOptions.type === "chat" 
-                                ? (scheduledReadingOptions.duration === 30 
-                                    ? reader.scheduledChatPrice30 : reader.scheduledChatPrice60) || 0
+                                ? (scheduledReadingOptions.duration === 15
+                                    ? reader.scheduledChatPrice15
+                                    : scheduledReadingOptions.duration === 30 
+                                      ? reader.scheduledChatPrice30 
+                                      : reader.scheduledChatPrice60) || 0
                                 : scheduledReadingOptions.type === "voice" 
-                                  ? (scheduledReadingOptions.duration === 30 
-                                      ? reader.scheduledVoicePrice30 : reader.scheduledVoicePrice60) || 0
-                                  : (scheduledReadingOptions.duration === 30 
-                                      ? reader.scheduledVideoPrice30 : reader.scheduledVideoPrice60) || 0
+                                  ? (scheduledReadingOptions.duration === 15
+                                      ? reader.scheduledVoicePrice15
+                                      : scheduledReadingOptions.duration === 30 
+                                        ? reader.scheduledVoicePrice30 
+                                        : reader.scheduledVoicePrice60) || 0
+                                  : (scheduledReadingOptions.duration === 15
+                                      ? reader.scheduledVideoPrice15
+                                      : scheduledReadingOptions.duration === 30 
+                                        ? reader.scheduledVideoPrice30 
+                                        : reader.scheduledVideoPrice60) || 0
                             )}
                           </span>
                         </div>
@@ -724,13 +750,16 @@ export default function ReaderProfilePage() {
                         {/* Show warning if price is not set */}
                         {(
                           (scheduledReadingOptions.type === "chat" && 
-                           ((scheduledReadingOptions.duration === 30 && !reader.scheduledChatPrice30) ||
+                           ((scheduledReadingOptions.duration === 15 && !reader.scheduledChatPrice15) ||
+                            (scheduledReadingOptions.duration === 30 && !reader.scheduledChatPrice30) ||
                             (scheduledReadingOptions.duration === 60 && !reader.scheduledChatPrice60))) ||
                           (scheduledReadingOptions.type === "voice" && 
-                           ((scheduledReadingOptions.duration === 30 && !reader.scheduledVoicePrice30) ||
+                           ((scheduledReadingOptions.duration === 15 && !reader.scheduledVoicePrice15) ||
+                            (scheduledReadingOptions.duration === 30 && !reader.scheduledVoicePrice30) ||
                             (scheduledReadingOptions.duration === 60 && !reader.scheduledVoicePrice60))) ||
                           (scheduledReadingOptions.type === "video" && 
-                           ((scheduledReadingOptions.duration === 30 && !reader.scheduledVideoPrice30) ||
+                           ((scheduledReadingOptions.duration === 15 && !reader.scheduledVideoPrice15) ||
+                            (scheduledReadingOptions.duration === 30 && !reader.scheduledVideoPrice30) ||
                             (scheduledReadingOptions.duration === 60 && !reader.scheduledVideoPrice60)))
                         ) && (
                           <div className="text-amber-500 text-xs mt-2">
@@ -767,7 +796,7 @@ export default function ReaderProfilePage() {
                           )}</span>
                         </div>
                         <div className="text-amber-500 text-xs mt-2">
-                          Fixed pricing only available for 30 or 60 minute sessions. Per-minute rate used for this duration.
+                          Fixed pricing only available for 15, 30, or 60 minute sessions. Per-minute rate used for this duration.
                         </div>
                       </>
                     )}

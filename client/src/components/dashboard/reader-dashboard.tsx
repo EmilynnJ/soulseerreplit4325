@@ -37,10 +37,13 @@ export function ReaderDashboard() {
   const [pricingVideo, setPricingVideo] = useState<number | undefined>(user?.pricingVideo || 0);
   
   // New fixed-price scheduled reading fields
+  const [scheduledChatPrice15, setScheduledChatPrice15] = useState<number | undefined>(user?.scheduledChatPrice15 || 0);
   const [scheduledChatPrice30, setScheduledChatPrice30] = useState<number | undefined>(user?.scheduledChatPrice30 || 0);
   const [scheduledChatPrice60, setScheduledChatPrice60] = useState<number | undefined>(user?.scheduledChatPrice60 || 0);
+  const [scheduledVoicePrice15, setScheduledVoicePrice15] = useState<number | undefined>(user?.scheduledVoicePrice15 || 0);
   const [scheduledVoicePrice30, setScheduledVoicePrice30] = useState<number | undefined>(user?.scheduledVoicePrice30 || 0);
   const [scheduledVoicePrice60, setScheduledVoicePrice60] = useState<number | undefined>(user?.scheduledVoicePrice60 || 0);
+  const [scheduledVideoPrice15, setScheduledVideoPrice15] = useState<number | undefined>(user?.scheduledVideoPrice15 || 0);
   const [scheduledVideoPrice30, setScheduledVideoPrice30] = useState<number | undefined>(user?.scheduledVideoPrice30 || 0);
   const [scheduledVideoPrice60, setScheduledVideoPrice60] = useState<number | undefined>(user?.scheduledVideoPrice60 || 0);
   
@@ -60,10 +63,13 @@ export function ReaderDashboard() {
       setPricingVideo(user.pricingVideo || 0);
       
       // Initialize fixed-price scheduled reading pricing
+      setScheduledChatPrice15(user.scheduledChatPrice15 || 0);
       setScheduledChatPrice30(user.scheduledChatPrice30 || 0);
       setScheduledChatPrice60(user.scheduledChatPrice60 || 0);
+      setScheduledVoicePrice15(user.scheduledVoicePrice15 || 0);
       setScheduledVoicePrice30(user.scheduledVoicePrice30 || 0);
       setScheduledVoicePrice60(user.scheduledVoicePrice60 || 0);
+      setScheduledVideoPrice15(user.scheduledVideoPrice15 || 0);
       setScheduledVideoPrice30(user.scheduledVideoPrice30 || 0);
       setScheduledVideoPrice60(user.scheduledVideoPrice60 || 0);
     }
@@ -145,10 +151,13 @@ export function ReaderDashboard() {
         pricingVideo,
         
         // Fixed-price scheduled reading pricing
+        scheduledChatPrice15,
         scheduledChatPrice30,
         scheduledChatPrice60,
+        scheduledVoicePrice15,
         scheduledVoicePrice30,
         scheduledVoicePrice60,
+        scheduledVideoPrice15,
         scheduledVideoPrice30,
         scheduledVideoPrice60
       });
@@ -376,6 +385,12 @@ export function ReaderDashboard() {
                   <MessageCircle className="h-3 w-3 mr-1" />Chat
                 </h3>
                 <div className="flex items-center justify-between">
+                  <span className="text-xs">15 min:</span>
+                  <span className="font-medium text-xs gold-gradient">
+                    {formatCurrency(scheduledChatPrice15 ? scheduledChatPrice15 / 100 : 0)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-xs">30 min:</span>
                   <span className="font-medium text-xs gold-gradient">
                     {formatCurrency(scheduledChatPrice30 ? scheduledChatPrice30 / 100 : 0)}
@@ -394,6 +409,12 @@ export function ReaderDashboard() {
                   <Phone className="h-3 w-3 mr-1" />Voice
                 </h3>
                 <div className="flex items-center justify-between">
+                  <span className="text-xs">15 min:</span>
+                  <span className="font-medium text-xs gold-gradient">
+                    {formatCurrency(scheduledVoicePrice15 ? scheduledVoicePrice15 / 100 : 0)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-xs">30 min:</span>
                   <span className="font-medium text-xs gold-gradient">
                     {formatCurrency(scheduledVoicePrice30 ? scheduledVoicePrice30 / 100 : 0)}
@@ -411,6 +432,12 @@ export function ReaderDashboard() {
                 <h3 className="text-sm font-medium mb-1 flex items-center">
                   <Video className="h-3 w-3 mr-1" />Video
                 </h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs">15 min:</span>
+                  <span className="font-medium text-xs gold-gradient">
+                    {formatCurrency(scheduledVideoPrice15 ? scheduledVideoPrice15 / 100 : 0)}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs">30 min:</span>
                   <span className="font-medium text-xs gold-gradient">
@@ -602,7 +629,18 @@ export function ReaderDashboard() {
               {/* Chat Reading Prices */}
               <div className="mb-6">
                 <h4 className="font-medium mb-2 flex items-center"><MessageCircle className="h-4 w-4 mr-2" />Chat Readings</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="scheduled-chat-15">15 Minutes (cents)</Label>
+                    <Input
+                      id="scheduled-chat-15"
+                      type="number"
+                      value={scheduledChatPrice15}
+                      onChange={(e) => setScheduledChatPrice15(parseInt(e.target.value) || 0)}
+                      min={0}
+                      placeholder="1499 for $14.99"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="scheduled-chat-30">30 Minutes (cents)</Label>
                     <Input
@@ -631,7 +669,18 @@ export function ReaderDashboard() {
               {/* Voice Reading Prices */}
               <div className="mb-6">
                 <h4 className="font-medium mb-2 flex items-center"><Phone className="h-4 w-4 mr-2" />Voice Readings</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="scheduled-voice-15">15 Minutes (cents)</Label>
+                    <Input
+                      id="scheduled-voice-15"
+                      type="number"
+                      value={scheduledVoicePrice15}
+                      onChange={(e) => setScheduledVoicePrice15(parseInt(e.target.value) || 0)}
+                      min={0}
+                      placeholder="1999 for $19.99"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="scheduled-voice-30">30 Minutes (cents)</Label>
                     <Input
@@ -660,7 +709,18 @@ export function ReaderDashboard() {
               {/* Video Reading Prices */}
               <div className="mb-6">
                 <h4 className="font-medium mb-2 flex items-center"><Video className="h-4 w-4 mr-2" />Video Readings</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="scheduled-video-15">15 Minutes (cents)</Label>
+                    <Input
+                      id="scheduled-video-15"
+                      type="number"
+                      value={scheduledVideoPrice15}
+                      onChange={(e) => setScheduledVideoPrice15(parseInt(e.target.value) || 0)}
+                      min={0}
+                      placeholder="2499 for $24.99"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="scheduled-video-30">30 Minutes (cents)</Label>
                     <Input

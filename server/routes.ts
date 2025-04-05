@@ -445,10 +445,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pricingVideo,
         
         // Fixed-price scheduled reading pricing
+        scheduledChatPrice15,
         scheduledChatPrice30,
         scheduledChatPrice60,
+        scheduledVoicePrice15,
         scheduledVoicePrice30,
         scheduledVoicePrice60,
+        scheduledVideoPrice15,
         scheduledVideoPrice30,
         scheduledVideoPrice60 
       } = req.body;
@@ -456,9 +459,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if any pricing fields are provided
       const hasPerMinutePricing = pricingChat !== undefined || pricingVoice !== undefined || pricingVideo !== undefined;
       const hasScheduledPricing = 
-        scheduledChatPrice30 !== undefined || scheduledChatPrice60 !== undefined ||
-        scheduledVoicePrice30 !== undefined || scheduledVoicePrice60 !== undefined ||
-        scheduledVideoPrice30 !== undefined || scheduledVideoPrice60 !== undefined;
+        scheduledChatPrice15 !== undefined || scheduledChatPrice30 !== undefined || scheduledChatPrice60 !== undefined ||
+        scheduledVoicePrice15 !== undefined || scheduledVoicePrice30 !== undefined || scheduledVoicePrice60 !== undefined ||
+        scheduledVideoPrice15 !== undefined || scheduledVideoPrice30 !== undefined || scheduledVideoPrice60 !== undefined;
       
       if (!hasPerMinutePricing && !hasScheduledPricing) {
         return res.status(400).json({ message: "At least one pricing field is required" });
@@ -490,6 +493,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate scheduled chat pricing
+      if (scheduledChatPrice15 !== undefined) {
+        if (isNaN(scheduledChatPrice15) || scheduledChatPrice15 < 0) {
+          return res.status(400).json({ message: "15-minute chat pricing must be a positive number" });
+        }
+        update.scheduledChatPrice15 = scheduledChatPrice15;
+      }
+      
       if (scheduledChatPrice30 !== undefined) {
         if (isNaN(scheduledChatPrice30) || scheduledChatPrice30 < 0) {
           return res.status(400).json({ message: "30-minute chat pricing must be a positive number" });
@@ -505,6 +515,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate scheduled voice pricing
+      if (scheduledVoicePrice15 !== undefined) {
+        if (isNaN(scheduledVoicePrice15) || scheduledVoicePrice15 < 0) {
+          return res.status(400).json({ message: "15-minute voice pricing must be a positive number" });
+        }
+        update.scheduledVoicePrice15 = scheduledVoicePrice15;
+      }
+      
       if (scheduledVoicePrice30 !== undefined) {
         if (isNaN(scheduledVoicePrice30) || scheduledVoicePrice30 < 0) {
           return res.status(400).json({ message: "30-minute voice pricing must be a positive number" });
@@ -520,6 +537,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate scheduled video pricing
+      if (scheduledVideoPrice15 !== undefined) {
+        if (isNaN(scheduledVideoPrice15) || scheduledVideoPrice15 < 0) {
+          return res.status(400).json({ message: "15-minute video pricing must be a positive number" });
+        }
+        update.scheduledVideoPrice15 = scheduledVideoPrice15;
+      }
+      
       if (scheduledVideoPrice30 !== undefined) {
         if (isNaN(scheduledVideoPrice30) || scheduledVideoPrice30 < 0) {
           return res.status(400).json({ message: "30-minute video pricing must be a positive number" });

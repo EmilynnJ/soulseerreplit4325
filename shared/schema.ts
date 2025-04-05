@@ -17,10 +17,13 @@ export const users = pgTable("users", {
   pricingVoice: integer("pricing_voice"), // Voice/phone price per minute in cents (legacy)
   pricingVideo: integer("pricing_video"), // Video price per minute in cents (legacy)
   // Fixed pricing for scheduled readings
+  scheduledChatPrice15: integer("scheduled_chat_price_15"), // Fixed price for 15-min chat reading
   scheduledChatPrice30: integer("scheduled_chat_price_30"), // Fixed price for 30-min chat reading
   scheduledChatPrice60: integer("scheduled_chat_price_60"), // Fixed price for 60-min chat reading 
+  scheduledVoicePrice15: integer("scheduled_voice_price_15"), // Fixed price for 15-min voice reading
   scheduledVoicePrice30: integer("scheduled_voice_price_30"), // Fixed price for 30-min voice reading
   scheduledVoicePrice60: integer("scheduled_voice_price_60"), // Fixed price for 60-min voice reading
+  scheduledVideoPrice15: integer("scheduled_video_price_15"), // Fixed price for 15-min video reading
   scheduledVideoPrice30: integer("scheduled_video_price_30"), // Fixed price for 30-min video reading
   scheduledVideoPrice60: integer("scheduled_video_price_60"), // Fixed price for 60-min video reading
   rating: integer("rating"),
@@ -237,10 +240,13 @@ export type UserUpdate = Partial<InsertUser> & {
   accountBalance?: number;
   reviewCount?: number;
   // Fixed pricing for scheduled readings
+  scheduledChatPrice15?: number;
   scheduledChatPrice30?: number;
   scheduledChatPrice60?: number;
+  scheduledVoicePrice15?: number;
   scheduledVoicePrice30?: number;
   scheduledVoicePrice60?: number;
+  scheduledVideoPrice15?: number;
   scheduledVideoPrice30?: number;
   scheduledVideoPrice60?: number;
 };
