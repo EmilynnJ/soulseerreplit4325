@@ -36,7 +36,7 @@ export const env = {
   STRIPE_PUBLIC_KEY: getEnvVar('VITE_STRIPE_PUBLIC_KEY', ''),
   
   // LiveKit configuration
-  LIVEKIT_URL: getEnvVar('VITE_LIVEKIT_URL', ''),
+  LIVEKIT_WS_URL: getEnvVar('VITE_LIVEKIT_WS_URL', ''),
   
   // PWA configuration
   ENABLE_PWA: getBoolEnvVar('VITE_ENABLE_PWA', true),

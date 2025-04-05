@@ -1,0 +1,80 @@
+I am building a psychic reading web app using Node.js and LiveKit. This app must support:
+
+1. Pay-per-minute readings via:
+
+Chat
+
+Phone (voice)
+
+Video
+
+
+
+2. Live streaming for readers, using LiveKit’s built-in streaming support
+
+Viewers can send gifts/tips during livestreams (connected to Stripe or account balance)
+
+
+
+3. All sessions must:
+
+Be routed to selected Reader
+
+Notify Reader of incoming session to start the session
+
+Track the duration in minutes
+
+Deduct from the client’s balance every minute
+
+End automatically if the balance is too low
+
+
+
+4. Readers earn 70% of the total, and should be auto-paid via Stripe if they earn over $15/day
+
+
+5. All data (clients, readers, sessions, balances, earnings) is stored in a PostgreSQL database hosted on Neon
+
+
+6. Use LiveKit Cloud as the WebSocket provider
+
+My WebSocket URL is: wss://soulseer-kawitbf3.livekit.cloud
+
+API Key and Secret are stored in Replit secrets as LIVEKIT_API_KEY and LIVEKIT_API_SECRET
+
+
+
+7. Please do all of the following without skipping or hallucinating:
+
+Generate secure LiveKit tokens for readers and clients to join rooms
+
+Connect to LiveKit and manage chat, audio, and video sessions
+
+Stream setup for readers with tipping
+
+Ensure track publication, participant management, and session cleanup
+
+Deduct balance per minute using timers
+
+Log duration, reader/client IDs, and total charges in a readings table
+
+Handle disconnect events and cleanup
+
+Use Stripe API to send payouts daily if earnings > $15
+
+
+
+8. Do not hallucinate features, APIs, or modules.
+
+Only use real, working LiveKit and Stripe SDK functions.
+
+Do not use MUX or references to MUX under any circumstance.
+
+Remove all MUX related files and previous reading systems files.
+
+
+
+
+Output the final implementation cleanly and in modules or functions that are easy to test and move to Render.
+
+This is a production-critical app. Make sure the LiveKit implementation is fully functional and does not rely on browser-only code or frontend assumptions. This is server-side only.

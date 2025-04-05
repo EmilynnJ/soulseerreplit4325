@@ -8,16 +8,16 @@ import {
   Track,
   TrackPublication,
   LocalTrack,
-  LocalAudioTrack,
-  LocalVideoTrack,
+  createLocalAudioTrack,
+  createLocalVideoTrack,
   VideoCaptureOptions,
   AudioCaptureOptions,
-  DataPacket_Kind
 } from 'livekit-client';
 
 import {
   AccessToken, 
-  RoomServiceClient
+  RoomServiceClient,
+  DataPacket_Kind
 } from 'livekit-server-sdk';
 
 // Session types supported by the service
@@ -209,7 +209,7 @@ export class LiveKitSessionManager {
       
       // Create and publish audio track if requested
       if (options.audio) {
-        const audioTrack = await LocalAudioTrack.create(options.audioOptions);
+        const audioTrack = await createLocalAudioTrack(options.audioOptions);
         await this.localParticipant.publishTrack(audioTrack);
         newTracks.push(audioTrack);
         this.tracks.push(audioTrack);
@@ -217,7 +217,7 @@ export class LiveKitSessionManager {
       
       // Create and publish video track if requested
       if (options.video) {
-        const videoTrack = await LocalVideoTrack.create(options.videoOptions);
+        const videoTrack = await createLocalVideoTrack(options.videoOptions);
         await this.localParticipant.publishTrack(videoTrack);
         newTracks.push(videoTrack);
         this.tracks.push(videoTrack);
