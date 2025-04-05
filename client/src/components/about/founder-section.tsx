@@ -9,7 +9,7 @@ export function FounderSection() {
       </h1>
       
       <div className="mb-8">
-        <Avatar className="w-48 h-48 border-4 border-secondary glow-circle">
+        <Avatar className="w-48 h-48 border-4 border-secondary">
           <AvatarImage 
             src="/images/founder.jpg" 
             alt="Emily" 
