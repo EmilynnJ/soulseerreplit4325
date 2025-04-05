@@ -60,7 +60,7 @@ export default function ReaderProfilePage() {
         reading.status === "completed")
     : [];
 
-  // Handle starting a reading
+  // Handle starting a reading (on-demand)
   const handleStartReading = async () => {
     if (!user) {
       toast({
@@ -77,9 +77,11 @@ export default function ReaderProfilePage() {
     setIsCreatingReading(true);
 
     try {
-      const response = await apiRequest("POST", "/api/readings/on-demand", {
+      // Create an on-demand reading
+      const response = await apiRequest("POST", "/api/readings", {
         readerId: reader.id,
-        type: readingType
+        type: readingType,
+        readingMode: "on_demand"
       });
 
       if (!response.ok) {
@@ -88,19 +90,17 @@ export default function ReaderProfilePage() {
       }
 
       const data = await response.json();
-
-      if (data.paymentLink) {
-        // Redirect to payment if needed
-        window.location.href = data.paymentLink;
-      } else if (data.reading) {
-        // Redirect to reading session
-        navigate(`/reading-session/${data.reading.id}`);
-      }
-
+      
       toast({
         title: "Reading Created",
         description: "Your reading session is being set up.",
       });
+      
+      // Refresh readings data
+      queryClient.invalidateQueries({ queryKey: ['/api/readings/client'] });
+      
+      // Navigate to dashboard to see the reading
+      navigate("/dashboard");
 
     } catch (error: any) {
       toast({
@@ -113,7 +113,7 @@ export default function ReaderProfilePage() {
     setIsCreatingReading(false);
   };
 
-  // Handle scheduling a reading
+  // Handle scheduling a reading for a future date/time
   const handleScheduleReading = async () => {
     if (!user) {
       toast({
@@ -130,8 +130,8 @@ export default function ReaderProfilePage() {
     setIsSchedulingReading(true);
 
     try {
-      // Calculate total price based on duration and type
-      const basePrice = (
+      // Calculate price per minute based on reading type
+      const pricePerMinute = (
         scheduledReadingOptions.type === "chat" 
           ? (reader.pricingChat || reader.pricing || 0)
           : scheduledReadingOptions.type === "voice" 
@@ -139,15 +139,14 @@ export default function ReaderProfilePage() {
             : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
       );
 
-      const totalPrice = basePrice * scheduledReadingOptions.duration;
-
-      const response = await apiRequest("POST", "/api/readings/schedule", {
+      // Create a scheduled reading
+      const response = await apiRequest("POST", "/api/readings", {
         readerId: reader.id,
         type: scheduledReadingOptions.type,
         duration: scheduledReadingOptions.duration,
-        scheduledFor: scheduledReadingOptions.date,
+        scheduledFor: scheduledReadingOptions.date.toISOString(),
         notes: scheduledReadingOptions.notes,
-        price: totalPrice
+        readingMode: "scheduled" // Explicitly set reading mode to scheduled
       });
 
       if (!response.ok) {
@@ -157,21 +156,16 @@ export default function ReaderProfilePage() {
 
       const data = await response.json();
 
-      if (data.paymentLink) {
-        // Redirect to payment
-        window.location.href = data.paymentLink;
-      } else {
-        toast({
-          title: "Reading Scheduled",
-          description: "Your reading has been successfully scheduled.",
-        });
+      toast({
+        title: "Reading Scheduled",
+        description: "Your reading has been successfully scheduled.",
+      });
 
-        // Refresh readings data
-        queryClient.invalidateQueries({ queryKey: ['/api/readings/client'] });
+      // Refresh readings data
+      queryClient.invalidateQueries({ queryKey: ['/api/readings/client'] });
 
-        // Switch to dashboard tab
-        navigate("/dashboard");
-      }
+      // Switch to dashboard tab
+      navigate("/dashboard");
 
     } catch (error: any) {
       toast({

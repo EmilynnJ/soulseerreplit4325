@@ -484,36 +484,324 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Reading system has been removed
-  // Placeholder endpoints to maintain API compatibility during transition
-
+  // Reading scheduling system
+  
+  // Schedule a reading (both on-demand and future scheduled readings)
   app.post("/api/readings", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to book a reading" });
+    }
+    
+    try {
+      const { readerId, type, scheduledFor, notes } = req.body;
+      
+      // Validate request
+      if (!readerId) {
+        return res.status(400).json({ message: "Reader ID is required" });
+      }
+      
+      if (!type || !["chat", "video", "voice"].includes(type)) {
+        return res.status(400).json({ message: "Valid reading type is required (chat, video, or voice)" });
+      }
+      
+      // Make sure the reader exists and is a reader
+      const reader = await storage.getUser(readerId);
+      if (!reader || reader.role !== "reader") {
+        return res.status(404).json({ message: "Reader not found" });
+      }
+      
+      // Determine pricing based on reading type
+      let pricePerMinute;
+      if (type === "chat") {
+        pricePerMinute = reader.pricingChat || reader.pricing || 0;
+      } else if (type === "voice") {
+        pricePerMinute = reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0);
+      } else if (type === "video") {
+        pricePerMinute = reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0);
+      } else {
+        pricePerMinute = reader.pricing || 0;
+      }
+      
+      if (pricePerMinute <= 0) {
+        return res.status(400).json({ message: "Reader has not set pricing for this reading type" });
+      }
+      
+      // Determine reading mode (scheduled or on-demand)
+      const readingMode = scheduledFor ? "scheduled" : "on_demand";
+      
+      // Standard duration for now (can be changed later)
+      const duration = 30; // 30 minutes
+      
+      // Calculate price
+      const totalPrice = pricePerMinute * duration;
+      
+      // Create the reading
+      const reading = await storage.createReading({
+        readerId,
+        clientId: req.user.id,
+        type,
+        readingMode,
+        status: readingMode === "scheduled" ? "scheduled" : "waiting_payment",
+        scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
+        duration,
+        price: pricePerMinute, // Legacy field (using price per minute)
+        pricePerMinute,
+        totalPrice,
+        notes
+      });
+      
+      // Return appropriate response based on reading mode
+      if (readingMode === "scheduled") {
+        return res.status(201).json({ 
+          message: "Reading scheduled successfully",
+          reading
+        });
+      } else {
+        // For on-demand readings, we'd normally generate a payment link,
+        // but since we're simplifying to just scheduling, return the reading directly
+        return res.status(201).json({ 
+          message: "Reading created successfully",
+          reading
+        });
+      }
+    } catch (error) {
+      console.error("Error creating reading:", error);
+      res.status(500).json({ message: "Failed to create reading" });
+    }
   });
   
+  // Get client's readings
   app.get("/api/readings/client", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to view your readings" });
+    }
+    
+    try {
+      const readings = await storage.getReadingsByClient(req.user.id);
+      res.json(readings);
+    } catch (error) {
+      console.error("Error fetching client readings:", error);
+      res.status(500).json({ message: "Failed to fetch readings" });
+    }
   });
   
+  // Get reader's readings
   app.get("/api/readings/reader", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
+    if (!req.isAuthenticated() || req.user.role !== "reader") {
+      return res.status(403).json({ message: "You must be a reader to view your readings" });
+    }
+    
+    try {
+      const readings = await storage.getReadingsByReader(req.user.id);
+      res.json(readings);
+    } catch (error) {
+      console.error("Error fetching reader readings:", error);
+      res.status(500).json({ message: "Failed to fetch readings" });
+    }
   });
   
+  // Get a specific reading
   app.get("/api/readings/:id", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to view readings" });
+    }
+    
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid reading ID" });
+      }
+      
+      const reading = await storage.getReading(id);
+      if (!reading) {
+        return res.status(404).json({ message: "Reading not found" });
+      }
+      
+      // Check if user is authorized (client, reader, or admin)
+      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to view this reading" });
+      }
+      
+      res.json(reading);
+    } catch (error) {
+      console.error("Error fetching reading:", error);
+      res.status(500).json({ message: "Failed to fetch reading" });
+    }
   });
   
+  // Update reading status
   app.patch("/api/readings/:id/status", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to update a reading" });
+    }
+    
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid reading ID" });
+      }
+      
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ message: "Status is required" });
+      }
+      
+      const reading = await storage.getReading(id);
+      if (!reading) {
+        return res.status(404).json({ message: "Reading not found" });
+      }
+      
+      // Check if user is authorized (client, reader, or admin)
+      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId && req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to update this reading" });
+      }
+      
+      // Only allow certain transitions based on user role and current status
+      const validTransitions: Record<string, string[]> = {
+        scheduled: ["cancelled", "in_progress"],
+        waiting_payment: ["cancelled", "payment_completed"],
+        payment_completed: ["in_progress", "cancelled"],
+        in_progress: ["completed", "cancelled"],
+        completed: [], // No transitions from completed
+        cancelled: [] // No transitions from cancelled
+      };
+      
+      if (!validTransitions[reading.status].includes(status)) {
+        return res.status(400).json({ 
+          message: `Cannot transition from ${reading.status} to ${status}`,
+          validTransitions: validTransitions[reading.status]
+        });
+      }
+      
+      // Additional validations based on role
+      if (req.user.role === "client" && !["cancelled"].includes(status)) {
+        return res.status(403).json({ message: "Clients can only cancel readings" });
+      }
+      
+      // Process the status update
+      const update: Partial<Reading> = { status } as any;
+      
+      // Add timestamps based on status
+      if (status === "in_progress") {
+        update.startedAt = new Date();
+      } else if (status === "completed") {
+        update.completedAt = new Date();
+      }
+      
+      const updatedReading = await storage.updateReading(id, update);
+      
+      res.json({ 
+        message: "Reading status updated successfully",
+        reading: updatedReading
+      });
+    } catch (error) {
+      console.error("Error updating reading status:", error);
+      res.status(500).json({ message: "Failed to update reading status" });
+    }
+  });
+
+  // Endpoints for adding notes to a reading
+  app.post("/api/readings/:id/notes", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to add notes" });
+    }
+    
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid reading ID" });
+      }
+      
+      const { notes } = req.body;
+      if (!notes) {
+        return res.status(400).json({ message: "Notes content is required" });
+      }
+      
+      const reading = await storage.getReading(id);
+      if (!reading) {
+        return res.status(404).json({ message: "Reading not found" });
+      }
+      
+      // Only the client and reader involved in the reading can add notes
+      if (req.user.id !== reading.clientId && req.user.id !== reading.readerId) {
+        return res.status(403).json({ message: "Not authorized to add notes to this reading" });
+      }
+      
+      const updatedReading = await storage.updateReading(id, { notes } as Partial<Reading>);
+      
+      res.json({ 
+        message: "Notes added successfully", 
+        reading: updatedReading 
+      });
+    } catch (error) {
+      console.error("Error adding notes:", error);
+      res.status(500).json({ message: "Failed to add notes" });
+    }
   });
   
-  // Additional reading system endpoints - placeholders
-  app.post("/api/readings/:id/message", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
-  });
-  
-  app.post("/api/readings/:id/end", async (req, res) => {
-    res.status(501).json({ message: "Reading system has been removed" });
+  // Add review to a completed reading
+  app.post("/api/readings/:id/review", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "You must be logged in to add a review" });
+    }
+    
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid reading ID" });
+      }
+      
+      const { rating, review } = req.body;
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Valid rating (1-5) is required" });
+      }
+      
+      const reading = await storage.getReading(id);
+      if (!reading) {
+        return res.status(404).json({ message: "Reading not found" });
+      }
+      
+      // Only the client can review a reading
+      if (req.user.id !== reading.clientId) {
+        return res.status(403).json({ message: "Only the client can review a reading" });
+      }
+      
+      // Only completed readings can be reviewed
+      if (reading.status !== "completed") {
+        return res.status(400).json({ message: "Only completed readings can be reviewed" });
+      }
+      
+      // Update the reading with review data
+      const updatedReading = await storage.updateReading(id, { 
+        rating, 
+        review: review || "" 
+      } as Partial<Reading>);
+      
+      // Update the reader's rating
+      const reader = await storage.getUser(reading.readerId);
+      if (reader) {
+        const readings = await storage.getReadingsByReader(reading.readerId);
+        const completedReadings = readings.filter(r => r.status === "completed" && r.rating);
+        
+        // Calculate new average rating
+        const totalRating = completedReadings.reduce((sum, r) => sum + (r.rating || 0), 0);
+        const newRating = Math.round(totalRating / completedReadings.length);
+        
+        // Update reader with new average rating and increment review count
+        await storage.updateUser(reading.readerId, {
+          rating: newRating,
+          reviewCount: (reader.reviewCount || 0) + 1
+        });
+      }
+      
+      res.json({ 
+        message: "Review added successfully", 
+        reading: updatedReading 
+      });
+    } catch (error) {
+      console.error("Error adding review:", error);
+      res.status(500).json({ message: "Failed to add review" });
+    }
   });
   
   // Products
