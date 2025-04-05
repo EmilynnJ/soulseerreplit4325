@@ -15,7 +15,7 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
-import MuxPlayer from "@mux/mux-player-react";
+// LiveKit is used instead of Mux for video streaming
 
 export default function LivestreamPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -111,17 +111,15 @@ export default function LivestreamPage() {
             {activeLivestreams.map((livestream) => (
               <GlowCard key={livestream.id} className="rounded-2xl overflow-hidden p-0">
                 <div className="relative">
-                  {livestream.playbackId ? (
-                    <MuxPlayer
-                      playbackId={livestream.playbackId}
-                      thumbnailTime={0}
-                      style={{ height: '200px', width: '100%' }}
-                      streamType="on-demand"
-                      placeholder={livestream.thumbnailUrl || ""}
-                      autoPlay={false}
-                      muted={true}
-                      loop={false}
-                    />
+                  {livestream.liveKitRoom ? (
+                    <div 
+                      className="w-full h-48 bg-muted flex items-center justify-center"
+                      style={{ backgroundImage: `url(${livestream.thumbnailUrl || "/images/livestream-placeholder.jpg"})`, backgroundSize: 'cover' }}
+                    >
+                      <div className="bg-primary-dark/70 p-2 rounded-lg">
+                        <MonitorPlay className="h-8 w-8 text-secondary" />
+                      </div>
+                    </div>
                   ) : (
                     <img
                       src={livestream.thumbnailUrl || "/images/livestream-placeholder.jpg"}

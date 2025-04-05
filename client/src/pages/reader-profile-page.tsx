@@ -22,8 +22,8 @@ import {
   Shield
 } from "lucide-react";
 
-// Default image for fallback - use a local image in our project
-const defaultImage = "/images/default-profile.jpg";
+// Default image for fallback - use a generic profile image
+const defaultImage = "/images/placeholder-user.svg";
 
 export default function ReaderProfilePage() {
   const { id } = useParams<{ id: string }>();

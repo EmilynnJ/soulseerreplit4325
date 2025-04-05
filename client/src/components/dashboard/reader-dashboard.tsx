@@ -329,12 +329,21 @@ export function ReaderDashboard() {
                   >
                     {user?.profileImage ? (
                       <img 
-                        src={user.profileImage} 
+                        src={user.profileImage}
+                        alt="Profile" 
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null; // Prevent infinite loop
+                          target.src = "/images/placeholder-user.svg";
+                        }}
+                      />
+                    ) : (
+                      <img 
+                        src="/images/placeholder-user.svg"
                         alt="Profile" 
                         className="h-full w-full object-cover"
                       />
-                    ) : (
-                      <UserIcon className="h-10 w-10 text-muted-foreground" />
                     )}
                   </div>
                   <input 

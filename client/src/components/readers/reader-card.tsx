@@ -10,8 +10,8 @@ interface ReaderCardProps {
 }
 
 export function ReaderCard({ reader }: ReaderCardProps) {
-  // Use a local fallback image that definitely exists in our project
-  const defaultImage = "/images/default-profile.jpg";
+  // Use a generic silhouette profile image as fallback
+  const defaultImage = "/images/placeholder-user.svg";
   
   // Simple path handling - just use the default image if none is provided
   const profileImage = reader.profileImage || defaultImage;

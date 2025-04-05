@@ -441,9 +441,18 @@ export function AdminDashboard() {
                                       : `/uploads/${reader.profileImage}`} 
                                     alt={reader.username}
                                     className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.onerror = null; // Prevent infinite loop
+                                      target.src = "/images/placeholder-user.svg";
+                                    }}
                                   />
                                 ) : (
-                                  <UserIcon className="h-4 w-4 m-auto mt-2" />
+                                  <img 
+                                    src="/images/placeholder-user.svg"
+                                    alt={reader.username}
+                                    className="h-full w-full object-cover"
+                                  />
                                 )}
                               </div>
                               <span>{reader.username}</span>
@@ -571,7 +580,7 @@ export function AdminDashboard() {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                      <img src="/images/placeholder-user.svg" alt="Profile Preview" className="h-full w-full object-cover" />
                     )}
                   </div>
                   <div>
@@ -910,7 +919,7 @@ function AddReaderForm() {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <UserIcon className="h-10 w-10 text-muted-foreground" />
+                      <img src="/images/placeholder-user.svg" alt="Profile Preview" className="h-full w-full object-cover" />
                     )}
                   </div>
                   <div>

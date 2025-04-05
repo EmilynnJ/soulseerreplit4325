@@ -1427,8 +1427,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Title and description are required" });
       }
       
-      // Use mux-bridge to create the livestream with Mux integration
-      const livestream = await muxClient.createLivestream(req.user, title, description);
+      // Create livestream via our LiveKit-based solution
+      const liveKitService = require('./services/livekit-service');
+      const livestream = await liveKitService.createLivestream(req.user, title, description);
       
       // Add additional metadata
       if (category) {
@@ -1451,13 +1452,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check for userId query param to filter by reader/creator
       const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
       
+      // Make sure LiveKit service is available
+      const liveKitService = require('./services/livekit-service');
+      
       let livestreams;
       if (userId) {
         // Get livestreams for a specific user
-        livestreams = await muxClient.getLivestreamsForUser(userId);
+        livestreams = await liveKitService.getLivestreamsForUser(userId);
       } else {
         // Get all public livestreams (status='live')
-        livestreams = await muxClient.getPublicLivestreams();
+        livestreams = await liveKitService.getPublicLivestreams();
       }
       
       // Add reader info to each livestream
@@ -1491,8 +1495,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid livestream ID" });
       }
       
-      // Get the livestream details with the latest Mux data
-      const livestream = await muxClient.getLivestreamDetails(id);
+      // Get the livestream details using LiveKit
+      const liveKitService = require('./services/livekit-service');
+      const livestream = await liveKitService.getLivestreamDetails(id);
       
       if (!livestream) {
         return res.status(404).json({ message: "Livestream not found" });

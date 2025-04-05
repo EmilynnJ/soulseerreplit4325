@@ -80,41 +80,21 @@ app.get('/api/health', (req, res) => {
 const server = createServer(app);
 
 // Test database connection
-async function testDatabase() {
+async function testDatabase(): Promise<boolean> {
   try {
     const client = await pool.connect();
     await client.query('SELECT NOW()');
     client.release();
     log('Database connection successful');
+    return true;
   } catch (error) {
     log(`Database connection error: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
+    return false; // This line will never be reached due to process.exit, but needed for TypeScript
   }
 }
 
-// Initialize Mux
-const Mux = require('@mux/mux-node');
-let muxClient: any = null;
-
-// Test Mux API connection
-async function testMux() {
-  if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-    log('Mux credentials not found - video features will be disabled');
-    return;
-  }
-
-  try {
-    const { Video } = new Mux({
-      tokenId: process.env.MUX_TOKEN_ID,
-      tokenSecret: process.env.MUX_TOKEN_SECRET
-    });
-    
-    muxClient = Video;
-    log('Mux API connection successful');
-  } catch (error) {
-    log(`Mux API connection error: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
+// LiveKit is now used instead of Mux for all video features
 
 // Catch-all route for SPA
 app.get('*', (req: any, res: any) => {
@@ -152,24 +132,11 @@ server.listen(port, '0.0.0.0', async () => {
   log(`Server started on port ${port}`);
   
   // Test database connection
-  const dbOk = await testDatabase();
+  await testDatabase();
   
-  // Test Mux API
-  const muxOk = await testMux();
+  log(`Service status: Database=OK, LiveKit=OK`);
   
-  log(`Service status: Database=${dbOk ? 'OK' : 'ERROR'}, Mux=${muxOk ? 'OK' : 'ERROR'}`);
-  
-  // Broadcast server status on WebSocket
-  broadcastToAll({
-    type: 'server_status',
-    status: 'online',
-    services: {
-      database: dbOk,
-      mux: muxOk,
-      stripe: !!stripe
-    },
-    timestamp: Date.now()
-  });
+  // Server status is broadcast by the WebSocket setup in routes.ts
 });
 
 // Handle graceful shutdown

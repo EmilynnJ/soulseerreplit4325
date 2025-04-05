@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#9370DB" opacity="0.2"/>
+  
+  <!-- Decorative spiritual elements -->
+  <circle cx="256" cy="256" r="180" stroke="#9370DB" stroke-width="2" stroke-dasharray="4 4" opacity="0.7"/>
+  <circle cx="256" cy="256" r="150" stroke="#9370DB" stroke-width="2" stroke-dasharray="4 4" opacity="0.5"/>
+  
+  <!-- Stars -->
+  <path d="M170 130L175 140L185 145L175 150L170 160L165 150L155 145L165 140L170 130Z" fill="#9370DB" opacity="0.8"/>
+  <path d="M340 130L345 140L355 145L345 150L340 160L335 150L325 145L335 140L340 130Z" fill="#9370DB" opacity="0.8"/>
+  <path d="M255 100L260 110L270 115L260 120L255 130L250 120L240 115L250 110L255 100Z" fill="#9370DB" opacity="0.8"/>
+  
+  <!-- Person silhouette -->
+  <circle cx="256" cy="200" r="60" fill="#9370DB" opacity="0.6"/>
+  <path d="M175 350C175 300 215 260 256 260C297 260 337 300 337 350V360H175V350Z" fill="#9370DB" opacity="0.6"/>
+  
+  <!-- Mystical symbols -->
+  <path d="M256 370V420" stroke="#9370DB" stroke-width="2"/>
+  <path d="M226 390H286" stroke="#9370DB" stroke-width="2"/>
+  <circle cx="256" cy="420" r="10" fill="#9370DB" opacity="0.8"/>
+</svg>

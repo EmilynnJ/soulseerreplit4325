@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#9370DB" opacity="0.2"/>
+  
+  <!-- Person silhouette -->
+  <circle cx="256" cy="170" r="70" fill="#9370DB" opacity="0.6"/>
+  <path d="M155 370C155 300 200 250 256 250C312 250 357 300 357 370V380H155V370Z" fill="#9370DB" opacity="0.6"/>
+</svg>
