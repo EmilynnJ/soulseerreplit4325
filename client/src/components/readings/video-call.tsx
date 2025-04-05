@@ -12,7 +12,10 @@ import {
   RemoteTrackPublication, 
   TrackPublication, 
   Track, 
-  ConnectionState 
+  ConnectionState,
+  createLocalAudioTrack,
+  createLocalVideoTrack,
+  LocalTrack
 } from 'livekit-client';
 import env from '@/lib/env';
 
@@ -54,7 +57,7 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
           .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
           .on(RoomEvent.ConnectionStateChanged, connectionStateChanged)
           .on(RoomEvent.Disconnected, handleDisconnect)
-          .on('data', (data: Uint8Array, participant?: RemoteParticipant) => {
+          .on(RoomEvent.DataReceived, (data: Uint8Array, participant?: RemoteParticipant) => {
             try {
               const message = JSON.parse(new TextDecoder().decode(data));
               if (message.type === 'billing_update') {
@@ -73,10 +76,15 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
         
         // Publish local tracks based on reading type
         if (readingType === 'video' || readingType === 'voice') {
-          await newRoom.localParticipant.enableAudio();
+          // Create and publish local audio track
+          const audioTrack = await createLocalAudioTrack();
+          await newRoom.localParticipant.publishTrack(audioTrack);
           
           if (readingType === 'video') {
-            const videoTrack = await newRoom.localParticipant.enableVideo();
+            // Create and publish local video track
+            const videoTrack = await createLocalVideoTrack();
+            await newRoom.localParticipant.publishTrack(videoTrack);
+            
             if (videoTrack && localVideoRef.current) {
               videoTrack.attach(localVideoRef.current);
             }
@@ -181,14 +189,28 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
     if (!room) return;
     
     try {
+      const localParticipant = room.localParticipant;
+      
       if (isVideoEnabled) {
-        await room.localParticipant.disableVideo();
+        // Find video tracks and unpublish them
+        const videoTracks = Array.from(localParticipant.tracks.values())
+          .filter(publication => publication.track && publication.track.kind === Track.Kind.Video)
+          .map(publication => publication.track as LocalTrack);
+          
+        for (const track of videoTracks) {
+          await localParticipant.unpublishTrack(track);
+          await track.stop();
+        }
       } else {
-        const videoTrack = await room.localParticipant.enableVideo();
-        if (videoTrack && localVideoRef.current) {
+        // Create and publish a new video track
+        const videoTrack = await createLocalVideoTrack();
+        await localParticipant.publishTrack(videoTrack);
+        
+        if (localVideoRef.current) {
           videoTrack.attach(localVideoRef.current);
         }
       }
+      
       setIsVideoEnabled(!isVideoEnabled);
     } catch (error) {
       console.error('Error toggling video:', error);
@@ -205,11 +227,24 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
     if (!room) return;
     
     try {
+      const localParticipant = room.localParticipant;
+      
       if (isAudioEnabled) {
-        await room.localParticipant.disableAudio();
+        // Find audio tracks and unpublish them
+        const audioTracks = Array.from(localParticipant.tracks.values())
+          .filter(publication => publication.track && publication.track.kind === Track.Kind.Audio)
+          .map(publication => publication.track as LocalTrack);
+          
+        for (const track of audioTracks) {
+          await localParticipant.unpublishTrack(track);
+          await track.stop();
+        }
       } else {
-        await room.localParticipant.enableAudio();
+        // Create and publish a new audio track
+        const audioTrack = await createLocalAudioTrack();
+        await localParticipant.publishTrack(audioTrack);
       }
+      
       setIsAudioEnabled(!isAudioEnabled);
     } catch (error) {
       console.error('Error toggling audio:', error);
@@ -287,7 +322,7 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
             id={`participant-${participant.sid}`}
             className="relative bg-muted rounded-lg overflow-hidden aspect-video flex items-center justify-center"
           >
-            {participant.audioTracks.size === 0 && participant.videoTracks.size === 0 && (
+            {Array.from(participant.trackPublications.values()).length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center bg-muted">
                 <Video className="h-12 w-12 text-muted-foreground opacity-50" />
                 <p className="text-sm text-muted-foreground absolute bottom-4">

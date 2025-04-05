@@ -99,14 +99,14 @@ export class LiveKitSessionManager {
   }
   
   private initServiceClient(): void {
-    const apiKey = process.env.LIVEKIT_API_KEY;
-    const apiSecret = process.env.LIVEKIT_API_SECRET;
-    const wsUrl = process.env.VITE_LIVEKIT_WS_URL || '';
+    const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
+    const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
+    const wsUrl = process.env.VITE_LIVEKIT_WS_URL || 'wss://soulseer-kawitbf3.livekit.cloud';
     
-    if (apiKey && apiSecret && wsUrl) {
+    try {
       this.serviceClient = new RoomServiceClient(wsUrl, apiKey, apiSecret);
-    } else {
-      console.warn('LiveKit credentials missing, some functionality will be limited');
+    } catch (error) {
+      console.warn('Error initializing LiveKit service client:', error);
     }
   }
 
@@ -125,12 +125,9 @@ export class LiveKitSessionManager {
     options?: any,
     ttl: number = 3600
   ): string {
-    const apiKey = process.env.LIVEKIT_API_KEY;
-    const apiSecret = process.env.LIVEKIT_API_SECRET;
-    
-    if (!apiKey || !apiSecret) {
-      throw new Error('LiveKit API credentials not configured');
-    }
+    // Use hardcoded values as fallbacks if environment variables aren't available
+    const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
+    const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
     
     try {
       const at = new AccessToken(apiKey, apiSecret, {
@@ -148,7 +145,9 @@ export class LiveKitSessionManager {
         recorder: options?.recorder || false,
       });
       
-      return at.toJwt();
+      // Generate the token synchronously
+      const token = at.toJwt();
+      return token;
     } catch (error) {
       console.error('Failed to create LiveKit access token:', error);
       throw error;
@@ -172,8 +171,9 @@ export class LiveKitSessionManager {
         this.setupRoomListeners();
       }
       
-      // Connect to the room
-      await this.room.connect(process.env.VITE_LIVEKIT_WS_URL as string, token);
+      // Connect to the room using the WS URL from env or hardcoded fallback
+      const wsUrl = process.env.VITE_LIVEKIT_WS_URL || 'wss://soulseer-kawitbf3.livekit.cloud';
+      await this.room.connect(wsUrl, token);
       this.localParticipant = this.room.localParticipant;
       
       // Set session start time

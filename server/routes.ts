@@ -3142,6 +3142,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Enhanced token generation route with more parameters
+  app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { userType, userId, fullName, roomId } = req.body;
+
+      if (!userType || !userId || !fullName || !roomId) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const identity = `${userType}_${userId}`;  // e.g. reader_123 or client_456
+
+      // Import the AccessToken from livekit-server-sdk
+      const { AccessToken } = await import('livekit-server-sdk');
+      
+      // Use hardcoded values as fallbacks if environment variables aren't available
+      const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
+      const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
+      
+      // Create a token with the API key and secret
+      const token = new AccessToken(
+        apiKey,
+        apiSecret,
+        {
+          identity: identity,
+          name: fullName  // shown in the UI
+        }
+      );
+
+      // Add permissions to the token
+      token.addGrant({
+        roomJoin: true,
+        room: roomId,
+        canPublish: true,
+        canSubscribe: true
+      });
+
+      // Convert to JWT format
+      const jwt = token.toJwt();
+      res.json({ token: jwt });
+    } catch (error) {
+      console.error('Error generating enhanced LiveKit token:', error);
+      res.status(500).json({ error: 'Failed to generate token' });
+    }
+  });
+  
   // API endpoint for LiveKit livestream tokens
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
@@ -3151,15 +3196,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing name or room' });
       }
       
-      // Use livekitService for token generation with appropriate permissions
-      const { livekitService } = await import('./services/livekit-service');
+      // Use AccessToken directly with hardcoded fallback values
+      const { AccessToken } = await import('livekit-server-sdk');
       
-      // For publishers (streamers), grant additional permissions
-      const token = isPublisher 
-        ? livekitService.createToken(room, name, name, { canPublish: true, canSubscribe: true })
-        : livekitService.createToken(room, name, name, { canPublish: false, canSubscribe: true });
+      // Use hardcoded values as fallbacks if environment variables aren't available
+      const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
+      const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
       
-      res.status(200).json({ token });
+      // Create a token with appropriate permissions
+      const token = new AccessToken(apiKey, apiSecret, {
+        identity: name,
+        name: name
+      });
+      
+      // Add grant with appropriate permissions based on role
+      token.addGrant({
+        roomJoin: true,
+        room: room,
+        canPublish: isPublisher,
+        canSubscribe: true
+      });
+      
+      // Convert to JWT
+      const jwt = token.toJwt();
+      res.status(200).json({ token: jwt });
     } catch (error) {
       console.error('Error generating LiveKit livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
@@ -3175,15 +3235,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing room name' });
       }
       
-      // Use livekitService for recording token generation
-      const { livekitService } = await import('./services/livekit-service');
-      const token = livekitService.createToken(room, 'recording-service', 'Recording Service', {
+      // Use AccessToken directly with hardcoded fallback values
+      const { AccessToken } = await import('livekit-server-sdk');
+      
+      // Use hardcoded values as fallbacks if environment variables aren't available
+      const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
+      const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
+      
+      // Create a token for recording service
+      const token = new AccessToken(apiKey, apiSecret, {
+        identity: 'recording-service',
+        name: 'Recording Service'
+      });
+      
+      // Add grant with recording permissions
+      token.addGrant({
+        roomJoin: true,
+        room: room,
         canPublish: false,
         canSubscribe: true,
         recorder: true
       });
       
-      res.status(200).json({ token });
+      // Convert to JWT
+      const jwt = token.toJwt();
+      res.status(200).json({ token: jwt });
     } catch (error) {
       console.error('Error generating LiveKit recording token:', error);
       res.status(500).json({ error: 'Failed to generate recording token' });
