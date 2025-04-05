@@ -81,16 +81,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wsManager = setupWebSocket(httpServer);
   (global as any).wsManager = wsManager;
 
-  // Handle WebSocket client connections through the WebSocket manager
-  wsManager.onConnection((ws) => {
-    // Note: The WebSocketManager class now handles client IDs internally
-    
-    // Handle client disconnection
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected');
-    });
-  });
-  
   // LiveKit webhook endpoint (placeholder for future implementation)
   app.post('/api/webhooks/livekit', express.json(), async (req, res) => {
     console.log('LiveKit webhook endpoint - not yet implemented');
