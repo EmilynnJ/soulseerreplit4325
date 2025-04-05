@@ -25,7 +25,7 @@ localPort = 5000
 externalPort = 80
 
 [workflows]
-runButton = "Simple Production Server"
+runButton = "Run"
 
 [[workflows.workflow]]
 name = "Project"
@@ -98,6 +98,15 @@ args = "npm run dev"
 
 [[workflows.workflow]]
 name = "Simple Production Server"
+author = 39434645
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node server-vite-bypass.js"
+
+[[workflows.workflow]]
+name = "Run"
 author = 39434645
 mode = "sequential"
 
