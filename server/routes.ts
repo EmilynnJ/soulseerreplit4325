@@ -332,9 +332,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/readers", async (req, res) => {
     try {
       const readers = await storage.getReaders();
-      // Remove sensitive data
+      // Remove sensitive data and add profile image
       const sanitizedReaders = readers.map(reader => {
         const { password, ...safeReader } = reader;
+        // If reader doesn't have a profile image, use the universal reader image
+        if (!safeReader.profileImage) {
+          safeReader.profileImage = '/uploads/1743742031707-EMILYNN.png';
+        }
         return safeReader;
       });
       res.json(sanitizedReaders);
@@ -346,9 +350,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/readers/online", async (req, res) => {
     try {
       const readers = await storage.getOnlineReaders();
-      // Remove sensitive data
+      // Remove sensitive data and add profile image
       const sanitizedReaders = readers.map(reader => {
         const { password, ...safeReader } = reader;
+        // If reader doesn't have a profile image, use the universal reader image
+        if (!safeReader.profileImage) {
+          safeReader.profileImage = '/uploads/1743742031707-EMILYNN.png';
+        }
         return safeReader;
       });
       res.json(sanitizedReaders);
@@ -371,6 +379,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Remove sensitive data
       const { password, ...safeReader } = reader;
+      
+      // If reader doesn't have a profile image, use the universal reader image
+      if (!safeReader.profileImage) {
+        safeReader.profileImage = '/uploads/1743742031707-EMILYNN.png';
+      }
+      
       res.json(safeReader);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch reader" });

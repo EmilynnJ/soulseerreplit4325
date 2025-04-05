@@ -111,7 +111,7 @@ export default function LivestreamPage() {
             {activeLivestreams.map((livestream) => (
               <GlowCard key={livestream.id} className="rounded-2xl overflow-hidden p-0">
                 <div className="relative">
-                  {livestream.liveKitRoom ? (
+                  {livestream.status === 'live' ? (
                     <div 
                       className="w-full h-48 bg-muted flex items-center justify-center"
                       style={{ backgroundImage: `url(${livestream.thumbnailUrl || "/images/livestream-placeholder.jpg"})`, backgroundSize: 'cover' }}
