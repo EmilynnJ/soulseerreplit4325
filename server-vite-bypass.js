@@ -1,9 +1,13 @@
 
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const cors = require('cors');
-const { createServer } = require('http');
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import cors from 'cors';
+import { createServer } from 'http';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Create Express app
 const app = express();
