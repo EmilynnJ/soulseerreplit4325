@@ -623,8 +623,7 @@ export class LiveKitSessionManager {
         description,
         status: 'scheduled' as 'scheduled' | 'created' | 'live' | 'idle' | 'ended',
         category: 'General', // Default category
-        streamKey: roomName, // We're using the LiveKit room name as the stream key
-        playbackId: roomName, // For compatibility, using room name
+        livekitRoomName: roomName, // LiveKit room name for the stream
         thumbnailUrl: null,
         scheduledFor: null,
       };
