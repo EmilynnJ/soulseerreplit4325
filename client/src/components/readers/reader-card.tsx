@@ -10,12 +10,6 @@ interface ReaderCardProps {
 }
 
 export function ReaderCard({ reader }: ReaderCardProps) {
-  // Use a generic silhouette profile image as fallback
-  const defaultImage = "/images/placeholder-user.svg";
-  
-  // Simple path handling - just use the default image if none is provided
-  const profileImage = reader.profileImage || defaultImage;
-  
   // Parse specialties, ensuring they're always an array of strings
   const specialties: string[] = (() => {
     if (!reader.specialties) return [];
@@ -30,6 +24,7 @@ export function ReaderCard({ reader }: ReaderCardProps) {
     }
     return [];
   })();
+  
   return (
     <GlowCard className="p-0 flex flex-col h-full overflow-hidden max-w-[200px] mx-auto">
       {/* Card header with reader name and status */}

@@ -229,9 +229,14 @@ export default function ReaderProfilePage() {
 
       {/* Reader Profile Header */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-        {/* Decorative element instead of profile image */}
+        {/* Profile image or decorative element */}
         <div className="md:col-span-1">
           <div className="relative">
+            {/* 
+              NOTE: Profile images are temporarily hidden due to an issue with 
+              image display. The profile image functionality will be restored 
+              in a future update.
+            */}
             <div className="w-full bg-primary-dark/30 rounded-lg shadow-lg aspect-square flex flex-col items-center justify-center p-6">
               <h2 className="font-alex text-5xl text-accent mb-4">{reader.fullName}</h2>
               

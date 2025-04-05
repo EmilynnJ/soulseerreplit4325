@@ -332,13 +332,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/readers", async (req, res) => {
     try {
       const readers = await storage.getReaders();
-      // Remove sensitive data and add profile image
+      // Remove sensitive data
       const sanitizedReaders = readers.map(reader => {
         const { password, ...safeReader } = reader;
-        // If reader doesn't have a profile image, use the universal reader image
+        // NOTE: Temporarily disabled default profile image assignment
+        // This functionality will be restored in a future update
+        /*
         if (!safeReader.profileImage) {
           safeReader.profileImage = '/uploads/1743742031707-EMILYNN.png';
         }
+        */
         return safeReader;
       });
       res.json(sanitizedReaders);
@@ -350,13 +353,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/readers/online", async (req, res) => {
     try {
       const readers = await storage.getOnlineReaders();
-      // Remove sensitive data and add profile image
+      // Remove sensitive data
       const sanitizedReaders = readers.map(reader => {
         const { password, ...safeReader } = reader;
-        // If reader doesn't have a profile image, use the universal reader image
+        // NOTE: Temporarily disabled default profile image assignment
+        // This functionality will be restored in a future update
+        /*
         if (!safeReader.profileImage) {
           safeReader.profileImage = '/uploads/1743742031707-EMILYNN.png';
         }
+        */
         return safeReader;
       });
       res.json(sanitizedReaders);
@@ -380,10 +386,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Remove sensitive data
       const { password, ...safeReader } = reader;
       
-      // If reader doesn't have a profile image, use the universal reader image
+      // NOTE: Temporarily disabled default profile image assignment
+      // This functionality will be restored in a future update
+      /*
       if (!safeReader.profileImage) {
         safeReader.profileImage = '/uploads/1743742031707-EMILYNN.png';
       }
+      */
       
       res.json(safeReader);
     } catch (error) {
