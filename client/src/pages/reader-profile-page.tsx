@@ -261,13 +261,32 @@ export default function ReaderProfilePage() {
         {/* Profile image or decorative element */}
         <div className="md:col-span-1">
           <div className="relative">
-            {/* 
-              NOTE: Profile images are temporarily hidden due to an issue with 
-              image display. The profile image functionality will be restored 
-              in a future update.
-            */}
-            <div className="w-full bg-primary-dark/30 rounded-lg shadow-lg aspect-square flex flex-col items-center justify-center p-6">
-              <h2 className="font-alex text-5xl text-accent mb-4">{reader.fullName}</h2>
+            <div className="w-full bg-primary-dark/30 rounded-lg shadow-lg aspect-square flex flex-col items-center justify-center p-6 relative">
+              {reader.profileImage ? (
+                <img 
+                  src={reader.profileImage.startsWith('http') 
+                    ? reader.profileImage 
+                    : reader.profileImage.startsWith('/uploads') 
+                      ? reader.profileImage 
+                      : `/uploads/${reader.profileImage}`} 
+                  alt={reader.fullName}
+                  className="w-full h-full object-cover rounded-lg"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null; // Prevent infinite loop
+                    target.src = "/images/placeholder-user.svg";
+                  }}
+                />
+              ) : (
+                <img 
+                  src="/images/placeholder-user.svg" 
+                  alt={reader.fullName} 
+                  className="w-full h-full object-cover rounded-lg"
+                />
+              )}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-4 rounded-b-lg">
+                <h2 className="font-alex text-3xl text-accent text-center">{reader.fullName}</h2>
+              </div>
               
               {reader.specialties && reader.specialties.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-2">
