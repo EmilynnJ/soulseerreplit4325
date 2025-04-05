@@ -65,6 +65,7 @@
     "framer-motion": "^11.13.1",
     "input-otp": "^1.2.4",
     "livekit-client": "^2.9.9",
+    "livekit-server-sdk": "^2.11.0",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "multer": "^1.4.5-lts.2",
