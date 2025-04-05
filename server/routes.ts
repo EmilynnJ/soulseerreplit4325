@@ -438,15 +438,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      const { pricingChat, pricingVoice, pricingVideo } = req.body;
+      const { 
+        // Legacy per-minute pricing
+        pricingChat, 
+        pricingVoice, 
+        pricingVideo,
+        
+        // Fixed-price scheduled reading pricing
+        scheduledChatPrice30,
+        scheduledChatPrice60,
+        scheduledVoicePrice30,
+        scheduledVoicePrice60,
+        scheduledVideoPrice30,
+        scheduledVideoPrice60 
+      } = req.body;
       
-      if (pricingChat === undefined && pricingVoice === undefined && pricingVideo === undefined) {
+      // Check if any pricing fields are provided
+      const hasPerMinutePricing = pricingChat !== undefined || pricingVoice !== undefined || pricingVideo !== undefined;
+      const hasScheduledPricing = 
+        scheduledChatPrice30 !== undefined || scheduledChatPrice60 !== undefined ||
+        scheduledVoicePrice30 !== undefined || scheduledVoicePrice60 !== undefined ||
+        scheduledVideoPrice30 !== undefined || scheduledVideoPrice60 !== undefined;
+      
+      if (!hasPerMinutePricing && !hasScheduledPricing) {
         return res.status(400).json({ message: "At least one pricing field is required" });
       }
       
       // Validate pricing values
       const update: UserUpdate = {};
       
+      // Validate per-minute pricing
       if (pricingChat !== undefined) {
         if (isNaN(pricingChat) || pricingChat < 0) {
           return res.status(400).json({ message: "Chat pricing must be a positive number" });
@@ -466,6 +487,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Video pricing must be a positive number" });
         }
         update.pricingVideo = pricingVideo;
+      }
+      
+      // Validate scheduled chat pricing
+      if (scheduledChatPrice30 !== undefined) {
+        if (isNaN(scheduledChatPrice30) || scheduledChatPrice30 < 0) {
+          return res.status(400).json({ message: "30-minute chat pricing must be a positive number" });
+        }
+        update.scheduledChatPrice30 = scheduledChatPrice30;
+      }
+      
+      if (scheduledChatPrice60 !== undefined) {
+        if (isNaN(scheduledChatPrice60) || scheduledChatPrice60 < 0) {
+          return res.status(400).json({ message: "60-minute chat pricing must be a positive number" });
+        }
+        update.scheduledChatPrice60 = scheduledChatPrice60;
+      }
+      
+      // Validate scheduled voice pricing
+      if (scheduledVoicePrice30 !== undefined) {
+        if (isNaN(scheduledVoicePrice30) || scheduledVoicePrice30 < 0) {
+          return res.status(400).json({ message: "30-minute voice pricing must be a positive number" });
+        }
+        update.scheduledVoicePrice30 = scheduledVoicePrice30;
+      }
+      
+      if (scheduledVoicePrice60 !== undefined) {
+        if (isNaN(scheduledVoicePrice60) || scheduledVoicePrice60 < 0) {
+          return res.status(400).json({ message: "60-minute voice pricing must be a positive number" });
+        }
+        update.scheduledVoicePrice60 = scheduledVoicePrice60;
+      }
+      
+      // Validate scheduled video pricing
+      if (scheduledVideoPrice30 !== undefined) {
+        if (isNaN(scheduledVideoPrice30) || scheduledVideoPrice30 < 0) {
+          return res.status(400).json({ message: "30-minute video pricing must be a positive number" });
+        }
+        update.scheduledVideoPrice30 = scheduledVideoPrice30;
+      }
+      
+      if (scheduledVideoPrice60 !== undefined) {
+        if (isNaN(scheduledVideoPrice60) || scheduledVideoPrice60 < 0) {
+          return res.status(400).json({ message: "60-minute video pricing must be a positive number" });
+        }
+        update.scheduledVideoPrice60 = scheduledVideoPrice60;
       }
       
       // Update the pricing
@@ -2091,29 +2157,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      const { readerId, type, duration, scheduledFor, notes, price } = req.body;
+      const { readerId, type, duration, scheduledFor, notes } = req.body;
       
       if (!readerId || !type || !["chat", "video", "voice"].includes(type)) {
         return res.status(400).json({ message: "Invalid parameters" });
       }
       
       // Validate required fields
-      if (!duration || isNaN(duration) || duration <= 0) {
-        return res.status(400).json({ message: "Valid duration is required" });
+      if (!duration || isNaN(duration) || ![30, 60].includes(Number(duration))) {
+        return res.status(400).json({ message: "Duration must be either 30 or 60 minutes" });
       }
       
       if (!scheduledFor) {
         return res.status(400).json({ message: "Scheduled date and time is required" });
       }
       
-      if (!price || isNaN(price) || price <= 0) {
-        return res.status(400).json({ message: "Valid price is required" });
-      }
-      
       // Get the reader
       const reader = await storage.getUser(readerId);
       if (!reader || reader.role !== "reader") {
         return res.status(404).json({ message: "Reader not found" });
+      }
+      
+      // Determine the price based on reading type and duration
+      let totalPrice = 0;
+      
+      if (type === "chat") {
+        if (duration === 30) {
+          totalPrice = reader.scheduledChatPrice30 || 0;
+        } else if (duration === 60) {
+          totalPrice = reader.scheduledChatPrice60 || 0;
+        }
+      } else if (type === "voice") {
+        if (duration === 30) {
+          totalPrice = reader.scheduledVoicePrice30 || 0;
+        } else if (duration === 60) {
+          totalPrice = reader.scheduledVoicePrice60 || 0;
+        }
+      } else if (type === "video") {
+        if (duration === 30) {
+          totalPrice = reader.scheduledVideoPrice30 || 0;
+        } else if (duration === 60) {
+          totalPrice = reader.scheduledVideoPrice60 || 0;
+        }
+      }
+      
+      if (totalPrice <= 0) {
+        return res.status(400).json({ 
+          message: `Reader has not set pricing for ${duration}-minute ${type} readings`
+        });
       }
       
       // Validate scheduled date (must be in the future)
@@ -2145,7 +2236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Create a payment intent for the full reading cost
         const paymentIntent = await stripeClient.paymentIntents.create({
-          amount: price,
+          amount: totalPrice, // Use totalPrice (determined from fixed-price scheduled reading price)
           currency: 'usd',
           customer: customerId,
           payment_method_types: ['card'],
@@ -2159,19 +2250,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
         });
         
-        // Create the reading in "waiting_payment" status
-        // Calculate price per minute
-        const pricePerMinute = Math.round(price / duration);
+        // Calculate an equivalent price per minute for tracking purposes
+        const pricePerMinute = Math.round(totalPrice / duration);
         
+        // Create the reading in "waiting_payment" status
         const reading = await storage.createReading({
           readerId,
           clientId,
           type,
           status: "waiting_payment",
-          price: price, // Store the total price (required field)
-          pricePerMinute: pricePerMinute, // Store the per-minute rate
+          price: totalPrice, // Store the total price as the main price field (required field)
+          pricePerMinute: pricePerMinute, // Store calculated per-minute rate for compatibility
           duration,
-          totalPrice: price,
+          totalPrice, // Also store in totalPrice field
           scheduledFor: scheduledDate,
           notes: notes || null,
           readingMode: "scheduled",

@@ -35,7 +35,7 @@ export default function ReaderProfilePage() {
   const [isCreatingReading, setIsCreatingReading] = useState(false);
   const [scheduledReadingOptions, setScheduledReadingOptions] = useState({
     type: "chat" as "chat" | "voice" | "video",
-    duration: 30,
+    duration: 30, // Default to 30 minutes for fixed-price scheduled readings
     date: new Date(new Date().setDate(new Date().getDate() + 1)),
     notes: ""
   });
@@ -130,23 +130,50 @@ export default function ReaderProfilePage() {
     setIsSchedulingReading(true);
 
     try {
-      // Calculate price per minute based on reading type
-      const pricePerMinute = (
-        scheduledReadingOptions.type === "chat" 
-          ? (reader.pricingChat || reader.pricing || 0)
-          : scheduledReadingOptions.type === "voice" 
-            ? (reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))
-            : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
-      );
+      // Determine the right price based on reading type and duration
+      let fixedPrice = 0;
+      
+      // Get price from reader's fixed-price scheduled reading rates
+      if (scheduledReadingOptions.type === "chat") {
+        if (scheduledReadingOptions.duration === 30) {
+          fixedPrice = reader.scheduledChatPrice30 || 0;
+        } else if (scheduledReadingOptions.duration === 60) {
+          fixedPrice = reader.scheduledChatPrice60 || 0;
+        } else {
+          // If not a 30/60 minute session, use per-minute rate as fallback
+          fixedPrice = (reader.pricingChat || 0) * scheduledReadingOptions.duration;
+        }
+      } else if (scheduledReadingOptions.type === "voice") {
+        if (scheduledReadingOptions.duration === 30) {
+          fixedPrice = reader.scheduledVoicePrice30 || 0;
+        } else if (scheduledReadingOptions.duration === 60) {
+          fixedPrice = reader.scheduledVoicePrice60 || 0;
+        } else {
+          // If not a 30/60 minute session, use per-minute rate as fallback
+          fixedPrice = (reader.pricingVoice || 0) * scheduledReadingOptions.duration;
+        }
+      } else if (scheduledReadingOptions.type === "video") {
+        if (scheduledReadingOptions.duration === 30) {
+          fixedPrice = reader.scheduledVideoPrice30 || 0;
+        } else if (scheduledReadingOptions.duration === 60) {
+          fixedPrice = reader.scheduledVideoPrice60 || 0;
+        } else {
+          // If not a 30/60 minute session, use per-minute rate as fallback
+          fixedPrice = (reader.pricingVideo || 0) * scheduledReadingOptions.duration;
+        }
+      }
+      
+      if (fixedPrice <= 0) {
+        throw new Error(`${reader.fullName} has not set pricing for ${scheduledReadingOptions.duration}-minute ${scheduledReadingOptions.type} readings`);
+      }
 
-      // Create a scheduled reading
-      const response = await apiRequest("POST", "/api/readings", {
+      // Create a scheduled reading with fixed price
+      const response = await apiRequest("POST", "/api/readings/schedule", {
         readerId: reader.id,
         type: scheduledReadingOptions.type,
         duration: scheduledReadingOptions.duration,
         scheduledFor: scheduledReadingOptions.date.toISOString(),
-        notes: scheduledReadingOptions.notes,
-        readingMode: "scheduled" // Explicitly set reading mode to scheduled
+        notes: scheduledReadingOptions.notes
       });
 
       if (!response.ok) {
@@ -156,16 +183,19 @@ export default function ReaderProfilePage() {
 
       const data = await response.json();
 
+      // If we have a payment link, redirect to it
+      if (data.paymentLink) {
+        window.location.href = data.paymentLink;
+        return;
+      }
+      
       toast({
         title: "Reading Scheduled",
-        description: "Your reading has been successfully scheduled.",
+        description: "Your reading has been scheduled. Please complete payment.",
       });
 
       // Refresh readings data
       queryClient.invalidateQueries({ queryKey: ['/api/readings/client'] });
-
-      // Switch to dashboard tab
-      navigate("/dashboard");
 
     } catch (error: any) {
       toast({
@@ -173,9 +203,8 @@ export default function ReaderProfilePage() {
         description: error.message || "Failed to schedule reading. Please try again.",
         variant: "destructive",
       });
+      setIsSchedulingReading(false);
     }
-
-    setIsSchedulingReading(false);
   };
 
   // Format price from cents to dollars
@@ -606,20 +635,33 @@ export default function ReaderProfilePage() {
 
                     <div>
                       <label className="text-light font-medium mb-1 block">Duration (minutes)</label>
-                      <select 
-                        value={scheduledReadingOptions.duration} 
-                        onChange={(e) => setScheduledReadingOptions(prev => ({ 
-                          ...prev, 
-                          duration: parseInt(e.target.value) 
-                        }))}
-                        className="w-full p-2 rounded-md bg-primary-dark/50 border border-accent/20 text-black"
-                      >
-                        <option value="15">15 minutes</option>
-                        <option value="30">30 minutes</option>
-                        <option value="45">45 minutes</option>
-                        <option value="60">60 minutes</option>
-                        <option value="90">90 minutes</option>
-                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setScheduledReadingOptions(prev => ({ ...prev, duration: 30 }))}
+                          className={`flex-1 px-4 py-2 rounded-md flex items-center justify-center ${
+                            scheduledReadingOptions.duration === 30 
+                              ? "bg-accent/30 text-accent border border-accent/50" 
+                              : "bg-primary-dark/30 text-light/70 border border-accent/10 hover:bg-primary-dark/50"
+                          }`}
+                        >
+                          30 Minutes
+                        </button>
+
+                        <button
+                          onClick={() => setScheduledReadingOptions(prev => ({ ...prev, duration: 60 }))}
+                          className={`flex-1 px-4 py-2 rounded-md flex items-center justify-center ${
+                            scheduledReadingOptions.duration === 60 
+                              ? "bg-accent/30 text-accent border border-accent/50" 
+                              : "bg-primary-dark/30 text-light/70 border border-accent/10 hover:bg-primary-dark/50"
+                          }`}
+                        >
+                          60 Minutes
+                        </button>
+                      </div>
+                      
+                      <p className="text-xs text-light/60 mt-1">
+                        Fixed-price readings are available in 30 or 60 minute increments.
+                      </p>
                     </div>
 
                     <div>
@@ -652,31 +694,83 @@ export default function ReaderProfilePage() {
 
                   <div className="border-t border-accent/10 pt-4">
                     <h4 className="text-accent font-medium mb-2">Price Summary</h4>
-                    <div className="flex justify-between mb-1 text-light/80 text-sm">
-                      <span>Base rate ({scheduledReadingOptions.type}):</span>
-                      <span>{formatPrice(
-                        scheduledReadingOptions.type === "chat" 
-                          ? (reader.pricingChat || reader.pricing || 0)
-                          : scheduledReadingOptions.type === "voice" 
-                            ? (reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))
-                            : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
-                      )}/min</span>
-                    </div>
-                    <div className="flex justify-between mb-1 text-light/80 text-sm">
-                      <span>Duration:</span>
-                      <span>{scheduledReadingOptions.duration} minutes</span>
-                    </div>
-                    <div className="flex justify-between text-light font-medium mt-2 pt-2 border-t border-accent/10">
-                      <span>Total:</span>
-                      <span>{formatPrice(
-                        (scheduledReadingOptions.type === "chat" 
-                          ? (reader.pricingChat || reader.pricing || 0)
-                          : scheduledReadingOptions.type === "voice" 
-                            ? (reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))
-                            : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
-                        ) * scheduledReadingOptions.duration
-                      )}</span>
-                    </div>
+                    {/* First check if we have fixed pricing for this duration */}
+                    {scheduledReadingOptions.duration === 30 || scheduledReadingOptions.duration === 60 ? (
+                      <>
+                        <div className="flex justify-between mb-1 text-light/80 text-sm">
+                          <span>Reading type:</span>
+                          <span className="capitalize">{scheduledReadingOptions.type}</span>
+                        </div>
+                        <div className="flex justify-between mb-1 text-light/80 text-sm">
+                          <span>Duration:</span>
+                          <span>{scheduledReadingOptions.duration} minutes</span>
+                        </div>
+                        <div className="flex justify-between text-light font-medium mt-2 pt-2 border-t border-accent/10">
+                          <span>Total (fixed price):</span>
+                          <span className="font-bold text-accent">
+                            {formatPrice(
+                              scheduledReadingOptions.type === "chat" 
+                                ? (scheduledReadingOptions.duration === 30 
+                                    ? reader.scheduledChatPrice30 : reader.scheduledChatPrice60) || 0
+                                : scheduledReadingOptions.type === "voice" 
+                                  ? (scheduledReadingOptions.duration === 30 
+                                      ? reader.scheduledVoicePrice30 : reader.scheduledVoicePrice60) || 0
+                                  : (scheduledReadingOptions.duration === 30 
+                                      ? reader.scheduledVideoPrice30 : reader.scheduledVideoPrice60) || 0
+                            )}
+                          </span>
+                        </div>
+                        
+                        {/* Show warning if price is not set */}
+                        {(
+                          (scheduledReadingOptions.type === "chat" && 
+                           ((scheduledReadingOptions.duration === 30 && !reader.scheduledChatPrice30) ||
+                            (scheduledReadingOptions.duration === 60 && !reader.scheduledChatPrice60))) ||
+                          (scheduledReadingOptions.type === "voice" && 
+                           ((scheduledReadingOptions.duration === 30 && !reader.scheduledVoicePrice30) ||
+                            (scheduledReadingOptions.duration === 60 && !reader.scheduledVoicePrice60))) ||
+                          (scheduledReadingOptions.type === "video" && 
+                           ((scheduledReadingOptions.duration === 30 && !reader.scheduledVideoPrice30) ||
+                            (scheduledReadingOptions.duration === 60 && !reader.scheduledVideoPrice60)))
+                        ) && (
+                          <div className="text-amber-500 text-xs mt-2">
+                            Reader has not set a price for this duration and type. Please try a different option.
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* Fallback to per-minute pricing if fixed-price not available */}
+                        <div className="flex justify-between mb-1 text-light/80 text-sm">
+                          <span>Base rate ({scheduledReadingOptions.type}):</span>
+                          <span>{formatPrice(
+                            scheduledReadingOptions.type === "chat" 
+                              ? (reader.pricingChat || reader.pricing || 0)
+                              : scheduledReadingOptions.type === "voice" 
+                                ? (reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))
+                                : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
+                          )}/min</span>
+                        </div>
+                        <div className="flex justify-between mb-1 text-light/80 text-sm">
+                          <span>Duration:</span>
+                          <span>{scheduledReadingOptions.duration} minutes</span>
+                        </div>
+                        <div className="flex justify-between text-light font-medium mt-2 pt-2 border-t border-accent/10">
+                          <span>Total (per-minute rate):</span>
+                          <span>{formatPrice(
+                            (scheduledReadingOptions.type === "chat" 
+                              ? (reader.pricingChat || reader.pricing || 0)
+                              : scheduledReadingOptions.type === "voice" 
+                                ? (reader.pricingVoice || (reader.pricing ? reader.pricing + 100 : 0))
+                                : (reader.pricingVideo || (reader.pricing ? reader.pricing + 200 : 0))
+                            ) * scheduledReadingOptions.duration
+                          )}</span>
+                        </div>
+                        <div className="text-amber-500 text-xs mt-2">
+                          Fixed pricing only available for 30 or 60 minute sessions. Per-minute rate used for this duration.
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-4">

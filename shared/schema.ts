@@ -13,9 +13,16 @@ export const users = pgTable("users", {
   bio: text("bio"),
   specialties: text("specialties").array(),
   pricing: integer("pricing"), // Legacy field - base price per minute in cents
-  pricingChat: integer("pricing_chat"), // Chat price per minute in cents
-  pricingVoice: integer("pricing_voice"), // Voice/phone price per minute in cents
-  pricingVideo: integer("pricing_video"), // Video price per minute in cents
+  pricingChat: integer("pricing_chat"), // Chat price per minute in cents (legacy)
+  pricingVoice: integer("pricing_voice"), // Voice/phone price per minute in cents (legacy)
+  pricingVideo: integer("pricing_video"), // Video price per minute in cents (legacy)
+  // Fixed pricing for scheduled readings
+  scheduledChatPrice30: integer("scheduled_chat_price_30"), // Fixed price for 30-min chat reading
+  scheduledChatPrice60: integer("scheduled_chat_price_60"), // Fixed price for 60-min chat reading 
+  scheduledVoicePrice30: integer("scheduled_voice_price_30"), // Fixed price for 30-min voice reading
+  scheduledVoicePrice60: integer("scheduled_voice_price_60"), // Fixed price for 60-min voice reading
+  scheduledVideoPrice30: integer("scheduled_video_price_30"), // Fixed price for 30-min video reading
+  scheduledVideoPrice60: integer("scheduled_video_price_60"), // Fixed price for 60-min video reading
   rating: integer("rating"),
   reviewCount: integer("review_count").default(0),
   verified: boolean("verified").default(false),
@@ -229,6 +236,13 @@ export type UserUpdate = Partial<InsertUser> & {
   stripeCustomerId?: string;
   accountBalance?: number;
   reviewCount?: number;
+  // Fixed pricing for scheduled readings
+  scheduledChatPrice30?: number;
+  scheduledChatPrice60?: number;
+  scheduledVoicePrice30?: number;
+  scheduledVoicePrice60?: number;
+  scheduledVideoPrice30?: number;
+  scheduledVideoPrice60?: number;
 };
 
 export type InsertReading = z.infer<typeof insertReadingSchema>;
