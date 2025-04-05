@@ -21,7 +21,61 @@ app.use(express.static('dist/public'));
 app.use('/uploads', express.static('public/uploads'));
 app.use('/images', express.static('public/images'));
 
+// Initialize database connection
+import { storage } from './server/storage.js';
+
 // API Routes
+app.get('/api/readers', async (req, res) => {
+  try {
+    const readers = await storage.getReaders();
+    // Remove sensitive data
+    const sanitizedReaders = readers.map(reader => {
+      const { password, ...safeReader } = reader;
+      return safeReader;
+    });
+    res.json(sanitizedReaders);
+  } catch (error) {
+    console.error("Error fetching readers:", error);
+    res.status(500).json({ message: "Failed to fetch readers" });
+  }
+});
+
+app.get('/api/readers/online', async (req, res) => {
+  try {
+    const readers = await storage.getOnlineReaders();
+    // Remove sensitive data
+    const sanitizedReaders = readers.map(reader => {
+      const { password, ...safeReader } = reader;
+      return safeReader;
+    });
+    res.json(sanitizedReaders);
+  } catch (error) {
+    console.error("Error fetching online readers:", error);
+    res.status(500).json({ message: "Failed to fetch online readers" });
+  }
+});
+
+app.get('/api/readers/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ message: "Invalid reader ID" });
+    }
+    
+    const reader = await storage.getUser(id);
+    if (!reader || reader.role !== "reader") {
+      return res.status(404).json({ message: "Reader not found" });
+    }
+    
+    // Remove sensitive data
+    const { password, ...safeReader } = reader;
+    res.json(safeReader);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch reader" });
+  }
+});
+
+// Additional API Routes
 app.get('/api/readers', async (req, res) => {
   try {
     const readers = await sql`
