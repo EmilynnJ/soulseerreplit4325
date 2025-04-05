@@ -129,14 +129,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const broadcastReaderActivity = async (readerId: number, status: string) => {
     try {
       const reader = await storage.getUser(readerId);
-      if (!reader) return;
+      if (!reader) {
+        console.error(`Reader with ID ${readerId} not found for status broadcast`);
+        return;
+      }
       
       // Extract safe reader data
       const { password, ...safeReader } = reader;
       
+      // Enhanced logging for debugging
+      console.log(`Broadcasting reader status change:`, {
+        readerId,
+        readerUsername: reader.username,
+        status,
+        isOnlineInDB: reader.isOnline,
+        message: `Reader ${reader.username} is now ${status} (DB value: ${reader.isOnline ? 'online' : 'offline'})`
+      });
+      
+      // Force the reader's isOnline property to match the status we're broadcasting
+      // This fixes any discrepancy between the message and the actual database value
+      const readerWithCorrectStatus = {
+        ...safeReader,
+        isOnline: status === 'online'
+      };
+      
+      console.log(`Broadcasting corrected reader status:`, {
+        readerId: readerId,
+        readerUsername: reader.username,
+        status,
+        isOnlineInMessage: readerWithCorrectStatus.isOnline,
+        isOnlineInDB: reader.isOnline
+      });
+      
       broadcastToAll({
         type: 'reader_status_change',
-        reader: safeReader,
+        reader: readerWithCorrectStatus,
         status,
         timestamp: Date.now()
       });
@@ -413,13 +440,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "isOnline status is required" });
       }
       
-      // Log the status change for debugging
-      console.log(`Reader ${req.user.id} changing status to: ${isOnline ? 'online' : 'offline'}`);
+      // Enhanced logging for status change debugging
+      console.log(`Reader ${req.user.id} (${req.user.username}) changing status to: ${isOnline ? 'online' : 'offline'}`);
+      console.log(`Current isOnline value before update: ${req.user.isOnline}`);
       
       const updatedUser = await storage.updateUser(req.user.id, {
         isOnline,
         lastActive: new Date()
       });
+      
+      console.log(`Updated user isOnline value: ${updatedUser.isOnline}`);
       
       // Broadcast status change to all connected clients
       broadcastReaderActivity(req.user.id, isOnline ? 'online' : 'offline');
