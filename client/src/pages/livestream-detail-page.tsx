@@ -54,6 +54,8 @@ export default function LivestreamDetailPage() {
   const [giftAmountCustom, setGiftAmountCustom] = useState<string>("");
   const [showCustomAmount, setShowCustomAmount] = useState(false);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(false);
   
   // Connect to websocket - use websocket context
   useEffect(() => {
@@ -235,6 +237,40 @@ export default function LivestreamDetailPage() {
     queryKey: ['/api/readers', livestream?.userId],
     enabled: !!livestream?.userId,
   });
+  
+  // Use effect for fetching LiveKit token when needed
+  useEffect(() => {
+    const fetchLiveKitToken = async () => {
+      if (!livestream?.livekitRoomName || user?.id === undefined || livestream.status !== 'live') {
+        return;
+      }
+      
+      setIsLoadingToken(true);
+      
+      try {
+        const response = await apiRequest('POST', '/api/livekit/livestream-token', {
+          room: livestream.livekitRoomName,
+          userId: user.id.toString(),
+          username: user.username || 'viewer'
+        });
+        
+        const data = await response.json();
+        console.log('LiveKit token retrieved');
+        setLiveKitToken(data.token);
+      } catch (error) {
+        console.error('LiveKit token error:', error);
+        toast({
+          title: 'Connection Error',
+          description: 'Failed to connect to the livestream',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoadingToken(false);
+      }
+    };
+    
+    fetchLiveKitToken();
+  }, [livestream?.livekitRoomName, user?.id, livestream?.status]);
   
   // Mutation for sending a chat message
   const sendChatMutation = useMutation({
@@ -498,9 +534,36 @@ export default function LivestreamDetailPage() {
                   </div>
                 </div>
               ) : livestream.status === "live" ? (
-                <LiveKitPlayer />
+                isLoadingToken ? (
+                  <div className="flex flex-col items-center justify-center h-full bg-muted/30 rounded-lg p-6">
+                    <div className="animate-spin h-12 w-12 border-4 border-accent border-t-transparent rounded-full mb-4"></div>
+                    <h3 className="text-xl font-semibold mb-2">Connecting to Livestream</h3>
+                    <p className="text-center text-muted-foreground">
+                      Loading livestream connection...
+                    </p>
+                  </div>
+                ) : liveKitToken && livestream.livekitRoomName ? (
+                  <LiveKitPlayer 
+                    roomName={livestream.livekitRoomName} 
+                    token={liveKitToken}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full bg-muted/30 rounded-lg p-6">
+                    <MonitorPlay className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">Connection Error</h3>
+                    <p className="text-center text-muted-foreground mb-4">
+                      Failed to connect to livestream. Please try refreshing the page.
+                    </p>
+                    <CelestialButton onClick={() => window.location.reload()} size="sm">
+                      Try Again
+                    </CelestialButton>
+                  </div>
+                )
               ) : livestream.status === "ended" ? (
-                <LiveKitRecordingPlayer />
+                <LiveKitRecordingPlayer 
+                  recordingUrl={undefined} 
+                  thumbnail={livestream.thumbnailUrl || undefined}
+                />
 
               ) : (
                 <div className="flex items-center justify-center bg-dark/50 h-full">
