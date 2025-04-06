@@ -27,6 +27,8 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
   const handleCheckout = async () => {
     if (!user) {
       onOpenChange(false);
+      // Redirect to login page if user is not logged in
+      window.location.href = '/auth?redirect=/checkout';
       return;
     }
 
@@ -35,6 +37,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
     try {
       // Close the drawer and navigate to checkout page
       onOpenChange(false);
+      // Use direct navigation to ensure the page reloads
       window.location.href = '/checkout';
     } catch (error) {
       setIsProcessing(false);
@@ -87,6 +90,10 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                       src={item.product.imageUrl} 
                       alt={item.product.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = "/assets/placeholder-product.svg"; // Add a fallback image path
+                        console.error(`Failed to load image for product: ${item.product.name}`);
+                      }}
                     />
                   </div>
                   
@@ -152,14 +159,13 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                   </CelestialButton>
                 </SheetClose>
                 
-                <CelestialButton 
+                <button 
                   onClick={handleCheckout}
                   disabled={isProcessing}
-                  className="flex-1"
-                  variant="gold"
+                  className="flex-1 py-2 px-4 bg-accent text-light rounded-md hover:bg-accent/80 transition flex items-center justify-center"
                 >
                   {isProcessing ? 'Processing...' : 'Checkout'}
-                </CelestialButton>
+                </button>
               </SheetFooter>
             </div>
           </>
