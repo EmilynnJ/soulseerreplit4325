@@ -35,8 +35,8 @@ export const env = {
   // External services
   STRIPE_PUBLIC_KEY: getEnvVar('VITE_STRIPE_PUBLIC_KEY', ''),
   
-  // LiveKit configuration
-  LIVEKIT_WS_URL: getEnvVar('VITE_LIVEKIT_WS_URL', 'wss://soulseer-kawitbf3.livekit.cloud'),
+  // Livestreaming configuration - LiveKit removed, placeholder for Zego Cloud
+  // ZEGO_APP_ID will be added here when implemented
   
   // PWA configuration
   ENABLE_PWA: getBoolEnvVar('VITE_ENABLE_PWA', true),

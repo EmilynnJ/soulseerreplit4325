@@ -3138,27 +3138,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // API endpoint for LiveKit tokens
+  // Placeholder API endpoint for video call tokens (LiveKit replaced with Zego Cloud)
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { name, room } = req.body;
-
-      if (!name || !room) {
-        return res.status(400).json({ error: 'Missing name or room' });
-      }
-
-      // Use livekitService from our server/services/livekit-service.ts
-      const { livekitService } = await import('./services/livekit-service');
-      const token = livekitService.createToken(room, name, name);
-
-      res.status(200).json({ token });
+      // Return a placeholder token - will be replaced with Zego Cloud implementation
+      res.status(200).json({ token: 'placeholder_livekit_removed_zego_pending' });
     } catch (error) {
-      console.error('Error generating LiveKit token:', error);
+      console.error('Error generating token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
 
-  // Enhanced token generation route with more parameters
+  // Placeholder token generation route (LiveKit replaced with Zego Cloud)
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { userType, userId, fullName, roomId } = req.body;
@@ -3167,43 +3158,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      const identity = `${userType}_${userId}`;  // e.g. reader_123 or client_456
-
-      // Import the AccessToken from livekit-server-sdk
-      const { AccessToken } = await import('livekit-server-sdk');
-
-      // Use hardcoded values as fallbacks if environment variables aren't available
-      const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
-      const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
-
-      // Create a token with the API key and secret
-      const token = new AccessToken(
-        apiKey,
-        apiSecret,
-        {
-          identity: identity,
-          name: fullName  // shown in the UI
-        }
-      );
-
-      // Add permissions to the token
-      token.addGrant({
-        roomJoin: true,
-        room: roomId,
-        canPublish: true,
-        canSubscribe: true
-      });
-
-      // Convert to JWT format
-      const jwt = token.toJwt();
-      res.json({ token: jwt });
+      // Return a placeholder token - will be replaced with Zego Cloud implementation
+      res.json({ token: 'placeholder_livekit_removed_zego_pending' });
     } catch (error) {
-      console.error('Error generating enhanced LiveKit token:', error);
+      console.error('Error generating token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
 
-  // API endpoint for LiveKit livestream tokens
+  // Placeholder API endpoint for livestream tokens (LiveKit replaced with Zego Cloud)
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { name, room, isPublisher } = req.body;
@@ -3212,37 +3175,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing name or room' });
       }
 
-      // Use AccessToken directly with hardcoded fallback values
-      const { AccessToken } = await import('livekit-server-sdk');
-
-      // Use hardcoded values as fallbacks if environment variables aren't available
-      const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
-      const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
-
-      // Create a token with appropriate permissions
-      const token = new AccessToken(apiKey, apiSecret, {
-        identity: name,
-        name: name
-      });
-
-      // Add grant with appropriate permissions based on role
-      token.addGrant({
-        roomJoin: true,
-        room: room,
-        canPublish: isPublisher,
-        canSubscribe: true
-      });
-
-      // Convert to JWT
-      const jwt = token.toJwt();
-      res.status(200).json({ token: jwt });
+      // Return a placeholder token - will be replaced with Zego Cloud implementation
+      res.status(200).json({ token: 'placeholder_livekit_removed_zego_pending' });
     } catch (error) {
-      console.error('Error generating LiveKit livestream token:', error);
+      console.error('Error generating livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
     }
   });
 
-  // API endpoint for LiveKit recording tokens
+  // Placeholder API endpoint for recording tokens (LiveKit replaced with Zego Cloud)
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
       const { room } = req.body;
@@ -3251,33 +3192,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing room name' });
       }
 
-      // Use AccessToken directly with hardcoded fallback values
-      const { AccessToken } = await import('livekit-server-sdk');
-
-      // Use hardcoded values as fallbacks if environment variables aren't available
-      const apiKey = process.env.LIVEKIT_API_KEY || 'APIQdskTFWRcZvt';
-      const apiSecret = process.env.LIVEKIT_API_SECRET || 'y7FNErb6btWLVzNZ2GW6qHGxEkR3r61AYFvmGOWFfWb';
-
-      // Create a token for recording service
-      const token = new AccessToken(apiKey, apiSecret, {
-        identity: 'recording-service',
-        name: 'Recording Service'
-      });
-
-      // Add grant with recording permissions
-      token.addGrant({
-        roomJoin: true,
-        room: room,
-        canPublish: false,
-        canSubscribe: true,
-        recorder: true
-      });
-
-      // Convert to JWT
-      const jwt = token.toJwt();
-      res.status(200).json({ token: jwt });
+      // Return a placeholder token - will be replaced with Zego Cloud implementation
+      res.status(200).json({ token: 'placeholder_livekit_removed_zego_pending' });
     } catch (error) {
-      console.error('Error generating LiveKit recording token:', error);
+      console.error('Error generating recording token:', error);
       res.status(500).json({ error: 'Failed to generate recording token' });
     }
   });

@@ -15,7 +15,7 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
-// LiveKit is used instead of Mux for video streaming
+// LiveKit has been removed and will be replaced with Zego Cloud for video streaming
 
 export default function LivestreamPage() {
   const [searchTerm, setSearchTerm] = useState("");

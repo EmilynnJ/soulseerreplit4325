@@ -12,13 +12,16 @@ import { Reading } from '@shared/schema';
 import { PATHS } from '@/lib/constants';
 
 /**
- * Reading session page using LiveKit video/audio integration
+ * Reading session page - LiveKit removed
+ * 
+ * Will be updated to use Zego Cloud for video/audio sessions
  */
 export default function ReadingSessionPage() {
   const params = useParams();
   const [_, setLocation] = useLocation();
   const { toast } = useToast();
-  const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
+  // Previously LiveKit token, will be replaced with Zego Cloud token
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isStartingSession, setIsStartingSession] = useState(false);
@@ -92,7 +95,8 @@ export default function ReadingSessionPage() {
     }
   }, [reading, startReadingMutation, isStartingSession]);
   
-  // Get LiveKit token for the reading once it's in_progress
+  // Get session token for the reading once it's in_progress
+  // Previously used LiveKit, will be replaced with Zego Cloud
   useEffect(() => {
     const fetchToken = async () => {
       if (!reading || reading.status !== 'in_progress') return;
@@ -106,10 +110,10 @@ export default function ReadingSessionPage() {
         });
         
         const data = await response.json();
-        setLiveKitToken(data.token);
+        setSessionToken(data.token);
         setTokenError(null);
       } catch (error) {
-        console.error('Failed to get LiveKit token:', error);
+        console.error('Failed to get session token:', error);
         setTokenError('Failed to initialize the reading session. Please try again.');
         toast({
           title: "Connection Error",
@@ -315,11 +319,11 @@ export default function ReadingSessionPage() {
       <Card className="max-w-6xl mx-auto overflow-hidden">
         <CardContent className="p-0">
           {/* Call component based on reading type */}
-          {liveKitToken && (
+          {sessionToken && (
             <div className="h-[70vh]">
               {reading.type === 'video' && (
                 <VideoCall
-                  token={liveKitToken}
+                  token={sessionToken}
                   readingId={readingId}
                   readingType="video"
                   onSessionEnd={handleEndSession}
@@ -327,7 +331,7 @@ export default function ReadingSessionPage() {
               )}
               {reading.type === 'voice' && (
                 <VoiceCall
-                  token={liveKitToken}
+                  token={sessionToken}
                   readingId={readingId}
                   onSessionEnd={handleEndSession}
                 />

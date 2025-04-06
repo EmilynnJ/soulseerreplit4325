@@ -35,7 +35,7 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-// This component has been replaced with LiveKitPlayer and LiveKitRecordingPlayer
+// LiveKit being replaced with Zego Cloud for video streaming functionality
 
 export default function LivestreamDetailPage() {
   const { id } = useParams();
@@ -238,9 +238,9 @@ export default function LivestreamDetailPage() {
     enabled: !!livestream?.userId,
   });
   
-  // Use effect for fetching LiveKit token when needed
+  // Use effect for fetching session token for livestream (Zego Cloud implementation pending)
   useEffect(() => {
-    const fetchLiveKitToken = async () => {
+    const fetchStreamToken = async () => {
       if (!livestream?.livekitRoomName || user?.id === undefined || livestream.status !== 'live') {
         return;
       }
@@ -248,6 +248,7 @@ export default function LivestreamDetailPage() {
       setIsLoadingToken(true);
       
       try {
+        // This endpoint is a placeholder that will be replaced with Zego Cloud implementation
         const response = await apiRequest('POST', '/api/livekit/livestream-token', {
           room: livestream.livekitRoomName,
           userId: user.id.toString(),
@@ -255,10 +256,10 @@ export default function LivestreamDetailPage() {
         });
         
         const data = await response.json();
-        console.log('LiveKit token retrieved');
+        console.log('Session token retrieved (LiveKit removed)');
         setLiveKitToken(data.token);
       } catch (error) {
-        console.error('LiveKit token error:', error);
+        console.error('Session token error (LiveKit removed):', error);
         toast({
           title: 'Connection Error',
           description: 'Failed to connect to the livestream',
@@ -269,7 +270,7 @@ export default function LivestreamDetailPage() {
       }
     };
     
-    fetchLiveKitToken();
+    fetchStreamToken();
   }, [livestream?.livekitRoomName, user?.id, livestream?.status]);
   
   // Mutation for sending a chat message
