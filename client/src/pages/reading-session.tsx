@@ -21,6 +21,7 @@ export default function ReadingSessionPage() {
   const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isStartingSession, setIsStartingSession] = useState(false);
   
   // Get the reading ID from URL params
   const readingId = parseInt(params.id || '0');
@@ -29,10 +30,35 @@ export default function ReadingSessionPage() {
   const { 
     data: reading,
     error: readingError,
-    isLoading: isReadingLoading 
+    isLoading: isReadingLoading,
+    refetch: refetchReading
   } = useQuery<Reading>({
     queryKey: ['/api/readings', readingId],
     enabled: Boolean(readingId),
+  });
+  
+  // Mutation for starting the reading session
+  const startReadingMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', `/api/readings/${readingId}/start`);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Reading Started",
+        description: "Your reading session has been started successfully.",
+      });
+      refetchReading();
+    },
+    onError: (error) => {
+      console.error('Failed to start reading:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start the reading session. Please try again.",
+        variant: "destructive",
+      });
+      setIsStartingSession(false);
+    }
   });
   
   // Mutation for ending the reading session
@@ -56,8 +82,17 @@ export default function ReadingSessionPage() {
       });
     }
   });
+
+  // Start reading session if not in progress
+  useEffect(() => {
+    if (reading && reading.status !== 'in_progress' && !isStartingSession && 
+        (reading.status === 'payment_completed' || reading.status === 'waiting_payment')) {
+      setIsStartingSession(true);
+      startReadingMutation.mutate();
+    }
+  }, [reading, startReadingMutation, isStartingSession]);
   
-  // Get LiveKit token for the reading
+  // Get LiveKit token for the reading once it's in_progress
   useEffect(() => {
     const fetchToken = async () => {
       if (!reading || reading.status !== 'in_progress') return;
@@ -96,18 +131,26 @@ export default function ReadingSessionPage() {
     }
   };
   
+  // Handle starting session manually
+  const handleStartSession = () => {
+    setIsStartingSession(true);
+    startReadingMutation.mutate();
+  };
+  
   // Handle back button
   const handleBack = () => {
     setLocation(PATHS.DASHBOARD);
   };
   
   // Loading state
-  if (isReadingLoading || isLoading) {
+  if (isReadingLoading || isLoading || isStartingSession) {
     return (
       <div className="container mx-auto py-12 cosmic-bg min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-accent" />
-          <h2 className="text-2xl font-cinzel text-accent mb-2">Initializing Reading Session</h2>
+          <h2 className="text-2xl font-cinzel text-accent mb-2">
+            {isStartingSession ? "Creating Reading Session" : "Initializing Reading Session"}
+          </h2>
           <p className="text-light/70">Please wait while we prepare your session...</p>
         </div>
       </div>
@@ -175,7 +218,40 @@ export default function ReadingSessionPage() {
     );
   }
   
-  // If reading is not in progress
+  // If reading is not in progress and in a valid state to start
+  if (reading.status !== 'in_progress' && 
+      (reading.status === 'payment_completed' || reading.status === 'waiting_payment')) {
+    return (
+      <div className="container mx-auto py-8 cosmic-bg min-h-screen">
+        <Card className="max-w-4xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-xl">Start Reading Session</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-center py-6">
+              <h2 className="text-xl font-semibold mb-4">
+                Ready to begin your reading session
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Current status: <Badge>{reading.status.replace(/_/g, ' ')}</Badge>
+              </p>
+              <div className="flex justify-center gap-4">
+                <Button variant="outline" onClick={handleBack}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Dashboard
+                </Button>
+                <Button onClick={handleStartSession}>
+                  Start Session
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // If reading is in an invalid state (not in_progress and not startable)
   if (reading.status !== 'in_progress') {
     return (
       <div className="container mx-auto py-8 cosmic-bg min-h-screen">
