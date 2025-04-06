@@ -3275,27 +3275,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Test endpoint for ZEGOCLOUD token generation (no authentication required)
-  app.post("/api/zego/test-token", async (req: Request, res: Response) => {
-    try {
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
-      const { userId, roomId, userName, role } = req.body;
-      
-      if (!userId || !roomId || !userName) {
-        return res.status(400).json({ error: 'Missing required parameters' });
-      }
-      
-      // Generate token for ZEGOCLOUD
-      const token = zegoCloudService.generateToken(userId, roomId, userName, role || 1);
-      
-      console.log("Generated test token for Zego Cloud!");
-      res.status(200).json({ token });
-    } catch (error) {
-      console.error("Error generating ZEGOCLOUD test token:", error);
-      res.status(500).json({ error: 'Failed to generate test token' });
-    }
-  });
-  
   // ZEGOCLOUD callback routes
   app.post("/zegocallback/session-start", async (req: Request, res: Response) => {
     try {

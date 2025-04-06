@@ -14,7 +14,9 @@ import { User } from '@shared/schema';
 export const ZEGO_CONFIG = {
   APP_ID: 390659863,  
   SERVER_SECRET: 'ffcbc25996c228ee7c057cfbdb364ed0',
-  CALLBACK_SECRET: '21b05a5f11e39ab2afb6e00d55e51a5d'
+  CALLBACK_SECRET: '21b05a5f11e39ab2afb6e00d55e51a5d',
+  WS_URL: 'wss://webliveroom390659863-api.coolzcloud.com/ws',
+  WS_URL_BACKUP: 'wss://webliveroom390659863-api-bak.coolzcloud.com/ws'
 };
 
 // Token version
