@@ -64,7 +64,7 @@ export default function ShopPage() {
 
   // Get unique categories for filter dropdown
   const categories = products ? 
-    ["all", ...(products.map(product => product.category).filter((v, i, a) => a.indexOf(v) === i))] : 
+    ["all", ...new Set(products.map(product => product.category))] : 
     ["all"];
 
   const handleAddToCart = (product: Product) => {
@@ -154,106 +154,33 @@ export default function ShopPage() {
         ) : (
           // Actual products
           filteredProducts.map(product => (
-            <Card key={product.id} className="glow-card overflow-hidden bg-primary-dark/40 border-accent/20 cursor-pointer">
-              <div 
-                className="product-card-content" 
-                onClick={() => {
-                  // Create a modal or dialog to show product details
-                  const modal = document.createElement('div');
-                  modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4';
-                  modal.innerHTML = `
-                    <div class="bg-primary-dark/90 max-w-2xl w-full rounded-lg overflow-hidden shadow-xl relative max-h-[90vh] flex flex-col">
-                      <button class="absolute top-4 right-4 text-light/70 hover:text-accent">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                      </button>
-                      <div class="md:flex">
-                        <div class="md:w-1/2 h-64 md:h-auto">
-                          <img 
-                            src="${product.imageUrl}" 
-                            alt="${product.name}" 
-                            class="w-full h-full object-cover" 
-                            onerror="this.onerror=null; this.src='/assets/placeholder-product.svg';" 
-                          />
-                        </div>
-                        <div class="p-6 md:w-1/2 overflow-y-auto max-h-[70vh]">
-                          <h2 class="font-cinzel text-accent text-2xl mb-2">${product.name}</h2>
-                          <div class="flex items-center justify-between mb-6">
-                            <span class="text-accent font-cinzel text-xl">$${(product.price / 100).toFixed(2)}</span>
-                            <span class="text-sm text-light/60 italic">${product.category}</span>
-                          </div>
-                          <div class="mb-6">
-                            <p class="text-light/80 font-playfair">${product.description}</p>
-                          </div>
-                          <div class="pt-4 border-t border-accent/20">
-                            <button class="w-full py-3 px-4 bg-accent text-light rounded-md hover:bg-accent/80 transition flex items-center justify-center font-cinzel">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-cart mr-2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-                              Add to Cart
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  `;
-                  document.body.appendChild(modal);
-                  
-                  // Add event listeners for close button and background
-                  const closeBtn = modal.querySelector('button');
-                  if (closeBtn) {
-                    closeBtn.addEventListener('click', () => {
-                      document.body.removeChild(modal);
-                    });
-                  }
-                  
-                  modal.addEventListener('click', (e: MouseEvent) => {
-                    if (e.target === modal) {
-                      document.body.removeChild(modal);
-                    }
-                  });
-                  
-                  // Add to cart button in modal
-                  const addToCartBtn = modal.querySelector('.bg-accent');
-                  if (addToCartBtn) {
-                    addToCartBtn.addEventListener('click', (e) => {
-                      e.stopPropagation();
-                      handleAddToCart(product);
-                      document.body.removeChild(modal);
-                    });
-                  }
-                }}
-              >
-                <div className="h-48 overflow-hidden">
-                  <img 
-                    src={product.imageUrl} 
-                    alt={product.name} 
-                    className="w-full h-full object-cover transition-transform hover:scale-105"
-                    onError={(e) => {
-                      e.currentTarget.src = "/assets/placeholder-product.svg";
-                      console.error(`Failed to load image for product: ${product.name}`);
-                    }}
-                  />
-                </div>
-                <CardHeader>
-                  <CardTitle className="font-cinzel text-accent text-xl">{product.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-light/80 font-playfair text-sm mb-4 line-clamp-3">{product.description}</p>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-accent font-cinzel text-lg">${(product.price / 100).toFixed(2)}</span>
-                    <span className="text-xs text-light/60 italic">{product.category}</span>
-                  </div>
-                </CardContent>
+            <Card key={product.id} className="glow-card overflow-hidden bg-primary-dark/40 border-accent/20">
+              <div className="h-48 overflow-hidden">
+                <img 
+                  src={product.image_url} 
+                  alt={product.name} 
+                  className="w-full h-full object-cover transition-transform hover:scale-105"
+                />
               </div>
+              <CardHeader>
+                <CardTitle className="font-cinzel text-accent text-xl">{product.name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-light/80 font-playfair text-sm mb-4 line-clamp-3">{product.description}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-accent font-cinzel text-lg">${(product.price / 100).toFixed(2)}</span>
+                  <span className="text-xs text-light/60 italic">{product.category}</span>
+                </div>
+              </CardContent>
               <CardFooter>
-                <button 
-                  className="w-full py-2 px-4 bg-accent text-light rounded-md hover:bg-accent/80 transition flex items-center justify-center"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddToCart(product);
-                  }}
+                <CelestialButton 
+                  variant="primary" 
+                  onClick={() => handleAddToCart(product)}
+                  className="w-full"
                 >
                   <ShoppingCart className="mr-2 h-4 w-4" />
                   Add to Cart
-                </button>
+                </CelestialButton>
               </CardFooter>
             </Card>
           ))

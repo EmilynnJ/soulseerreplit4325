@@ -170,10 +170,6 @@ export default function CheckoutPage() {
                     src={item.product.imageUrl} 
                     alt={item.product.name} 
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = "/path/to/fallback-image.jpg"; // Add a fallback image path
-                      console.error(`Failed to load image for product: ${item.product.name}`);
-                    }}
                   />
                 </div>
                 <div className="flex-1">
