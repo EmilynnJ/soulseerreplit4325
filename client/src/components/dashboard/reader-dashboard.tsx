@@ -913,13 +913,19 @@ function ReadingCard({ reading, actionLabel }: ReadingCardProps) {
           </div>
 
           {actionLabel && (
-            <Button className="w-full mt-4 bg-accent hover:bg-accent-dark text-white">
+            <Button 
+              className="w-full mt-4 bg-accent hover:bg-accent-dark text-white"
+              onClick={() => window.location.href = `/reading-session/${reading.id}`}
+            >
               {actionLabel}
             </Button>
           )}
 
           {reading.status === "in_progress" && (
-            <Button className="w-full mt-4 bg-purple-500 hover:bg-purple-700 text-white">
+            <Button 
+              className="w-full mt-4 bg-purple-500 hover:bg-purple-700 text-white"
+              onClick={() => window.location.href = `/reading-session/${reading.id}`}
+            >
               Continue Session
             </Button>
           )}
