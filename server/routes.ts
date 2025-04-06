@@ -10,7 +10,7 @@ import { promisify } from "util";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { UserUpdate } from "../shared/schema";
+import { User, UserUpdate } from "../shared/schema";
 import { WebSocket } from "ws";
 
 // Authentication middleware
@@ -3138,18 +3138,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Placeholder API endpoint for video call tokens (LiveKit replaced with Zego Cloud)
+  // Compatibility endpoint for old LiveKit routes - forwards to Zego Cloud
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
-      // Return a placeholder token - will be replaced with Zego Cloud implementation
-      res.status(200).json({ token: 'placeholder_livekit_removed_zego_pending' });
+      // Forward to Zego Cloud token endpoint
+      console.log('Legacy LiveKit endpoint called - redirecting to Zego Cloud');
+      
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      
+      // Extract user information from request
+      const user = req.user as User;
+      const { room } = req.body;
+      
+      if (!user || !room) {
+        return res.status(400).json({ error: 'Missing required user or room information' });
+      }
+      
+      // Generate token using Zego Cloud service
+      const token = zegoCloudService.generateToken(
+        user.id, 
+        room, 
+        user.fullName || user.username,
+        1  // Default to publisher role
+      );
+      
+      res.status(200).json({ token });
     } catch (error) {
-      console.error('Error generating token:', error);
+      console.error('Error generating Zego token from legacy endpoint:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
 
-  // Placeholder token generation route (LiveKit replaced with Zego Cloud)
+  // Compatibility endpoint for generate-token - forwards to Zego Cloud
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { userType, userId, fullName, roomId } = req.body;
@@ -3157,16 +3177,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userType || !userId || !fullName || !roomId) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-
-      // Return a placeholder token - will be replaced with Zego Cloud implementation
-      res.json({ token: 'placeholder_livekit_removed_zego_pending' });
+      
+      // Get Zego Cloud service
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      
+      // Calculate role based on user type (1 for publishing rights, 0 for audience only)
+      const role = userType === 'reader' ? 1 : 1; // For now, give everyone publishing rights
+      
+      // Generate token using Zego Cloud service
+      const token = zegoCloudService.generateToken(userId, roomId, fullName, role);
+      
+      res.json({ token });
     } catch (error) {
       console.error('Error generating token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
 
-  // Placeholder API endpoint for livestream tokens (LiveKit replaced with Zego Cloud)
+  // Compatibility endpoint for livestream token - forwards to Zego Cloud
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { name, room, isPublisher } = req.body;
@@ -3174,16 +3202,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!name || !room) {
         return res.status(400).json({ error: 'Missing name or room' });
       }
-
-      // Return a placeholder token - will be replaced with Zego Cloud implementation
-      res.status(200).json({ token: 'placeholder_livekit_removed_zego_pending' });
+      
+      // Get Zego Cloud service
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      
+      // Get user information
+      const user = req.user as User;
+      
+      // Generate token for livestream
+      const token = zegoCloudService.generateToken(
+        user.id,
+        room,
+        name || user.fullName || user.username,
+        isPublisher ? 1 : 0  // Use provided publisher flag
+      );
+      
+      res.status(200).json({ token });
     } catch (error) {
       console.error('Error generating livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
     }
   });
 
-  // Placeholder API endpoint for recording tokens (LiveKit replaced with Zego Cloud)
+  // Compatibility endpoint for recording token - forwards to Zego Cloud
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
       const { room } = req.body;
@@ -3191,12 +3232,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!room) {
         return res.status(400).json({ error: 'Missing room name' });
       }
-
-      // Return a placeholder token - will be replaced with Zego Cloud implementation
-      res.status(200).json({ token: 'placeholder_livekit_removed_zego_pending' });
+      
+      // Get Zego Cloud service
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      
+      // Get admin user information
+      const admin = req.user as User;
+      
+      // Generate admin token with all privileges
+      const token = zegoCloudService.generateToken(
+        admin.id,
+        room,
+        admin.fullName || admin.username,
+        1,  // Admin always has publishing rights
+        7200  // Longer expiration for recording (2 hours)
+      );
+      
+      res.status(200).json({ token });
     } catch (error) {
       console.error('Error generating recording token:', error);
       res.status(500).json({ error: 'Failed to generate recording token' });
+    }
+  });
+
+  // ZEGOCLOUD API routes
+  app.post("/api/zego/token", authenticate, async (req: Request, res: Response) => {
+    try {
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      const { userId, roomId, userName, role } = req.body;
+      
+      if (!userId || !roomId || !userName) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+      
+      // Generate token for ZEGOCLOUD
+      const token = zegoCloudService.generateToken(userId, roomId, userName, role || 1);
+      
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error("Error generating ZEGOCLOUD token:", error);
+      res.status(500).json({ error: 'Failed to generate token' });
+    }
+  });
+  
+  // Test endpoint for ZEGOCLOUD token generation (no authentication required)
+  app.post("/api/zego/test-token", async (req: Request, res: Response) => {
+    try {
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      const { userId, roomId, userName, role } = req.body;
+      
+      if (!userId || !roomId || !userName) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+      
+      // Generate token for ZEGOCLOUD
+      const token = zegoCloudService.generateToken(userId, roomId, userName, role || 1);
+      
+      console.log("Generated test token for Zego Cloud!");
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error("Error generating ZEGOCLOUD test token:", error);
+      res.status(500).json({ error: 'Failed to generate test token' });
+    }
+  });
+  
+  // ZEGOCLOUD callback routes
+  app.post("/zegocallback/session-start", async (req: Request, res: Response) => {
+    try {
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      console.log("ZEGOCLOUD SESSION START:", JSON.stringify(req.body, null, 2));
+      
+      // TODO: Add verification logic and handle session data
+      
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("Error processing ZEGOCLOUD session start callback:", error);
+      res.sendStatus(500);
+    }
+  });
+
+  app.post("/zegocallback/session-end", async (req: Request, res: Response) => {
+    try {
+      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      console.log("ZEGOCLOUD SESSION END:", JSON.stringify(req.body, null, 2));
+      
+      // TODO: Add verification logic and handle session data
+      
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("Error processing ZEGOCLOUD session end callback:", error);
+      res.sendStatus(500);
     }
   });
 
