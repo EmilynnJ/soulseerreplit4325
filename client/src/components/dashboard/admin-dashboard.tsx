@@ -388,6 +388,62 @@ export function AdminDashboard() {
                           <TableCell className="text-right">
                             {reading.totalPrice ? formatCurrency(reading.totalPrice) : "—"}
                           </TableCell>
+                          <TableCell className="text-right">
+                            {reading.status === 'in_progress' && (
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (confirm('Are you sure you want to end this reading?')) {
+                                      try {
+                                        await apiRequest('POST', `/api/readings/${reading.id}/end`);
+                                        toast({
+                                          title: 'Reading Ended',
+                                          description: 'The reading has been ended successfully.'
+                                        });
+                                        queryClient.invalidateQueries({ queryKey: ['/api/admin/readings'] });
+                                      } catch (error) {
+                                        toast({
+                                          title: 'Error',
+                                          description: 'Failed to end reading',
+                                          variant: 'destructive'
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  End
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (confirm('Are you sure you want to cancel this reading?')) {
+                                      try {
+                                        await apiRequest('PATCH', `/api/readings/${reading.id}/status`, {
+                                          status: 'cancelled'
+                                        });
+                                        toast({
+                                          title: 'Reading Cancelled',
+                                          description: 'The reading has been cancelled successfully.'
+                                        });
+                                        queryClient.invalidateQueries({ queryKey: ['/api/admin/readings'] });
+                                      } catch (error) {
+                                        toast({
+                                          title: 'Error',
+                                          description: 'Failed to cancel reading',
+                                          variant: 'destructive'
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : (

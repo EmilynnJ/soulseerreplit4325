@@ -100,27 +100,49 @@ router.post('/:id/end', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Reading not found' });
     }
 
-    // Only allow ending if status is in_progress
-    if (reading.status !== 'in_progress') {
-      return res.status(400).json({ error: 'Reading is not in progress' });
+    const { status, duration, totalPrice } = req.body; // Added status to allow admin to control status changes
+
+    // Only allow certain transitions based on user role and current status
+    const validTransitions: Record<string, string[]> = {
+      scheduled: ["cancelled", "in_progress"],
+      waiting_payment: ["cancelled", "payment_completed"],
+      payment_completed: ["in_progress", "cancelled"],
+      in_progress: ["completed", "cancelled"],
+      completed: [], // No transitions from completed
+      cancelled: [] // No transitions from cancelled
+    };
+
+    if (!validTransitions[reading.status].includes(status)) {
+      return res.status(400).json({ 
+        message: `Cannot transition from ${reading.status} to ${status}`,
+        validTransitions: validTransitions[reading.status]
+      });
     }
 
-    const { duration, totalPrice } = req.body;
+    // Additional validations based on role
+    if (req.user.role === "client" && !["cancelled"].includes(status)) {
+      return res.status(403).json({ message: "Clients can only cancel readings" });
+    } else if (req.user.role === "admin") {
+      // Admins can perform any valid transition
+      console.log("Admin performing status transition:", status);
+    }
+
+
     const updatedReading = await storage.updateReading(reading.id, {
-      status: 'completed',
-      completedAt: new Date(),
-      duration,
-      totalPrice,
+      status,
+      completedAt: status === 'completed' ? new Date() : reading.completedAt, // Only update completedAt if completing
+      duration: status === 'completed' ? duration : reading.duration, // Only update duration if completing
+      totalPrice: status === 'completed' ? totalPrice : reading.totalPrice, // Only update totalPrice if completing
     });
 
-    // Notify both reader and client about reading completion
+    // Notify both reader and client about reading completion or cancellation
     const websocket = (global as any).websocket;
     if (websocket) {
       const notificationData = {
-        type: 'reading_completed',
+        type: status === 'completed' ? 'reading_completed' : 'reading_cancelled',
         reading: updatedReading,
-        duration,
-        totalPrice,
+        duration: status === 'completed' ? duration : reading.duration,
+        totalPrice: status === 'completed' ? totalPrice : reading.totalPrice,
         timestamp: Date.now()
       };
       websocket.notifyUser(reading.readerId, notificationData);
