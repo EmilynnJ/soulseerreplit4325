@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDuration } from '@/lib/utils';
+import { env } from '@/lib/env';
 
 // Define the props for the WebRTC session component
 interface WebRTCSessionProps {
@@ -64,9 +65,11 @@ export default function WebRTCSession({
       const sessionId = localStorage.getItem('sessionId') || '';
       
       // Initialize socket connection with auth headers
-      socketRef.current = io(window.location.origin, {
-        transports: ['websocket'],
-        upgrade: false,
+      const socketUrl = env.WEBSOCKET_URL || window.location.origin;
+      
+      console.log('Connecting to socket server at:', socketUrl);
+      socketRef.current = io(socketUrl, {
+        transports: ['websocket', 'polling'],
         extraHeaders: {
           'Authorization': `Bearer ${sessionId}`,
           'X-Session-ID': sessionId

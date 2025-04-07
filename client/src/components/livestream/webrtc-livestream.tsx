@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Slider } from '@/components/ui/slider';
 import io, { Socket } from 'socket.io-client';
 import { apiRequest } from '@/lib/queryClient';
+import { env } from '@/lib/env';
 
 interface WebRTCLivestreamProps {
   roomId: string;
@@ -82,7 +83,10 @@ export function WebRTCLivestream({ roomId, hostId, isHost, title, onEnd }: WebRT
         const sessionId = localStorage.getItem('sessionId') || '';
         
         // Connect to socket server with auth headers - use the same path as the WebRTC service
-        socketRef.current = io(window.location.origin, {
+        const socketUrl = env.WEBSOCKET_URL || window.location.origin;
+        
+        console.log('Connecting to livestream socket server at:', socketUrl);
+        socketRef.current = io(socketUrl, {
           transports: ['websocket', 'polling'],
           extraHeaders: {
             'Authorization': `Bearer ${sessionId}`,
@@ -454,10 +458,7 @@ export function WebRTCLivestream({ roomId, hostId, isHost, title, onEnd }: WebRT
     try {
       if (isHost) {
         // Call API to end livestream
-        await apiRequest(`/api/livestreams/${roomId}/end`, {
-          method: 'POST',
-          body: {}
-        });
+        await apiRequest(`/api/livestreams/${roomId}/end`, 'POST');
         
         toast({
           title: 'Livestream ended',
