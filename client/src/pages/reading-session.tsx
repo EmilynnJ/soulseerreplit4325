@@ -13,15 +13,15 @@ import { Reading } from '@shared/schema';
 import { PATHS } from '@/lib/constants';
 
 /**
- * Reading session page - LiveKit integration
+ * Reading session page - Zego Cloud integration
  * 
- * Uses LiveKit for video/audio sessions
+ * Uses Zego Cloud for video/voice/chat sessions
  */
 export default function ReadingSessionPage() {
   const params = useParams();
   const [_, setLocation] = useLocation();
   const { toast } = useToast();
-  // LiveKit session token
+  // Zego session token
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,16 +104,19 @@ export default function ReadingSessionPage() {
     }
   }, [startReadingMutation.isError, startReadingMutation.isSuccess, reading?.status]);
   
-  // Get LiveKit session token for the reading once it's in_progress
+  // Get user from auth context
+  const { user } = useAuth();
+  
+  // Get Zego session token for the reading once it's in_progress
   useEffect(() => {
     const fetchToken = async () => {
-      if (!reading || reading.status !== 'in_progress') return;
+      if (!reading || reading.status !== 'in_progress' || !user?.id) return;
       
       setIsLoading(true);
       try {
-        const response = await apiRequest('POST', '/api/livekit/token', {
-          room: `reading-${readingId}`,
-          readingId: readingId,
+        const response = await apiRequest('POST', '/api/generate-token', {
+          roomId: `reading-${readingId}`,
+          userId: user.id.toString(),
           readingType: reading.type
         });
         
@@ -134,7 +137,7 @@ export default function ReadingSessionPage() {
     };
     
     fetchToken();
-  }, [reading, readingId, toast]);
+  }, [reading, readingId, toast, user?.id]);
   
   // Handle session end
   const handleEndSession = () => {
@@ -150,8 +153,6 @@ export default function ReadingSessionPage() {
   };
   
   // Handle back button
-  // Get user from auth context
-  const { user } = useAuth();
   
   const handleBack = () => {
     // Check if this is a reader and redirect them to their sessions page if they are

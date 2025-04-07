@@ -15,8 +15,7 @@ import { WebSocket } from "ws";
 import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
-import { livekitService } from "./services/livekit-service";
-import { generateZegoToken, getZegoConfig } from './services/zego-service';
+import { generateZegoToken, getZegoConfig, getZegoCredentials } from './services/zego-service';
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -3410,16 +3409,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Token generation endpoint
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { userType, userId, fullName, roomId } = req.body;
+      const { readingType = 'video', userId, roomId } = req.body;
       
-      if (!userType || !userId || !fullName || !roomId) {
+      if (!userId || !roomId) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
+
+      // Get the current user
+      const user = req.user as User;
       
-      // Generate token using LiveKit service
-      const token = livekitService.generateToken(userId, roomId, fullName);
+      // Map reading type to Zego type
+      let zegoType: 'chat' | 'phone' | 'video' | 'live';
+      switch (readingType) {
+        case 'chat':
+          zegoType = 'chat';
+          break;
+        case 'voice':
+          zegoType = 'phone';
+          break;
+        case 'video':
+        default:
+          zegoType = 'video';
+          break;
+      }
       
-      res.json({ token });
+      // Generate Zego token
+      const token = generateZegoToken(zegoType, {
+        userId: userId.toString(),
+        roomId,
+        userName: user.fullName || user.username,
+      });
+      
+      // Get the Zego config
+      const config = getZegoConfig(zegoType);
+      
+      // Get the App ID for client-side use
+      const { appId } = getZegoCredentials(zegoType);
+      
+      res.json({ 
+        token, 
+        roomId, 
+        userId: userId.toString(), 
+        userName: user.fullName || user.username,
+        appId,
+        config,
+        zegoType 
+      });
     } catch (error) {
       console.error('Error generating token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
