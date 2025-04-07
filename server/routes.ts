@@ -2213,7 +2213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientId: req.user.id,
         status: "waiting_payment",
         type,
-        readingMode: "on-demand",
+        readingMode: "on_demand", // Fix the enum value
         pricePerMinute: pricePerMinute,
         duration: 5, // Start with 5 minute minimum
         price: minimumPrice, // Required non-zero price

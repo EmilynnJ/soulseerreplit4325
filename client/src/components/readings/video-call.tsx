@@ -35,8 +35,8 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
       try {
         setIsLoading(true);
         
-        // Get reading token using the existing roomName
-        const response = await apiRequest('POST', '/api/livekit/token', {
+        // Get reading token using the dedicated Zego endpoint
+        const response = await apiRequest('POST', '/api/generate-token', {
           roomId: `reading-${readingId}`,
           readingType
         });
@@ -48,15 +48,9 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
         
         const data = await response.json();
         
-        // Get appropriate app ID based on reading type
-        let appId = '';
-        if (readingType === 'chat') {
-          appId = import.meta.env.VITE_ZEGO_CHAT_APP_ID as string;
-        } else if (readingType === 'voice') {
-          appId = import.meta.env.VITE_ZEGO_PHONE_APP_ID as string;
-        } else {
-          appId = import.meta.env.VITE_ZEGO_VIDEO_APP_ID as string;
-        }
+        // Use the app ID provided by the server
+        // If server doesn't provide one, use empty string (will be handled in error state)
+        const appId = data.appId || '';
         
         setZegoData({
           roomId: data.roomId,
