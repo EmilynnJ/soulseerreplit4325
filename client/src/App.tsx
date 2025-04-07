@@ -14,6 +14,7 @@ import AboutPage from "@/pages/about-page";
 import AuthPage from "@/pages/auth-page";
 import DashboardPage from "@/pages/dashboard-page";
 import ShopPage from "@/pages/shop-page";
+import ProductDetailPage from "@/pages/product-detail-page";
 import CheckoutPage from "@/pages/checkout-page";
 import AddFundsPage from "@/pages/add-funds-page";
 import ReadingSessionPage from "@/pages/reading-session";
@@ -78,6 +79,7 @@ function Router() {
         <Route path="/live" component={LivestreamPage} />
         <Route path="/live/:id" component={LivestreamDetailPage} />
         <Route path="/shop" component={ShopPage} />
+        <Route path="/shop/:id" component={ProductDetailPage} />
         <Route path="/checkout" component={CheckoutPage} />
         <Route path="/checkout/success" component={CheckoutPage} />
         <Route path="/community" component={CommunityPage} />

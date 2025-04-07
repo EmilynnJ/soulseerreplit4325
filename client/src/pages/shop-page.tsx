@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CartDrawer } from "@/components/shop/cart-drawer";
+import { useLocation } from "wouter";
 
 export default function ShopPage() {
   const { addToCart } = useCart();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -63,9 +65,12 @@ export default function ShopPage() {
     }) : [];
 
   // Get unique categories for filter dropdown
-  const categories = products ? 
-    ["all", ...new Set(products.map(product => product.category))] : 
-    ["all"];
+  const uniqueCategories = products ? 
+    products.map(product => product.category)
+      .filter((category, index, self) => self.indexOf(category) === index) : 
+    [];
+  
+  const categories = ["all", ...uniqueCategories];
 
   const handleAddToCart = (product: Product) => {
     addToCart(product);
@@ -154,10 +159,14 @@ export default function ShopPage() {
         ) : (
           // Actual products
           filteredProducts.map(product => (
-            <Card key={product.id} className="glow-card overflow-hidden bg-primary-dark/40 border-accent/20">
+            <Card 
+              key={product.id} 
+              className="glow-card overflow-hidden bg-primary-dark/40 border-accent/20 cursor-pointer"
+              onClick={() => setLocation(`/shop/${product.id}`)}
+            >
               <div className="h-48 overflow-hidden">
                 <img 
-                  src={product.image_url} 
+                  src={product.imageUrl} 
                   alt={product.name} 
                   className="w-full h-full object-cover transition-transform hover:scale-105"
                 />
@@ -172,10 +181,13 @@ export default function ShopPage() {
                   <span className="text-xs text-light/60 italic">{product.category}</span>
                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter onClick={(e) => e.stopPropagation()}>
                 <CelestialButton 
-                  variant="primary" 
-                  onClick={() => handleAddToCart(product)}
+                  variant="default" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddToCart(product);
+                  }}
                   className="w-full"
                 >
                   <ShoppingCart className="mr-2 h-4 w-4" />

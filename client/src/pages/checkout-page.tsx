@@ -122,7 +122,7 @@ export default function CheckoutPage() {
     async function createPaymentIntent() {
       try {
         const response = await apiRequest('POST', '/api/create-payment-intent', { 
-          amount: totalAmount / 100 // Convert from cents to dollars for the API
+          amount: totalAmount // API expects amount in cents, will convert to dollars
         });
         
         const data = await response.json();

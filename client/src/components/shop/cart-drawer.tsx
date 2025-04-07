@@ -156,7 +156,6 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                   onClick={handleCheckout}
                   disabled={isProcessing}
                   className="flex-1"
-                  variant="gold"
                 >
                   {isProcessing ? 'Processing...' : 'Checkout'}
                 </CelestialButton>
