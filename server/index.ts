@@ -15,8 +15,7 @@ app.use(express.urlencoded({ extended: false }));
 
 // Configure CORS based on environment
 const corsOptions = {
-  // For ZegoCloud callbacks, we need to accept requests from their servers
-  // Adding '*' to allow all origins for callback routes, actual validation will be done via signature
+  // Using '*' for development; should be restricted in production
   origin: '*',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

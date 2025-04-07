@@ -3153,51 +3153,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Compatibility endpoint for old LiveKit routes - forwards to Zego Cloud
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
-      // Forward to Zego Cloud token endpoint
-      console.log('Legacy LiveKit endpoint called - redirecting to Zego Cloud');
-      
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
+      const { livekitService } = await import('./services/livekit-service');
       
       // Extract user information from request
       const user = req.user as User;
-      const { room } = req.body;
+      const { roomId, room, userId, userName } = req.body;
       
-      if (!user || !room) {
-        return res.status(400).json({ error: 'Missing required user or room information' });
+      // Use provided values or fallback to user object
+      const actualUserId = userId || user.id;
+      const actualRoomId = roomId || room || `default_room_${Date.now()}`;
+      const actualUserName = userName || user.fullName || user.username;
+      
+      if (!user) {
+        return res.status(400).json({ error: 'Missing required user information' });
       }
       
-      // Generate token using Zego Cloud service
-      const token = zegoCloudService.generateToken(
-        user.id, 
-        room, 
-        user.fullName || user.username,
-        1  // Default to publisher role
+      // Generate token using LiveKit service
+      const token = livekitService.generateToken(
+        actualUserId, 
+        actualRoomId, 
+        actualUserName
       );
       
       res.status(200).json({ token });
     } catch (error) {
-      console.error('Error generating Zego token from legacy endpoint:', error);
+      console.error('Error generating LiveKit token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
 
-  // Compatibility endpoint for generate-token - forwards to Zego Cloud
+  // Token generation endpoint
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
+      const { livekitService } = await import('./services/livekit-service');
       const { userType, userId, fullName, roomId } = req.body;
-
+      
       if (!userType || !userId || !fullName || !roomId) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
       
-      // Get Zego Cloud service
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
-      
-      // Calculate role based on user type (1 for publishing rights, 0 for audience only)
-      const role = userType === 'reader' ? 1 : 1; // For now, give everyone publishing rights
-      
-      // Generate token using Zego Cloud service
-      const token = zegoCloudService.generateToken(userId, roomId, fullName, role);
+      // Generate token using LiveKit service
+      const token = livekitService.generateToken(userId, roomId, fullName);
       
       res.json({ token });
     } catch (error) {
@@ -3206,27 +3202,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Compatibility endpoint for livestream token - forwards to Zego Cloud
+  // Livestream token endpoint
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { name, room, isPublisher } = req.body;
-
+      const { livekitService } = await import('./services/livekit-service');
+      const { name, room } = req.body;
+      
       if (!name || !room) {
         return res.status(400).json({ error: 'Missing name or room' });
       }
-      
-      // Get Zego Cloud service
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
       
       // Get user information
       const user = req.user as User;
       
       // Generate token for livestream
-      const token = zegoCloudService.generateToken(
+      const token = livekitService.generateToken(
         user.id,
         room,
-        name || user.fullName || user.username,
-        isPublisher ? 1 : 0  // Use provided publisher flag
+        name || user.fullName || user.username
       );
       
       res.status(200).json({ token });
@@ -3236,27 +3229,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Compatibility endpoint for recording token - forwards to Zego Cloud
+  // Recording token endpoint for admins
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
+      const { livekitService } = await import('./services/livekit-service');
       const { room } = req.body;
-
+      
       if (!room) {
         return res.status(400).json({ error: 'Missing room name' });
       }
       
-      // Get Zego Cloud service
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
-      
       // Get admin user information
       const admin = req.user as User;
       
-      // Generate admin token with all privileges
-      const token = zegoCloudService.generateToken(
+      // Generate admin token with longer expiration
+      const token = livekitService.generateToken(
         admin.id,
         room,
         admin.fullName || admin.username,
-        1,  // Admin always has publishing rights
         7200  // Longer expiration for recording (2 hours)
       );
       
@@ -3267,54 +3257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ZEGOCLOUD API routes
-  app.post("/api/zego/token", authenticate, async (req: Request, res: Response) => {
-    try {
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
-      const { userId, roomId, userName, role } = req.body;
-      
-      if (!userId || !roomId || !userName) {
-        return res.status(400).json({ error: 'Missing required parameters' });
-      }
-      
-      // Generate token for ZEGOCLOUD
-      const token = zegoCloudService.generateToken(userId, roomId, userName, role || 1);
-      
-      res.status(200).json({ token });
-    } catch (error) {
-      console.error("Error generating ZEGOCLOUD token:", error);
-      res.status(500).json({ error: 'Failed to generate token' });
-    }
-  });
-  
-  // ZEGOCLOUD callback routes
-  app.post("/zegocallback/session-start", async (req: Request, res: Response) => {
-    try {
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
-      console.log("ZEGOCLOUD SESSION START:", JSON.stringify(req.body, null, 2));
-      
-      // TODO: Add verification logic and handle session data
-      
-      res.sendStatus(200);
-    } catch (error) {
-      console.error("Error processing ZEGOCLOUD session start callback:", error);
-      res.sendStatus(500);
-    }
-  });
-
-  app.post("/zegocallback/session-end", async (req: Request, res: Response) => {
-    try {
-      const { zegoCloudService } = await import('./services/zego-cloud-service');
-      console.log("ZEGOCLOUD SESSION END:", JSON.stringify(req.body, null, 2));
-      
-      // TODO: Add verification logic and handle session data
-      
-      res.sendStatus(200);
-    } catch (error) {
-      console.error("Error processing ZEGOCLOUD session end callback:", error);
-      res.sendStatus(500);
-    }
-  });
+  // LiveKit token routes are now in place above
 
   return httpServer;
 }

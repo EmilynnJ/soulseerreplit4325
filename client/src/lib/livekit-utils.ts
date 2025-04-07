@@ -1,11 +1,11 @@
 /**
- * Video/audio streaming utilities for Zego Cloud
+ * Video/audio streaming utilities for LiveKit
  * 
- * Integration with Zego Cloud for video/audio sessions
+ * Integration with LiveKit for video/audio sessions
  */
 
 /**
- * Generate a token for Zego Cloud video/audio sessions
+ * Generate a token for LiveKit video/audio sessions
  * 
  * @param userType The type of user ('reader' or 'client')
  * @param userId The ID of the user
@@ -13,20 +13,17 @@
  * @param roomId The ID of the room to join
  * @returns Promise resolving to the token string
  */
-export async function generateZegoToken(
+export async function generateLiveKitToken(
   userType: 'reader' | 'client',
   userId: number,
   fullName: string,
   roomId: string
 ): Promise<string> {
   try {
-    console.log('Requesting Zego Cloud token with', { userType, userId, fullName, roomId });
-    
-    // Calculate role based on user type (1 for publisher, 0 for audience)
-    const role = userType === 'reader' ? 1 : 1; // For now, give everyone publishing rights
+    console.log('Requesting LiveKit token with', { userType, userId, fullName, roomId });
 
-    // Call the Zego Cloud token endpoint
-    const response = await fetch('/api/zego/token', {
+    // Call the LiveKit token endpoint
+    const response = await fetch('/api/livekit/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -34,37 +31,21 @@ export async function generateZegoToken(
       body: JSON.stringify({
         userId,
         roomId,
-        userName: fullName,
-        role
+        userName: fullName
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate Zego Cloud token');
+      throw new Error(errorData.error || 'Failed to generate LiveKit token');
     }
 
     const data = await response.json();
     return data.token;
   } catch (error) {
-    console.error('Error generating Zego Cloud token:', error);
+    console.error('Error generating LiveKit token:', error);
     throw error;
   }
-}
-
-/**
- * For LiveKit compatibility - calls generateZegoToken instead
- * 
- * @deprecated Use generateZegoToken directly
- */
-export async function generateLiveKitToken(
-  userType: 'reader' | 'client',
-  userId: number,
-  fullName: string,
-  roomId: string
-): Promise<string> {
-  console.log('LiveKit replaced with Zego Cloud: redirecting token request');
-  return generateZegoToken(userType, userId, fullName, roomId);
 }
 
 /**
@@ -82,11 +63,11 @@ export async function generateReadingToken(
   readingId: number,
   readerName: string
 ): Promise<string> {
-  console.log('Generating reading token with Zego Cloud', { readerId, clientId, readingId, readerName });
+  console.log('Generating reading token with LiveKit', { readerId, clientId, readingId, readerName });
   
   // Create a unique room ID for this reading
   const roomId = `reading_${readingId}`;
   
   // Generate token for the reader
-  return generateZegoToken('reader', readerId, readerName, roomId);
+  return generateLiveKitToken('reader', readerId, readerName, roomId);
 }
