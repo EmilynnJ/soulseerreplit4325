@@ -81,7 +81,7 @@ class LivestreamService {
         status: 'scheduled',
         roomId: roomId,
         createdAt: new Date(),
-        webrtcRoomName: roomId // Store the WebRTC room name
+        category: 'general' // Adding required category field
       });
       
       console.log(`Created livestream: ${newLivestream.id} for user=${user.id}, roomId=${roomId}`);

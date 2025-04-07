@@ -214,7 +214,7 @@ export const insertLivestreamSchema = createInsertSchema(livestreams)
     endedAt: true, 
     viewerCount: true,
     duration: true,
-    roomId: true,
+    // Don't omit roomId as we need it for WebRTC
     livekitRoomName: true
   });
 
