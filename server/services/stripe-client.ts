@@ -41,8 +41,14 @@ export async function createPaymentIntent({
   metadata = {},
 }: CreatePaymentIntentParams) {
   try {
+    console.log(`Creating payment intent with amount: ${amount} (should be in dollars)`);
+    
+    // Amount comes in as dollars, convert to cents for Stripe
+    const amountInCents = Math.round(amount * 100);
+    console.log(`Amount converted to cents: ${amountInCents}`);
+    
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
+      amount: amountInCents,
       currency,
       ...(customerId ? { customer: customerId } : {}),
       metadata,

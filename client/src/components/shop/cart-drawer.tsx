@@ -27,11 +27,10 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
   const [, navigate] = useLocation();
   
   const handleCheckout = async () => {
-    if (!user) {
-      onOpenChange(false);
-      return;
-    }
-
+    // We're allowing guest checkout, so no need to check for user
+    // However, we'll log if the user is authenticated or not
+    console.log('Proceeding to checkout, user authenticated:', !!user);
+    
     setIsProcessing(true);
     
     try {

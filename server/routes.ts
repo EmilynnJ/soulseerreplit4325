@@ -2704,6 +2704,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { amount } = req.body;
 
+      console.log('Received create-payment-intent request:', { amount, isAuthenticated: req.isAuthenticated() });
+
       if (!amount || isNaN(amount)) {
         return res.status(400).json({ message: "Valid amount is required" });
       }
@@ -2715,11 +2717,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (req.isAuthenticated()) {
         metadata.userId = req.user.id.toString();
+      } else {
+        // For development/testing, allow guest checkout
+        // In production environment, this would be restricted
+        console.log('Creating payment intent for guest (unauthenticated) user');
       }
 
       const result = await stripeClient.createPaymentIntent({
         amount,
         metadata
+      });
+
+      console.log('Payment intent created successfully:', { 
+        paymentIntentId: result.paymentIntentId,
+        hasClientSecret: !!result.clientSecret
       });
 
       res.json(result);

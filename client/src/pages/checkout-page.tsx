@@ -119,12 +119,19 @@ export default function CheckoutPage() {
       setLocation('/shop');
       return;
     }
+    
+    // We no longer require authentication for checkout
+  // This allows guest checkout to work properly
 
     // Create PaymentIntent as soon as the page loads
     async function createPaymentIntent() {
       try {
+        console.log(`Creating payment intent with total amount: ${totalAmount} cents`);
+        const amountInDollars = totalAmount / 100;
+        console.log(`Amount converted to dollars for API: ${amountInDollars}`);
+        
         const response = await apiRequest('POST', '/api/create-payment-intent', { 
-          amount: totalAmount / 100 // Send in dollars, API will convert to cents
+          amount: amountInDollars // Send in dollars, API will convert to cents
         });
         
         const data = await response.json();
