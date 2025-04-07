@@ -2445,6 +2445,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Check if client has enough funds for at least 1 minute
+      const client = await storage.getUser(reading.clientId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+
+      // Calculate cost for 1 minute
+      const oneMinuteCost = reading.pricePerMinute;
+      
+      // Check if client has sufficient balance
+      const currentBalance = client.accountBalance || 0;
+      if (currentBalance < oneMinuteCost) {
+        console.log(`Client ${client.id} has insufficient balance: ${currentBalance} < ${oneMinuteCost}`);
+        return res.status(400).json({ 
+          message: "Insufficient account balance. Client needs at least enough funds for 1 minute.",
+          balance: currentBalance,
+          required: oneMinuteCost,
+          status: "insufficient_funds"
+        });
+      }
+      
+      console.log(`Client ${client.id} has sufficient balance: ${currentBalance} >= ${oneMinuteCost} for reading ${id}`);
+
       // Update reading status and start time
       const updatedReading = await storage.updateReading(id, {
         status: "in_progress",
@@ -2466,6 +2489,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updatedReading);
     } catch (error) {
+      console.error("Failed to start reading:", error);
       res.status(500).json({ message: "Failed to start reading" });
     }
   });
