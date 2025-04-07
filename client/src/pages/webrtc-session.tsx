@@ -9,28 +9,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserContext } from '@/providers/user-provider';
 
-// Define session params type
-interface SessionParams {
-  roomId: string;
-}
-
 export default function WebRTCSessionPage() {
   const [, setLocation] = useLocation();
-  const [match, params] = useRoute<SessionParams>('/reading-session/:roomId');
+  const [match, params] = useRoute('/reading-session/:roomId');
   const { toast } = useToast();
   const { user } = useUserContext();
   const [sessionEnded, setSessionEnded] = useState(false);
   const [sessionSummary, setSessionSummary] = useState<any>(null);
 
   // Get the room ID from the URL
-  const roomId = params?.roomId || '';
+  const roomId = params ? params.roomId : '';
 
   // Query session details
   const { data: sessionData, isLoading, error } = useQuery({
     queryKey: ['/api/sessions/details', roomId],
     queryFn: async () => {
       if (!roomId) return null;
-      const response = await fetch(`/api/sessions/details/${roomId}`);
+      const response = await fetch(`/api/sessions/details/${roomId}`, {
+        credentials: 'include', // This is needed for authentication cookies
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch session details: ${response.statusText}`);
+      }
       const data = await response.json();
       return data;
     },
@@ -56,6 +59,7 @@ export default function WebRTCSessionPage() {
     try {
       const response = await fetch('/api/sessions/end', {
         method: 'POST',
+        credentials: 'include', // Add credentials for authentication
         headers: {
           'Content-Type': 'application/json'
         },
@@ -66,6 +70,10 @@ export default function WebRTCSessionPage() {
           userRole: user?.role
         })
       });
+
+      if (!response.ok) {
+        throw new Error(`Failed to end session: ${response.statusText}`);
+      }
 
       const data = await response.json();
       setSessionSummary(data);
