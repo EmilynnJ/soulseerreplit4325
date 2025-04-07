@@ -3409,7 +3409,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Token generation endpoint
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { readingType = 'video', userId: providedUserId, roomId } = req.body;
+      const { 
+        readingType = 'video', 
+        userId: providedUserId, 
+        roomId, 
+        environment = 'development',
+        origin = ''
+      } = req.body;
       
       // Get the current user
       const user = req.user as User;
@@ -3421,7 +3427,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required parameter: roomId' });
       }
       
+      // Log request details including environment information
       console.log(`Generating token for ${readingType} session in room ${roomId} for user ${userId}`);
+      console.log(`Environment: ${environment}, Origin: ${origin}`);
+      
+      // Determine if this is a production deployment
+      const isProduction = environment === 'production' || 
+                         origin.includes('soulseer.app') || 
+                         origin.includes('.onrender.com');
+      
+      console.log(`Request identified as ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 
       // Map reading type to Zego type
       let zegoType: 'chat' | 'phone' | 'video' | 'live';
@@ -3450,18 +3465,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Generate Zego token
+      // Adjust token expiration based on environment
+      // In production, tokens have longer expiration to handle mobile sessions better
+      const expirationSeconds = isProduction ? 24 * 3600 : 3600; // 24 hours in production, 1 hour in dev
+      
+      // Generate Zego token with appropriate expiration
       const token = generateZegoToken(zegoType, {
         userId: userId.toString(),
         roomId,
         userName: user.fullName || user.username,
+        expirationSeconds
       });
       
-      // Get the Zego config
-      const config = getZegoConfig(zegoType);
+      // Get the Zego config for appropriate environment
+      const config = getZegoConfig(zegoType, true, isProduction);
       
       // Log success without showing the actual token
       console.log(`Successfully generated ${zegoType} token for user ${userId} in room ${roomId}`);
+      console.log(`Token expiration: ${expirationSeconds} seconds`);
       
       res.json({ 
         token, 
@@ -3470,7 +3491,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userName: user.fullName || user.username,
         appId,
         config,
-        zegoType 
+        zegoType,
+        environment: isProduction ? 'production' : 'development'
       });
     } catch (error) {
       console.error('Error generating token:', error);
@@ -3606,9 +3628,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userName: 'Reader'
       });
       
-      // Get configs
-      const clientConfig = getZegoConfig('video', false); // client is not host
-      const readerConfig = getZegoConfig('video', true);  // reader is host
+      // Determine if request is from production environment
+      const origin = req.headers.origin || '';
+      const isProduction = origin.includes('soulseer.app') || 
+                          origin.includes('.onrender.com');
+      console.log(`Video session request from origin: ${origin}, isProduction: ${isProduction}`);
+                          
+      // Get configs with production-awareness
+      const clientConfig = getZegoConfig('video', false, isProduction); // client is not host
+      const readerConfig = getZegoConfig('video', true, isProduction);  // reader is host
       
       // Create a session record
       sessionService.createSession(
@@ -3670,9 +3698,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userName: 'Reader'
       });
       
-      // Get configs
-      const clientConfig = getZegoConfig('phone', false); // client is not host
-      const readerConfig = getZegoConfig('phone', true);  // reader is host
+      // Determine if request is from production environment
+      const origin = req.headers.origin || '';
+      const isProduction = origin.includes('soulseer.app') || 
+                          origin.includes('.onrender.com');
+      console.log(`Voice session request from origin: ${origin}, isProduction: ${isProduction}`);
+                          
+      // Get configs with production-awareness
+      const clientConfig = getZegoConfig('phone', false, isProduction); // client is not host
+      const readerConfig = getZegoConfig('phone', true, isProduction);  // reader is host
       
       // Create a session record
       sessionService.createSession(
@@ -3734,9 +3768,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userName: 'Reader'
       });
       
-      // Get configs
-      const clientConfig = getZegoConfig('chat', false); // client is not host
-      const readerConfig = getZegoConfig('chat', true);  // reader is host
+      // Determine if request is from production environment
+      const origin = req.headers.origin || '';
+      const isProduction = origin.includes('soulseer.app') || 
+                          origin.includes('.onrender.com');
+      console.log(`Chat session request from origin: ${origin}, isProduction: ${isProduction}`);
+                          
+      // Get configs with production-awareness
+      const clientConfig = getZegoConfig('chat', false, isProduction); // client is not host
+      const readerConfig = getZegoConfig('chat', true, isProduction);  // reader is host
       
       // Create a session record
       sessionService.createSession(
@@ -3857,8 +3897,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userName: userName
       });
       
-      // Get configuration based on reading type
-      const config = getZegoConfig(zegoType, user.id.toString() === readerId.toString()); // isHost = true if this is the reader
+      // Determine if request is from production environment
+      const origin = req.headers.origin || '';
+      const isProduction = origin.includes('soulseer.app') || 
+                          origin.includes('.onrender.com') || 
+                          req.body.environment === 'production';
+      console.log(`Session token request from origin: ${origin}, isProduction: ${isProduction}`);
+                          
+      // Get configuration based on reading type and environment
+      const config = getZegoConfig(
+        zegoType, 
+        user.id.toString() === readerId.toString(), // isHost = true if this is the reader
+        isProduction
+      );
       
       // Create session record if this is a new session
       const existingSession = sessionService.getSessionByRoomName(roomName);

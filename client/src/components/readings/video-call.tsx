@@ -38,9 +38,19 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
         // If token is already provided, use that directly
         if (token) {
           // We still need to get user information and app ID
+          // Add deployment environment information
+          const origin = window.location.origin;
+          const isProduction = origin.includes('soulseer.app') || 
+                             origin.includes('.onrender.com') || 
+                             !origin.includes('localhost');
+          
+          console.log(`Video call request origin: ${origin}, isProduction: ${isProduction}`);
+          
           const response = await apiRequest('POST', '/api/generate-token', {
             roomId: `reading-${readingId}`,
-            readingType
+            readingType,
+            environment: isProduction ? 'production' : 'development',
+            origin
           });
           
           if (!response.ok) {
@@ -62,9 +72,20 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
         } else {
           // No token provided, get everything from API
           console.log(`Fetching Zego token for reading ${readingId}, type: ${readingType}`);
+          
+          // Add deployment environment information
+          const origin = window.location.origin;
+          const isProduction = origin.includes('soulseer.app') || 
+                             origin.includes('.onrender.com') || 
+                             !origin.includes('localhost');
+          
+          console.log(`Video call (no token) request origin: ${origin}, isProduction: ${isProduction}`);
+          
           const response = await apiRequest('POST', '/api/generate-token', {
             roomId: `reading-${readingId}`,
-            readingType
+            readingType,
+            environment: isProduction ? 'production' : 'development',
+            origin
           });
           
           if (!response.ok) {

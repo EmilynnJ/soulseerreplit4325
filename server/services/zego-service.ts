@@ -105,9 +105,34 @@ export function generateZegoToken(
 
 /**
  * Generate Zego configuration object for client-side usage
+ * @param type The type of communication
+ * @param isHost Whether the user is a host (reader) or audience (client)
+ * @param isProduction Whether this is a production environment
  */
-export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost: boolean = true) {
+export function getZegoConfig(
+  type: 'chat' | 'phone' | 'video' | 'live', 
+  isHost: boolean = true,
+  isProduction: boolean = false
+) {
   const role = isHost ? 'Host' : 'Audience';
+  
+  // Production environment may need specific adjustments
+  const productionConfig = isProduction ? {
+    // These settings help with mobile compatibility
+    showAudioVideoSettingsButton: true,
+    // Improve connection quality on mobile
+    videoResolutionList: [180, 360, 720],
+    videoResolutionDefault: 360,
+    audioBitrate: 48,
+    networkRetryCount: 5,
+    networkRetryDuration: 5000,
+    // Improve reliability of connections
+    enableReducedRenderingOnMobile: true,
+    autoHideFooterAfterSeconds: 5,
+    showTurnOnRemoteCameraButton: true,
+    showTurnOnRemoteMicrophoneButton: true,
+    // Add more production-specific settings as needed
+  } : {};
   
   switch (type) {
     case 'chat':
@@ -116,7 +141,7 @@ export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost:
         turnOnCameraWhenJoining: false,
         showMyCameraToggleButton: false,
         showMyMicrophoneToggleButton: false,
-        showAudioVideoSettingsButton: false,
+        showAudioVideoSettingsButton: isProduction,
         showScreenSharingButton: false,
         showTextChat: true,
         showUserList: true,
@@ -129,6 +154,7 @@ export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost:
             role,
           },
         },
+        ...productionConfig,
       };
     
     case 'phone':
@@ -137,7 +163,7 @@ export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost:
         turnOnCameraWhenJoining: false,
         showMyCameraToggleButton: false,
         showMyMicrophoneToggleButton: true,
-        showAudioVideoSettingsButton: false,
+        showAudioVideoSettingsButton: isProduction,
         showScreenSharingButton: false,
         showTextChat: true,
         showUserList: true,
@@ -150,6 +176,7 @@ export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost:
             role,
           },
         },
+        ...productionConfig,
       };
       
     case 'video':
@@ -171,6 +198,7 @@ export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost:
             role,
           },
         },
+        ...productionConfig,
       };
       
     case 'live':
@@ -187,6 +215,7 @@ export function getZegoConfig(type: 'chat' | 'phone' | 'video' | 'live', isHost:
             role,
           },
         },
+        ...productionConfig,
       };
       
     default:
