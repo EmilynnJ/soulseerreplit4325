@@ -12,6 +12,7 @@ import path from "path";
 import fs from "fs";
 import { User, UserUpdate } from "../shared/schema";
 import { WebSocket } from "ws";
+import * as stripeClient from "./services/stripe-client";
 
 // Authentication middleware
 const authenticate = (req: Request, res: Response, next: NextFunction) => {
