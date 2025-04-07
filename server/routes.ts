@@ -15,7 +15,6 @@ import { WebSocket } from "ws";
 import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
-import { generateZegoToken, getZegoConfig, getZegoCredentials } from './services/zego-service';
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -3408,7 +3407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Compatibility endpoint for old LiveKit routes - forwards to Zego Cloud
+  // Endpoint for new reading system service token generation
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
       // Extract user information from request
@@ -3424,41 +3423,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actualRoomId = roomId || room || `default_room_${Date.now()}`;
       const actualUserName = userName || user.fullName || user.username;
       
-      // Determine communication type for Zego (default to 'video')
-      let zegoType: 'chat' | 'phone' | 'video' | 'live' = 'video';
-      
-      if (readingType === 'chat') {
-        zegoType = 'chat';
-      } else if (readingType === 'voice') {
-        zegoType = 'phone';
-      } else if (readingType === 'livestream') {
-        zegoType = 'live';
-      }
-      
-      // Generate token using Zego service
-      const token = generateZegoToken(zegoType, {
-        userId: actualUserId.toString(),
-        roomId: actualRoomId,
-        userName: actualUserName
+      // TODO: Implement the new token generation system
+      console.log('Token request received: ', {
+        userId: actualUserId, 
+        roomId: actualRoomId, 
+        userName: actualUserName,
+        readingType: readingType
       });
       
-      // Include Zego configuration for the client
-      const config = getZegoConfig(zegoType, true); // isHost=true
-      
-      res.status(200).json({ 
-        token,
-        config,
-        roomId: actualRoomId,
-        userId: actualUserId.toString(),
-        userName: actualUserName
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Reading system is being rebuilt. Please try again later.',
+        message: 'The reading system is currently being migrated to a new provider.'
       });
     } catch (error) {
-      console.error('Error generating Zego token:', error);
+      console.error('Error in token endpoint:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
 
-  // Token generation endpoint
+  // Token generation endpoint for new reading system
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { 
@@ -3490,61 +3474,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Request identified as ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 
-      // Map reading type to Zego type
-      let zegoType: 'chat' | 'phone' | 'video' | 'live';
-      switch (readingType) {
-        case 'chat':
-          zegoType = 'chat';
-          break;
-        case 'voice':
-          zegoType = 'phone';
-          break;
-        case 'video':
-        default:
-          zegoType = 'video';
-          break;
-      }
-      
-      // Get app ID and server secret
-      const { appId, serverSecret } = getZegoCredentials(zegoType);
-      
-      // Check if credentials are available
-      if (!appId || !serverSecret) {
-        console.error(`Missing Zego credentials for ${zegoType} type`);
-        return res.status(500).json({ 
-          error: `Missing Zego ${zegoType} credentials. Please check environment configuration.`,
-          missingCredentials: !appId ? 'appId' : 'serverSecret'
-        });
-      }
-      
-      // Adjust token expiration based on environment
-      // In production, tokens have longer expiration to handle mobile sessions better
-      const expirationSeconds = isProduction ? 24 * 3600 : 3600; // 24 hours in production, 1 hour in dev
-      
-      // Generate Zego token with appropriate expiration
-      const token = generateZegoToken(zegoType, {
-        userId: userId.toString(),
+      // TODO: Implement new token generation system
+      console.log('Token request received for new reading system: ', {
+        userId, 
         roomId,
+        readingType,
         userName: user.fullName || user.username,
-        expirationSeconds
+        environment: isProduction ? 'production' : 'development' 
       });
       
-      // Get the Zego config for appropriate environment
-      const config = getZegoConfig(zegoType, true, isProduction);
-      
-      // Log success without showing the actual token
-      console.log(`Successfully generated ${zegoType} token for user ${userId} in room ${roomId}`);
-      console.log(`Token expiration: ${expirationSeconds} seconds`);
-      
-      res.json({ 
-        token, 
-        roomId, 
-        userId: userId.toString(), 
-        userName: user.fullName || user.username,
-        appId,
-        config,
-        zegoType,
-        environment: isProduction ? 'production' : 'development'
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Reading system is being rebuilt. Please try again later.',
+        message: 'The reading system is currently being migrated to a new provider.'
       });
     } catch (error) {
       console.error('Error generating token:', error);
@@ -3552,7 +3494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Livestream token endpoint - upgraded to use Zego Cloud
+  // Livestream token endpoint for new reading system
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { name, room, useReaderRoom } = req.body;
@@ -3570,23 +3512,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                        
       console.log(`Generating livestream token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      // Generate token using Zego service (type: 'live')
-      const token = generateZegoToken('live', {
-        userId: user.id.toString(),
+      // TODO: Implement new livestream token generation
+      console.log('Livestream token request received: ', {
+        userId: user.id.toString(), 
         roomId: room,
         userName: name || user.fullName || user.username
       });
       
-      // Include Zego configuration for the client
-      const config = getZegoConfig('live', true, isProduction); // isHost=true
-      
-      res.status(200).json({ 
-        token,
-        config,
-        roomId: room,
-        userId: user.id.toString(),
-        userName: name || user.fullName || user.username,
-        appId: getZegoCredentials('live').appId
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Livestream system is being rebuilt. Please try again later.',
+        message: 'The livestream system is currently being migrated to a new provider.'
       });
     } catch (error) {
       console.error('Error generating livestream token:', error);
@@ -3594,7 +3530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Reader-specific livestream token endpoint - upgraded to use Zego Cloud
+  // Reader-specific livestream token endpoint for new reading system
   app.post('/api/livekit/reader-livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { readerId } = req.body;
@@ -3619,26 +3555,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
                          
       console.log(`Generating reader livestream token: hostname=${req.hostname}, isProduction=${isProduction}, readerId=${readerId}`);
       
-      // Generate token using Zego service (type: 'live')
-      const token = generateZegoToken('live', {
-        userId: user.id.toString(),
-        roomId: roomId,
+      // If the user requesting the token is the reader, they are the host
+      const isHost = user.id.toString() === readerId.toString();
+      
+      // TODO: Implement new livestream token generation
+      console.log('Reader livestream token request received: ', {
+        userId: user.id.toString(), 
+        roomId,
+        isHost,
         userName: user.fullName || user.username
       });
       
-      // Include Zego configuration for the client
-      // If the user requesting the token is the reader, they are the host
-      const isHost = user.id.toString() === readerId.toString();
-      const config = getZegoConfig('live', isHost, isProduction);
-      
-      res.status(200).json({ 
-        token,
-        config,
-        roomId,
-        userId: user.id.toString(),
-        userName: user.fullName || user.username,
-        isHost,
-        appId: getZegoCredentials('live').appId
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Livestream system is being rebuilt. Please try again later.',
+        message: 'The livestream system is currently being migrated to a new provider.'
       });
     } catch (error) {
       console.error('Error generating reader livestream token:', error);
@@ -3690,7 +3621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: 'online' });
   });
   
-  // Start video reading session using Zego
+  // Start video reading session using WebRTC
   app.post('/start-reading/video', authenticate, async (req: Request, res: Response) => {
     try {
       const { clientId, readerId } = req.body;
@@ -3699,60 +3630,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required parameters: clientId, readerId' });
       }
       
-      // Generate unique room ID
-      const timestamp = Date.now();
-      const roomId = `video_${clientId}_${readerId}_${timestamp}`;
+      // Import at run-time to prevent circular dependencies
+      const { webRTCService } = require('./services/webrtc-service');
       
-      // Generate token for client
-      const clientToken = generateZegoToken('video', {
-        userId: clientId.toString(),
-        roomId,
-        userName: 'Client'
-      });
+      // Use WebRTC service to create a session
+      const sessionResult = await webRTCService.createSession(
+        parseInt(readerId.toString()),
+        parseInt(clientId.toString()),
+        'video'
+      );
       
-      // Generate token for reader
-      const readerToken = generateZegoToken('video', {
-        userId: readerId.toString(),
-        roomId,
-        userName: 'Reader'
-      });
+      if (!sessionResult.success) {
+        return res.status(400).json({ 
+          error: sessionResult.error || 'Failed to create session',
+          status: 'error'
+        });
+      }
+      
+      const { roomId } = sessionResult;
       
       // Determine if request is from production environment
       const origin = req.headers.origin || '';
       const isProduction = origin.includes('soulseer.app') || 
                           origin.includes('.onrender.com');
       console.log(`Video session request from origin: ${origin}, isProduction: ${isProduction}`);
-                          
-      // Get configs with production-awareness
-      const clientConfig = getZegoConfig('video', false, isProduction); // client is not host
-      const readerConfig = getZegoConfig('video', true, isProduction);  // reader is host
       
-      // Create a session record
-      sessionService.createSession(
-        parseInt(readerId.toString()),
-        parseInt(clientId.toString()),
-        roomId,
-        'Reader', // Placeholder name
-        'Client',  // Placeholder name
-        'video'    // Reading type
-      );
-      
-      console.log(`Created new video reading session: ${roomId}`);
-      
-      // Return tokens and room information
+      // Return session information
       res.json({
         roomId,
-        appId: process.env.ZEGO_VIDEO_APP_ID || '',
-        client: {
-          userId: clientId.toString(),
-          token: clientToken,
-          config: clientConfig
-        },
-        reader: {
-          userId: readerId.toString(),
-          token: readerToken,
-          config: readerConfig
-        }
+        clientId: parseInt(clientId.toString()),
+        readerId: parseInt(readerId.toString()),
+        sessionType: 'video',
+        status: 'created'
       });
     } catch (error) {
       console.error('Error starting video session:', error);
@@ -3760,7 +3669,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Start voice reading session using Zego
+  // Start voice reading session using WebRTC
   app.post('/start-reading/voice', authenticate, async (req: Request, res: Response) => {
     try {
       const { clientId, readerId } = req.body;
@@ -3769,60 +3678,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required parameters: clientId, readerId' });
       }
       
-      // Generate unique room ID
-      const timestamp = Date.now();
-      const roomId = `voice_${clientId}_${readerId}_${timestamp}`;
+      // Import at run-time to prevent circular dependencies
+      const { webRTCService } = require('./services/webrtc-service');
       
-      // Generate token for client
-      const clientToken = generateZegoToken('phone', {
-        userId: clientId.toString(),
-        roomId,
-        userName: 'Client'
-      });
+      // Use WebRTC service to create a session
+      const sessionResult = await webRTCService.createSession(
+        parseInt(readerId.toString()),
+        parseInt(clientId.toString()),
+        'voice'
+      );
       
-      // Generate token for reader
-      const readerToken = generateZegoToken('phone', {
-        userId: readerId.toString(),
-        roomId,
-        userName: 'Reader'
-      });
+      if (!sessionResult.success) {
+        return res.status(400).json({ 
+          error: sessionResult.error || 'Failed to create session',
+          status: 'error'
+        });
+      }
+      
+      const { roomId } = sessionResult;
       
       // Determine if request is from production environment
       const origin = req.headers.origin || '';
       const isProduction = origin.includes('soulseer.app') || 
                           origin.includes('.onrender.com');
       console.log(`Voice session request from origin: ${origin}, isProduction: ${isProduction}`);
-                          
-      // Get configs with production-awareness
-      const clientConfig = getZegoConfig('phone', false, isProduction); // client is not host
-      const readerConfig = getZegoConfig('phone', true, isProduction);  // reader is host
       
-      // Create a session record
-      sessionService.createSession(
-        parseInt(readerId.toString()),
-        parseInt(clientId.toString()),
-        roomId,
-        'Reader', // Placeholder name
-        'Client',  // Placeholder name
-        'voice'    // Reading type
-      );
-      
-      console.log(`Created new voice reading session: ${roomId}`);
-      
-      // Return tokens and room information
+      // Return session information
       res.json({
         roomId,
-        appId: process.env.ZEGO_PHONE_APP_ID || '',
-        client: {
-          userId: clientId.toString(),
-          token: clientToken,
-          config: clientConfig
-        },
-        reader: {
-          userId: readerId.toString(),
-          token: readerToken,
-          config: readerConfig
-        }
+        clientId: parseInt(clientId.toString()),
+        readerId: parseInt(readerId.toString()),
+        sessionType: 'voice',
+        status: 'created'
       });
     } catch (error) {
       console.error('Error starting voice session:', error);
@@ -3830,7 +3717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Start chat reading session using Zego
+  // Start chat reading session using WebRTC
   app.post('/start-reading/chat', authenticate, async (req: Request, res: Response) => {
     try {
       const { clientId, readerId } = req.body;
@@ -3839,60 +3726,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing required parameters: clientId, readerId' });
       }
       
-      // Generate unique room ID
-      const timestamp = Date.now();
-      const roomId = `chat_${clientId}_${readerId}_${timestamp}`;
+      // Import at run-time to prevent circular dependencies
+      const { webRTCService } = require('./services/webrtc-service');
       
-      // Generate token for client
-      const clientToken = generateZegoToken('chat', {
-        userId: clientId.toString(),
-        roomId,
-        userName: 'Client'
-      });
+      // Use WebRTC service to create a session
+      const sessionResult = await webRTCService.createSession(
+        parseInt(readerId.toString()),
+        parseInt(clientId.toString()),
+        'chat'
+      );
       
-      // Generate token for reader
-      const readerToken = generateZegoToken('chat', {
-        userId: readerId.toString(),
-        roomId,
-        userName: 'Reader'
-      });
+      if (!sessionResult.success) {
+        return res.status(400).json({ 
+          error: sessionResult.error || 'Failed to create session',
+          status: 'error'
+        });
+      }
+      
+      const { roomId } = sessionResult;
       
       // Determine if request is from production environment
       const origin = req.headers.origin || '';
       const isProduction = origin.includes('soulseer.app') || 
                           origin.includes('.onrender.com');
       console.log(`Chat session request from origin: ${origin}, isProduction: ${isProduction}`);
-                          
-      // Get configs with production-awareness
-      const clientConfig = getZegoConfig('chat', false, isProduction); // client is not host
-      const readerConfig = getZegoConfig('chat', true, isProduction);  // reader is host
       
-      // Create a session record
-      sessionService.createSession(
-        parseInt(readerId.toString()),
-        parseInt(clientId.toString()),
-        roomId,
-        'Reader', // Placeholder name
-        'Client',  // Placeholder name
-        'chat'     // Reading type
-      );
-      
-      console.log(`Created new chat reading session: ${roomId}`);
-      
-      // Return tokens and room information
+      // Return session information
       res.json({
         roomId,
-        appId: process.env.ZEGO_CHAT_APP_ID || '',
-        client: {
-          userId: clientId.toString(),
-          token: clientToken,
-          config: clientConfig
-        },
-        reader: {
-          userId: readerId.toString(),
-          token: readerToken,
-          config: readerConfig
-        }
+        clientId: parseInt(clientId.toString()),
+        readerId: parseInt(readerId.toString()),
+        sessionType: 'chat',
+        status: 'created'
       });
     } catch (error) {
       console.error('Error starting chat session:', error);
@@ -3927,7 +3792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recording token endpoint for admins - upgraded to use Zego Cloud
+  // Recording token endpoint for admins - new implementation
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
       const { room } = req.body;
@@ -3945,24 +3810,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                          
       console.log(`Generating recording token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      // Generate token using Zego service with longer expiration (2 hours)
-      const token = generateZegoToken('live', {
-        userId: user.id.toString(),
+      // TODO: Implement new recording token generation for admin
+      console.log('Admin recording token request received: ', {
+        userId: user.id.toString(), 
         roomId: room,
-        userName: user.fullName || user.username,
-        expirationSeconds: 7200 // 2 hours
+        userName: user.fullName || user.username
       });
       
-      // Include Zego configuration for the client
-      const config = getZegoConfig('live', true, isProduction); // Admin is always host
-      
-      res.status(200).json({ 
-        token,
-        config,
-        roomId: room,
-        userId: user.id.toString(),
-        userName: user.fullName || user.username,
-        appId: getZegoCredentials('live').appId
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Recording system is being rebuilt. Please try again later.',
+        message: 'The recording system is currently being migrated to a new provider.'
       });
     } catch (error) {
       console.error('Error generating recording token:', error);
@@ -3970,7 +3828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Session management routes
+  // Session management routes using WebRTC service
   app.post('/api/sessions/token', authenticate, async (req: Request, res: Response) => {
     try {
       const { userId, userName, readerId, readerName, roomName, readingType } = req.body;
@@ -3984,37 +3842,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      // Determine communication type for Zego (default to 'video')
-      let zegoType: 'chat' | 'phone' | 'video' | 'live' = 'video';
-      
-      if (readingType === 'chat') {
-        zegoType = 'chat';
-      } else if (readingType === 'voice') {
-        zegoType = 'phone';
-      } else if (readingType === 'livestream') {
-        zegoType = 'live';
-      }
-      
-      // Generate token using Zego service
-      const token = generateZegoToken(zegoType, {
-        userId: userId.toString(),
-        roomId: roomName,
-        userName: userName
+      console.log('Session token request received: ', {
+        userId, 
+        userName,
+        readerId,
+        readerName,
+        roomName,
+        readingType
       });
-      
-      // Determine if request is from production environment
-      const origin = req.headers.origin || '';
-      const isProduction = origin.includes('soulseer.app') || 
-                          origin.includes('.onrender.com') || 
-                          req.body.environment === 'production';
-      console.log(`Session token request from origin: ${origin}, isProduction: ${isProduction}`);
-                          
-      // Get configuration based on reading type and environment
-      const config = getZegoConfig(
-        zegoType, 
-        user.id.toString() === readerId.toString(), // isHost = true if this is the reader
-        isProduction
-      );
       
       // Create session record if this is a new session
       const existingSession = sessionService.getSessionByRoomName(roomName);
@@ -4025,19 +3860,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           parseInt(userId.toString()),
           roomName,
           readerName,
-          userName
+          userName,
+          readingType || 'video' // Make sure to pass the reading type, default to video
         );
         
         console.log(`Created new session record for room: ${roomName}`);
       }
       
-      res.status(200).json({ 
-        token,
-        config,
-        roomId: roomName,
-        userId: userId.toString(),
-        userName,
-        zegoType
+      // Return a success response with the session details
+      // The WebRTC signaling will be handled through Socket.IO connections
+      res.json({
+        success: true,
+        roomName,
+        userId: parseInt(userId.toString()),
+        readerId: parseInt(readerId.toString()),
+        readingType: readingType || 'video',
+        message: 'Session created. Use WebRTC signaling for connection.'
       });
     } catch (error) {
       console.error('Error generating session token:', error);

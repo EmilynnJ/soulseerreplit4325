@@ -1,0 +1,142 @@
+SoulSeer RTC Pay-Per-Minute System (Fully Coded with Stripe, WebRTC, and JSON Storage)
+
+I’m building a fully custom RTC pay-per-minute system for my psychic reading platform, SoulSeer. This app must include video, voice, and chat sessions between a client and a reader, with real-time billing every minute using Stripe and file-based JSON storage only (no MongoDB or mock users).
+
+Please generate the backend and frontend using the following structure and instructions:
+
+
+---
+
+1. FILE STRUCTURE
+
+/soulseer-rtc
+├── public/
+│   ├── index.html           // Register + login UI
+│   ├── dashboard.html       // Reader/client dashboard
+│   ├── session.html         // RTC session with timer
+│   ├── style.css            // UI styling
+│   └── client.js            // Frontend WebRTC + socket logic
+├── server.js                // Main Express + Socket.IO server
+├── signaling.js             // WebRTC signaling logic
+├── logic/
+│   ├── users.json           // Dynamic user data (no mock users)
+│   ├── sessions.json        // Past session logs
+│   ├── earnings.json        // Reader earnings
+├── routes/
+│   ├── auth.js              // Register/login endpoints
+│   ├── session.js           // Timer, session start/end logic
+│   ├── stripe.js            // Stripe balance endpoints
+├── .env                     // STRIPE_SECRET_KEY
+├── package.json
+
+
+---
+
+2. FUNCTIONAL REQUIREMENTS
+
+A. User Registration & Login
+
+Readers must set a per-minute rate.
+
+Data saved dynamically in users.json.
+
+Login checks credentials and redirects based on user role.
+
+
+
+C. WebRTC + Signaling
+
+Use WebRTC for peer-to-peer video, audio and chat.
+
+Use Socket.IO for signaling:
+
+Offer/answer exchange
+
+ICE candidate handling
+
+
+Only allow RTC sessions between one client and one available reader.
+
+
+D. Pay-Per-Minute Billing Logic
+
+Start session timer when both users connect.
+
+Track time in seconds.
+
+Every 60 seconds:
+
+Deduct reader’s rate from client balance
+
+Add to reader earnings
+
+Log updates to users.json and earnings.json
+
+
+If balance reaches $0, auto-end the session.
+
+Prompt Client they’re low on funds when their balance reaches $2
+
+All session data saved to sessions.json.
+
+
+E. Stripe Integration
+
+Use keys from .env.
+
+Create a route /add-funds:
+
+Accepts amount and user ID.
+
+On success, updates that user’s balance in users.json.
+
+
+Also create /check-balance for client-side polling.
+
+
+F. Session Summary
+
+When session ends, show:
+
+Duration
+
+Total charged
+
+Reader earned
+
+
+Option to return to dashboard
+
+
+
+---
+
+3. FILE-BASED STORAGE
+
+Use Node’s fs module to read/write all user, session, and earnings data.
+
+No third-party databases or mock data.
+
+All users, sessions, balances, and earnings must be created and updated dynamically in JSON files.
+
+
+
+---
+
+4. SECURITY + RELIABILITY
+
+Use bcrypt to hash passwords.
+
+Sanitize and validate all user inputs.
+
+Prevent race conditions or data overwrites during file writes.
+
+Use try/catch in file operations.
+
+5. Additional Information
+
+Site is at domain soulseer.app
+
+Site is deployed by Render
+
+!*******Ensure everything is being sent to and received from soulseer.app*******!!!

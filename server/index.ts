@@ -100,6 +100,15 @@ app.use((req, res, next) => {
   }
   
   const server = await registerRoutes(app);
+  
+  // Initialize the WebRTC service with the HTTP server
+  try {
+    const { webRTCService } = await import('./services/webrtc-service');
+    webRTCService.initialize(server);
+    console.log('WebRTC service initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize WebRTC service:', error);
+  }
 
   // Initialize the daily reader payout scheduler
   try {
