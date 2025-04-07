@@ -90,15 +90,15 @@ export default function ReaderProfilePage() {
       }
 
       const data = await response.json();
-      
+
       toast({
         title: "Reading Created",
         description: "Your reading session is being set up.",
       });
-      
+
       // Refresh readings data
       queryClient.invalidateQueries({ queryKey: ['/api/readings/client'] });
-      
+
       // Navigate to dashboard to see the reading
       navigate("/dashboard");
 
@@ -132,7 +132,7 @@ export default function ReaderProfilePage() {
     try {
       // Determine the right price based on reading type and duration
       let fixedPrice = 0;
-      
+
       // Get price from reader's fixed-price scheduled reading rates
       if (scheduledReadingOptions.type === "chat") {
         if (scheduledReadingOptions.duration === 15) {
@@ -168,7 +168,7 @@ export default function ReaderProfilePage() {
           fixedPrice = (reader.pricingVideo || 0) * scheduledReadingOptions.duration;
         }
       }
-      
+
       if (fixedPrice <= 0) {
         throw new Error(`${reader.fullName} has not set pricing for ${scheduledReadingOptions.duration}-minute ${scheduledReadingOptions.type} readings`);
       }
@@ -194,7 +194,7 @@ export default function ReaderProfilePage() {
         window.location.href = data.paymentLink;
         return;
       }
-      
+
       toast({
         title: "Reading Scheduled",
         description: "Your reading has been scheduled. Please complete payment.",
@@ -287,7 +287,7 @@ export default function ReaderProfilePage() {
               <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-4 rounded-b-lg">
                 <h2 className="font-alex text-3xl text-accent text-center">{reader.fullName}</h2>
               </div>
-              
+
               {reader.specialties && reader.specialties.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-2">
                   {reader.specialties.slice(0, 3).map((specialty, index) => (
@@ -297,7 +297,7 @@ export default function ReaderProfilePage() {
                   ))}
                 </div>
               )}
-              
+
               {reader.isOnline && (
                 <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full flex items-center">
                   <span className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></span>
@@ -671,7 +671,7 @@ export default function ReaderProfilePage() {
                         >
                           15 Minutes
                         </button>
-                        
+
                         <button
                           onClick={() => setScheduledReadingOptions(prev => ({ ...prev, duration: 30 }))}
                           className={`flex-1 px-4 py-2 rounded-md flex items-center justify-center ${
@@ -694,7 +694,7 @@ export default function ReaderProfilePage() {
                           60 Minutes
                         </button>
                       </div>
-                      
+
                       <p className="text-xs text-light/60 mt-1">
                         Fixed-price readings available in 15, 30, or 60 minute increments.
                       </p>
@@ -765,7 +765,7 @@ export default function ReaderProfilePage() {
                             )}
                           </span>
                         </div>
-                        
+
                         {/* Show warning if price is not set */}
                         {(
                           (scheduledReadingOptions.type === "chat" && 

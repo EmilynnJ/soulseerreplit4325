@@ -38,7 +38,11 @@ export function ReaderCard({ reader }: ReaderCardProps) {
         <div className="mx-auto w-16 h-16 rounded-full overflow-hidden mb-2 border-2 border-accent/30">
           {reader.profileImage ? (
             <img 
-              src={reader.profileImage}
+              src={reader.profileImage.startsWith('http') 
+                ? reader.profileImage 
+                : reader.profileImage.startsWith('/uploads') 
+                  ? reader.profileImage 
+                  : `/uploads/${reader.profileImage}`}
               alt={reader.fullName}
               className="w-full h-full object-cover"
               onError={(e) => {
