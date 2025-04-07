@@ -16,6 +16,7 @@ import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
 import { livekitService } from "./services/livekit-service";
+import { generateZegoToken, getZegoConfig } from './services/zego-service';
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -3360,7 +3361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
       // Extract user information from request
-      const { userId, roomId, room, userName } = req.body;
+      const { userId, roomId, room, userName, readingType } = req.body;
       const user = req.user as User;
       
       if (!user) {
@@ -3372,16 +3373,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actualRoomId = roomId || room || `default_room_${Date.now()}`;
       const actualUserName = userName || user.fullName || user.username;
       
-      // Generate token using LiveKit service
-      const token = livekitService.generateToken(
-        actualUserId, 
-        actualRoomId, 
-        actualUserName
-      );
+      // Determine communication type for Zego (default to 'video')
+      let zegoType: 'chat' | 'phone' | 'video' | 'live' = 'video';
       
-      res.status(200).json({ token });
+      if (readingType === 'chat') {
+        zegoType = 'chat';
+      } else if (readingType === 'voice') {
+        zegoType = 'phone';
+      } else if (readingType === 'livestream') {
+        zegoType = 'live';
+      }
+      
+      // Generate token using Zego service
+      const token = generateZegoToken(zegoType, {
+        userId: actualUserId.toString(),
+        roomId: actualRoomId,
+        userName: actualUserName
+      });
+      
+      // Include Zego configuration for the client
+      const config = getZegoConfig(zegoType, true); // isHost=true
+      
+      res.status(200).json({ 
+        token,
+        config,
+        roomId: actualRoomId,
+        userId: actualUserId.toString(),
+        userName: actualUserName
+      });
     } catch (error) {
-      console.error('Error generating LiveKit token:', error);
+      console.error('Error generating Zego token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
     }
   });
@@ -3531,31 +3552,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Session management routes
   app.post('/api/sessions/token', authenticate, async (req: Request, res: Response) => {
     try {
-      
-      const { userId, userName, readerId, readerName, roomName } = req.body;
+      const { userId, userName, readerId, readerName, roomName, readingType } = req.body;
       
       if (!userId || !readerId || !roomName || !userName || !readerName) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
+      
       const user = req.user;
       if (!user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      // Generate token
-      const token = livekitService.generateToken(
-        userId,
-        roomName,
-        userName
-      );
+      // Determine communication type for Zego (default to 'video')
+      let zegoType: 'chat' | 'phone' | 'video' | 'live' = 'video';
+      
+      if (readingType === 'chat') {
+        zegoType = 'chat';
+      } else if (readingType === 'voice') {
+        zegoType = 'phone';
+      } else if (readingType === 'livestream') {
+        zegoType = 'live';
+      }
+      
+      // Generate token using Zego service
+      const token = generateZegoToken(zegoType, {
+        userId: userId.toString(),
+        roomId: roomName,
+        userName: userName
+      });
+      
+      // Get configuration based on reading type
+      const config = getZegoConfig(zegoType, user.id.toString() === readerId.toString()); // isHost = true if this is the reader
       
       // Create session record if this is a new session
       const existingSession = sessionService.getSessionByRoomName(roomName);
       
       if (!existingSession) {
         sessionService.createSession(
-          parseInt(readerId),
-          userId,
+          parseInt(readerId.toString()),
+          parseInt(userId.toString()),
           roomName,
           readerName,
           userName
@@ -3564,7 +3599,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Created new session record for room: ${roomName}`);
       }
       
-      res.status(200).json({ token });
+      res.status(200).json({ 
+        token,
+        config,
+        roomId: roomName,
+        userId: userId.toString(),
+        userName,
+        zegoType
+      });
     } catch (error) {
       console.error('Error generating session token:', error);
       res.status(500).json({ error: 'Failed to generate session token' });
