@@ -336,9 +336,14 @@ export function ReaderDashboard() {
               />
             </div>
             <div className="mt-2">
-              <Badge className={isOnline ? "bg-green-500" : "bg-red-500"}>
+              <Badge className={isOnline ? "bg-green-500 text-white" : "bg-red-500 text-white"}>
                 {isOnline ? "Online" : "Offline"}
               </Badge>
+              <div className="text-xs mt-1 text-gray-400">
+                {isOnline 
+                  ? "You are visible to clients" 
+                  : "You are not visible to clients"}
+              </div>
             </div>
           </CardContent>
         </Card>
