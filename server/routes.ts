@@ -2501,6 +2501,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startedAt: new Date()
       });
 
+      // Create WebRTC session for this reading
+      try {
+        // Import the WebRTC service at runtime to avoid circular dependencies
+        const { webRTCService } = require('./services/webrtc-service');
+        
+        // Initialize WebRTC session
+        const sessionResult = await webRTCService.createSession(
+          reading.readerId,
+          reading.clientId,
+          reading.type || 'video'
+        );
+        
+        console.log(`WebRTC session created for reading ${id}: ${JSON.stringify(sessionResult)}`);
+      } catch (webrtcError) {
+        console.error(`Failed to create WebRTC session for reading ${id}:`, webrtcError);
+        // Continue with notification even if WebRTC session creation fails
+      }
+
       // Notify both participants
       (global as any).websocket.notifyUser(reading.clientId, {
         type: 'reading_started',
@@ -2714,6 +2732,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching user balance:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get specific user by ID
+  app.get('/api/users/:id', async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return only public information about the user
+      const publicUserInfo = {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        profileImage: user.profileImage,
+        role: user.role,
+        bio: user.bio,
+        specialties: user.specialties,
+        isOnline: user.isOnline || false,
+        reviewCount: user.reviewCount || 0,
+        averageRating: user.averageRating || 0
+      };
+      
+      res.json(publicUserInfo);
+    } catch (error: any) {
+      console.error("Error fetching user:", error);
       res.status(500).json({ message: error.message });
     }
   });

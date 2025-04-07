@@ -13,22 +13,24 @@ import { Reading } from '@shared/schema';
 import { PATHS } from '@/lib/constants';
 
 /**
- * Reading session page - Zego Cloud integration
+ * Reading session page - WebRTC implementation
  * 
- * Uses Zego Cloud for video/voice/chat sessions
+ * Uses custom WebRTC solution for video/voice/chat sessions
  */
 export default function ReadingSessionPage() {
   const params = useParams();
   const [_, setLocation] = useLocation();
   const { toast } = useToast();
-  // Zego session token
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [isStartingSession, setIsStartingSession] = useState(false);
+  const [sessionInitialized, setSessionInitialized] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isStartingSession, setIsStartingSession] = useState(false);
   
   // Get the reading ID from URL params
   const readingId = parseInt(params.id || '0');
+  
+  // Keep track of the reader name
+  const [readerName, setReaderName] = useState<string>('Reader');
   
   // Fetch reading data
   const { 
@@ -39,15 +41,31 @@ export default function ReadingSessionPage() {
   } = useQuery<Reading>({
     queryKey: ['/api/readings', readingId],
     enabled: Boolean(readingId),
+    onSuccess: async (data) => {
+      // Fetch reader info when we get reading data
+      if (data?.readerId) {
+        try {
+          const response = await apiRequest('GET', `/api/users/${data.readerId}`);
+          if (response.ok) {
+            const readerData = await response.json();
+            setReaderName(readerData.fullName || readerData.username || 'Reader');
+          }
+        } catch (error) {
+          console.error('Failed to fetch reader info:', error);
+        }
+      }
+    }
   });
   
   // Mutation for starting the reading session
   const startReadingMutation = useMutation({
     mutationFn: async () => {
+      console.log(`Starting reading ${readingId}`);
       const response = await apiRequest('POST', `/api/readings/${readingId}/start`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Reading started successfully:', data);
       toast({
         title: "Reading Started",
         description: "Your reading session has been started successfully.",
@@ -91,6 +109,7 @@ export default function ReadingSessionPage() {
   useEffect(() => {
     if (reading && reading.status !== 'in_progress' && !isStartingSession && 
         (reading.status === 'payment_completed' || reading.status === 'waiting_payment')) {
+      console.log('Initiating reading session start...');
       setIsStartingSession(true);
       startReadingMutation.mutate();
     }
@@ -106,74 +125,6 @@ export default function ReadingSessionPage() {
   
   // Get user from auth context
   const { user } = useAuth();
-  
-  // Get Zego session token for the reading once it's in_progress
-  useEffect(() => {
-    const fetchToken = async () => {
-      if (!reading || reading.status !== 'in_progress' || !user?.id) {
-        console.log('Skipping token fetch - conditions not met:', { 
-          hasReading: !!reading, 
-          status: reading?.status, 
-          hasUser: !!user?.id 
-        });
-        return;
-      }
-      
-      setIsLoading(true);
-      try {
-        console.log('Fetching Zego token for reading session', readingId);
-        
-        // Add deployment environment information
-        const origin = window.location.origin;
-        const isProduction = origin.includes('soulseer.app') || 
-                           origin.includes('.onrender.com') || 
-                           !origin.includes('localhost');
-        
-        console.log(`Request origin: ${origin}, isProduction: ${isProduction}`);
-        
-        const response = await apiRequest('POST', '/api/generate-token', {
-          roomId: `reading-${readingId}`,
-          userId: user.id.toString(),
-          readingType: reading.type,
-          environment: isProduction ? 'production' : 'development',
-          origin
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Token request failed:', response.status, errorText);
-          throw new Error(`Failed to get token: ${response.status} ${errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log('Received token data:', { 
-          hasToken: !!data.token, 
-          roomId: data.roomId,
-          readingType: reading.type,
-          zegoType: data.zegoType 
-        });
-        
-        if (!data.token) {
-          throw new Error('No token received from server');
-        }
-        
-        setSessionToken(data.token);
-        setTokenError(null);
-      } catch (error) {
-        console.error('Failed to get session token:', error);
-        setTokenError('Failed to initialize the reading session. Please try again.');
-        toast({
-          title: "Connection Error",
-          description: "Could not establish a connection to the reading session.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    fetchToken();
-  }, [reading, readingId, toast, user?.id]);
   
   // Handle session end
   const handleEndSession = () => {
@@ -379,7 +330,7 @@ export default function ReadingSessionPage() {
               userId={user?.id || 0}
               userName={user?.fullName || 'User'}
               readerId={reading?.readerId || 0}
-              readerName={reading?.readerName || 'Reader'}
+              readerName={readerName}
               sessionType={reading.type}
               isReader={user?.role === 'reader'}
               onSessionEnd={handleEndSession}
