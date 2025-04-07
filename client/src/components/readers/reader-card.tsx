@@ -34,8 +34,30 @@ export function ReaderCard({ reader }: ReaderCardProps) {
           <OnlineStatusBadge isOnline={reader.isOnline || false} className="bg-primary-dark/70 backdrop-blur-sm px-2 py-1 text-xs rounded-full shadow-md" />
         </div>
         
+        {/* Profile picture */}
+        <div className="mx-auto w-16 h-16 rounded-full overflow-hidden mb-2 border-2 border-accent/30">
+          {reader.profileImage ? (
+            <img 
+              src={reader.profileImage}
+              alt={reader.fullName}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.onerror = null; // Prevent infinite loop
+                target.src = "/images/default-profile.svg";
+              }}
+            />
+          ) : (
+            <img 
+              src="/images/default-profile.svg" 
+              alt={reader.fullName} 
+              className="w-full h-full object-cover"
+            />
+          )}
+        </div>
+        
         {/* Reader name as main focus */}
-        <h3 className="text-3xl font-alex text-accent drop-shadow-md mt-4 mb-2">{reader.fullName}</h3>
+        <h3 className="text-3xl font-alex text-accent drop-shadow-md mt-1 mb-2">{reader.fullName}</h3>
       </div>
       
       {/* Card content section - ultra compact to emphasize portrait image */}
