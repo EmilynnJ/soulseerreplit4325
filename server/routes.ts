@@ -2503,10 +2503,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create WebRTC session for this reading
       try {
-        // Import the WebRTC service at runtime to avoid circular dependencies
-        const { webRTCService } = require('./services/webrtc-service');
+        // Import the WebRTC service directly
+        const { webRTCService } = await import('./services/webrtc-service');
         
-        // Initialize WebRTC session
+        // Generate proper room ID format for WebRTC session (reading-{id})
+        const roomId = `reading-${id}`;
+        
+        // Get reader and client names
+        const reader = await storage.getUser(reading.readerId);
+        const client = await storage.getUser(reading.clientId);
+        
+        // Create session in session service for historical records
         const sessionResult = await webRTCService.createSession(
           reading.readerId,
           reading.clientId,

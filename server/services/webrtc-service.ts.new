@@ -547,7 +547,7 @@ class WebRTCService {
                       console.log(`Ending session ${disconnectedUser!.sessionId} due to user ${disconnectedUserId} disconnection`);
                       
                       // Update session status in database
-                      sessionService.updateSession(disconnectedUser!.sessionId as string, {
+                      sessionService.updateSession(disconnectedUser!.sessionId, {
                         status: 'completed',
                         completedAt: new Date()
                       });

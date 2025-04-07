@@ -1,0 +1,16 @@
+[
+  {
+    "id": "ddddaed9-0c60-43c6-8806-8f962ed6f9e1",
+    "roomName": "reading-24-2-1744036512236",
+    "readerId": 24,
+    "clientId": 2,
+    "readerName": "Lauren",
+    "clientName": "Site Administrator",
+    "startTime": "2025-04-07T14:35:12.237Z",
+    "endTime": "",
+    "totalDuration": 0,
+    "totalAmount": 0,
+    "billingRecords": [],
+    "readingType": "video"
+  }
+]

@@ -505,72 +505,112 @@ class WebRTCService {
           
           // Find disconnected user
           let disconnectedUserId: number | null = null;
-          let disconnectedUser: ConnectedUser | null = null;
           
           for (const [userId, user] of this.connectedUsers.entries()) {
             if (user.socketId === socket.id) {
               disconnectedUserId = userId;
-              disconnectedUser = user;
               break;
             }
           }
           
-          if (disconnectedUserId && disconnectedUser) {
-            console.log(`User ${disconnectedUserId} disconnected`);
+          if (disconnectedUserId) {
+            // Get user details
+            const user = this.connectedUsers.get(disconnectedUserId);
             
-            // Update online status in database
-            await this.storage.updateUser(disconnectedUserId, { isOnline: false });
-            
-            // Broadcast offline status to all clients
-            this.broadcastOnlineStatus(disconnectedUserId, false);
-            
-            // Check if user was in a session
-            if (disconnectedUser.inSession && disconnectedUser.sessionId) {
-              // Get session details
-              const session = this.activeSessions.get(disconnectedUser.sessionId);
+            if (user && user.inSession && user.sessionId) {
+              // Handle active session
+              const session = this.activeSessions.get(user.sessionId);
               
               if (session) {
-                // Notify other participants
-                this.io?.to(disconnectedUser.sessionId).emit('user-left', {
-                  userId: disconnectedUserId,
-                  userType: disconnectedUser.userType,
-                  timestamp: new Date()
-                });
-                
-                // Wait a bit before ending the session to allow for reconnection
-                setTimeout(async () => {
-                  // Check if user reconnected
-                  const reconnectedUser = this.connectedUsers.get(disconnectedUserId!);
-                  if (!reconnectedUser || !reconnectedUser.inSession) {
-                    // User did not reconnect, end the session
-                    if (disconnectedUser!.sessionId) {
-                      console.log(`Ending session ${disconnectedUser!.sessionId} due to user ${disconnectedUserId} disconnection`);
+                // Automatically end session if client disconnects
+                // For reader, wait a bit to allow for reconnection
+                if (user.userType === 'client' || (user.userType === 'reader' && session.status === 'waiting')) {
+                  // End session
+                  session.status = 'ended';
+                  this.activeSessions.set(user.sessionId, session);
+                  
+                  // Notify remaining users
+                  this.io?.to(user.sessionId).emit('session-ended', {
+                    roomId: user.sessionId,
+                    timestamp: new Date(),
+                    duration: session.duration,
+                    reason: 'user_disconnected'
+                  });
+                  
+                  // Update database session
+                  sessionService.updateSession(user.sessionId, {
+                    status: 'completed',
+                    duration: session.duration,
+                    price: session.billingDetails?.totalAmount || 0,
+                    completedAt: new Date()
+                  });
+                  
+                  // Remove session from active sessions
+                  this.activeSessions.delete(user.sessionId);
+                  
+                  console.log(`Session ${user.sessionId} ended due to user ${disconnectedUserId} disconnection`);
+                } else if (user.userType === 'reader' && session.status === 'connected') {
+                  // For reader, set a timer to end session if they don't reconnect
+                  setTimeout(() => {
+                    // Check if user has reconnected
+                    const reconnectedUser = this.connectedUsers.get(disconnectedUserId as number);
+                    
+                    if (!reconnectedUser || (reconnectedUser.socketId !== socket.id && reconnectedUser.inSession && reconnectedUser.sessionId === user.sessionId)) {
+                      // User has reconnected
+                      return;
+                    }
+                    
+                    // User has not reconnected, end session
+                    const sessionToEnd = this.activeSessions.get(user.sessionId as string);
+                    
+                    if (sessionToEnd && sessionToEnd.status !== 'ended') {
+                      // End session
+                      sessionToEnd.status = 'ended';
+                      this.activeSessions.set(user.sessionId as string, sessionToEnd);
                       
-                      // Update session status in database
-                      sessionService.updateSession(disconnectedUser!.sessionId as string, {
+                      // Notify remaining users
+                      this.io?.to(user.sessionId as string).emit('session-ended', {
+                        roomId: user.sessionId,
+                        timestamp: new Date(),
+                        duration: sessionToEnd.duration,
+                        reason: 'reader_disconnect_timeout'
+                      });
+                      
+                      // Update database session
+                      sessionService.updateSession(user.sessionId as string, {
                         status: 'completed',
+                        duration: sessionToEnd.duration,
+                        price: sessionToEnd.billingDetails?.totalAmount || 0,
                         completedAt: new Date()
                       });
                       
-                      // Notify remaining participants
-                      this.io?.to(disconnectedUser!.sessionId).emit('session-ended', {
-                        roomId: disconnectedUser!.sessionId,
-                        reason: 'user_disconnected',
-                        userId: disconnectedUserId,
-                        userType: disconnectedUser!.userType,
-                        timestamp: new Date()
-                      });
-                      
                       // Remove session from active sessions
-                      this.activeSessions.delete(disconnectedUser!.sessionId);
+                      this.activeSessions.delete(user.sessionId as string);
+                      
+                      console.log(`Session ${user.sessionId} ended due to reader disconnect timeout`);
                     }
-                  }
-                }, 60000); // Wait 60 seconds for reconnection
+                  }, 30000); // 30 seconds timeout for reconnection
+                }
               }
             }
             
             // Remove user from connected users
             this.connectedUsers.delete(disconnectedUserId);
+            
+            // Update online status in database after a short delay
+            // This prevents flashing online/offline during page refresh
+            setTimeout(async () => {
+              // Check if user has reconnected
+              if (!this.connectedUsers.has(disconnectedUserId as number)) {
+                // Update status to offline
+                await this.storage.updateUser(disconnectedUserId as number, { isOnline: false });
+                
+                // Broadcast online status change
+                this.broadcastOnlineStatus(disconnectedUserId as number, false);
+                
+                console.log(`User ${disconnectedUserId} marked as offline`);
+              }
+            }, 5000); // 5 seconds delay
           }
         } catch (error) {
           console.error('Error handling disconnect:', error);
@@ -585,7 +625,9 @@ class WebRTCService {
    * @param isOnline Online status
    */
   private broadcastOnlineStatus(userId: number, isOnline: boolean) {
-    if (!this.io) return;
+    if (!this.io) {
+      return;
+    }
     
     this.io.emit('user-status-change', {
       userId,
@@ -593,6 +635,11 @@ class WebRTCService {
       timestamp: new Date()
     });
   }
+
+  /**
+   * Get a list of online readers
+   * @returns Array of reader IDs
+   */
 
   /**
    * Check if a user is online
