@@ -16,6 +16,9 @@ import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
 
+// Set up multer for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
+
 // Authentication middleware
 const authenticate = (req: Request, res: Response, next: NextFunction) => {
   if (!req.isAuthenticated()) {
@@ -48,18 +51,10 @@ const adminOnly = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-// Handle uploads directory path based on environment
-// Use fileURLToPath and dirname for ES modules
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+// No longer using fileURLToPath and dirname
 
-// ES Module alternative for __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const uploadsPath = process.env.NODE_ENV === 'production' 
-  ? path.join(dirname(dirname(__filename)), 'public', 'uploads')  // Go up two levels from routes.ts
-  : path.join(process.cwd(), 'public', 'uploads');
+// Define the uploads path
+const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
 
 // Password hashing function
 const scryptAsync = promisify(scrypt);
@@ -431,6 +426,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to update reader status:", error);
       res.status(500).json({ message: "Failed to update status" });
+    }
+  });
+
+  // Update reader profile (including profile image)
+  app.patch("/api/readers/profile", authenticate, upload.single('profileImage'), async (req: any, res: any) => {
+    if (!req.user || req.user.role !== "reader") {
+      return res.status(403).json({ message: "Not authorized. Reader access required." });
+    }
+
+    try {
+      // Ensure uploads directory exists
+      if (!fs.existsSync(uploadsPath)) {
+        fs.mkdirSync(uploadsPath, { recursive: true });
+      }
+
+      const { fullName, bio, specialties } = req.body;
+      
+      // Parse specialties if it's a JSON string
+      let parsedSpecialties = [];
+      try {
+        parsedSpecialties = JSON.parse(specialties || '[]');
+      } catch (e) {
+        parsedSpecialties = specialties || [];
+      }
+
+      // Handle profile image if uploaded
+      let profileImageUrl = req.user.profileImage;
+      if (req.file) {
+        console.log(`Processing new profile image upload for reader ${req.user.id}`);
+        const filename = `${Date.now()}-${req.file.originalname}`;
+        const filepath = path.join(uploadsPath, filename);
+        fs.writeFileSync(filepath, req.file.buffer);
+        profileImageUrl = `/uploads/${filename}`;
+        console.log(`New profile image saved at: ${profileImageUrl}`);
+      }
+
+      // Update reader profile
+      const updateData = {
+        fullName: fullName || req.user.fullName,
+        bio: bio || req.user.bio,
+        specialties: parsedSpecialties,
+        profileImage: profileImageUrl
+      };
+      
+      console.log(`Updating reader ${req.user.id} profile with:`, updateData);
+      
+      const updatedReader = await storage.updateUser(req.user.id, updateData);
+
+      // Remove sensitive information
+      const safeReader = updatedReader ? { ...updatedReader } : null;
+      if (safeReader && 'password' in safeReader) {
+        delete (safeReader as any).password;
+      }
+      
+      res.json(safeReader);
+    } catch (error) {
+      console.error("Error updating reader profile:", error);
+      res.status(500).json({ message: "Failed to update reader profile" });
     }
   });
 
@@ -2873,8 +2926,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get all users (admin only)
 
-  // Configure multer for memory storage
-  const upload = multer({ 
+  // Configure multer for memory storage with enhanced options
+  const upload2 = multer({ 
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 5 * 1024 * 1024, // limit to 5MB
@@ -2910,7 +2963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin endpoint to update readers
-  app.patch("/api/admin/readers/:id", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
+  app.patch("/api/admin/readers/:id", requireAdmin, upload2.single('profileImage'), async (req: any, res: any) => {
     try {
       const readerId = parseInt(req.params.id);
       if (isNaN(readerId)) {
@@ -2984,7 +3037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin endpoint to add new readers with profile image
-  app.post("/api/admin/readers", requireAdmin, upload.single('profileImage'), async (req: any, res: any) => {
+  app.post("/api/admin/readers", requireAdmin, upload2.single('profileImage'), async (req: any, res: any) => {
     try {
       console.log("Reader form submission received:", req.body);
       const { username, password, email, fullName, bio, ratePerMinute, specialties } = req.body;

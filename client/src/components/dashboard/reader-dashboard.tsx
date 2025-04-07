@@ -98,7 +98,23 @@ export function ReaderDashboard() {
     bio: user?.bio || '',
     specialties: user?.specialties || []
   });
+  
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Handle file upload for profile picture
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfileImage(file);
+      
+      // Create URL for preview
+      const previewUrl = URL.createObjectURL(file);
+      setPreviewImageUrl(previewUrl);
+    }
+  };
+  
   const handleUpdateProfile = async () => {
     try {
       const formData = new FormData();
@@ -111,6 +127,11 @@ export function ReaderDashboard() {
           formData.append(key, String(value));
         }
       });
+      
+      // Add profile image if one was selected
+      if (profileImage) {
+        formData.append('profileImage', profileImage);
+      }
 
       const response = await fetch('/api/readers/profile', {
         method: 'PATCH',
@@ -778,7 +799,51 @@ export function ReaderDashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Profile images have been removed from the system */}
+            {/* Profile Image Upload */}
+            <div className="space-y-2">
+              <Label>Profile Image</Label>
+              <div className="flex items-center gap-4">
+                <div 
+                  className="h-20 w-20 rounded-full overflow-hidden bg-muted flex items-center justify-center"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {previewImageUrl ? (
+                    <img 
+                      src={previewImageUrl} 
+                      alt="Profile preview" 
+                      className="h-full w-full object-cover" 
+                    />
+                  ) : user?.profileImage ? (
+                    <img 
+                      src={user.profileImage} 
+                      alt={user.fullName} 
+                      className="h-full w-full object-cover" 
+                    />
+                  ) : (
+                    <UserIcon className="h-10 w-10 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  <Button 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()} 
+                    className="w-full mb-2"
+                  >
+                    Choose Image
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Upload a professional portrait (max 5MB)
+                  </p>
+                </div>
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
