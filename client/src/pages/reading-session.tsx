@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useParams } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,15 +13,15 @@ import { Reading } from '@shared/schema';
 import { PATHS } from '@/lib/constants';
 
 /**
- * Reading session page - LiveKit removed
+ * Reading session page - LiveKit integration
  * 
- * Will be updated to use Zego Cloud for video/audio sessions
+ * Uses LiveKit for video/audio sessions
  */
 export default function ReadingSessionPage() {
   const params = useParams();
   const [_, setLocation] = useLocation();
   const { toast } = useToast();
-  // Previously LiveKit token, will be replaced with Zego Cloud token
+  // LiveKit session token
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,8 +104,7 @@ export default function ReadingSessionPage() {
     }
   }, [startReadingMutation.isError, startReadingMutation.isSuccess, reading?.status]);
   
-  // Get session token for the reading once it's in_progress
-  // Previously used LiveKit, will be replaced with Zego Cloud
+  // Get LiveKit session token for the reading once it's in_progress
   useEffect(() => {
     const fetchToken = async () => {
       if (!reading || reading.status !== 'in_progress') return;
@@ -150,8 +150,17 @@ export default function ReadingSessionPage() {
   };
   
   // Handle back button
+  // Get user from auth context
+  const { user } = useAuth();
+  
   const handleBack = () => {
-    setLocation(PATHS.DASHBOARD);
+    // Check if this is a reader and redirect them to their sessions page if they are
+    if (user?.role === 'reader') {
+      setLocation(`/reader-sessions/${reading?.readerId}`);
+    } else {
+      // For clients and others, go to the main dashboard
+      setLocation(PATHS.DASHBOARD);
+    }
   };
   
   // Loading state
