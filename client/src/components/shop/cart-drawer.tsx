@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useCart } from "@/hooks/use-cart";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { 
   Sheet, 
   SheetContent, 
@@ -24,6 +24,8 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const [, navigate] = useLocation();
+  
   const handleCheckout = async () => {
     if (!user) {
       onOpenChange(false);
@@ -35,7 +37,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
     try {
       // Close the drawer and navigate to checkout page
       onOpenChange(false);
-      window.location.href = '/checkout';
+      navigate('/checkout');
     } catch (error) {
       setIsProcessing(false);
       console.error('Error proceeding to checkout:', error);
