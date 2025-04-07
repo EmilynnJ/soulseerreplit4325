@@ -109,6 +109,15 @@ app.use((req, res, next) => {
   } catch (error) {
     console.error('Failed to initialize WebRTC service:', error);
   }
+  
+  // Initialize the Livestream service with the HTTP server
+  try {
+    const { livestreamService } = await import('./services/livestream-service');
+    livestreamService.initialize(server);
+    console.log('Livestream service initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Livestream service:', error);
+  }
 
   // Initialize the daily reader payout scheduler
   try {

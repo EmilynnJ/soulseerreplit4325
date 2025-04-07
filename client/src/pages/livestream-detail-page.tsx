@@ -21,7 +21,7 @@ import {
   MonitorPlay,
   AlertCircle
 } from "lucide-react";
-import { LiveKitPlayer, LiveKitRecordingPlayer } from "@/components/livestream/livestream-player";
+import { WebRTCLivestream } from "@/components/livestream/webrtc-livestream";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -543,10 +543,12 @@ export default function LivestreamDetailPage() {
                       Loading livestream connection...
                     </p>
                   </div>
-                ) : liveKitToken && livestream.livekitRoomName ? (
-                  <LiveKitPlayer 
-                    roomName={livestream.livekitRoomName} 
-                    token={liveKitToken}
+                ) : livestream && livestream.roomId ? (
+                  <WebRTCLivestream 
+                    roomId={livestream.roomId}
+                    hostId={livestream.userId}
+                    isHost={user?.id === livestream.userId}
+                    title={livestream.title}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full bg-muted/30 rounded-lg p-6">
@@ -561,7 +563,7 @@ export default function LivestreamDetailPage() {
                   </div>
                 )
               ) : livestream.status === "ended" ? (
-                <LiveKitRecordingPlayer 
+                <WebRTCRecordingPlayer 
                   recordingUrl={undefined} 
                   thumbnail={livestream.thumbnailUrl || undefined}
                 />
