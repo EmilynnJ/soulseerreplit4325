@@ -47,8 +47,12 @@ class WebSocketManager {
               timestamp: Date.now()
             }));
 
+            // Update online status for all users, especially readers
+            await storage.updateUser(message.userId, { isOnline: true });
+            
+            // For readers, broadcast their status to all clients
             if (user.role === 'reader') {
-              await storage.updateUser(message.userId, { isOnline: true });
+              console.log(`Reader ${message.userId} (${user.username}) authenticated and set online`);
               this.broadcastReaderActivity(message.userId, 'online');
             }
           }
@@ -73,9 +77,29 @@ class WebSocketManager {
 
         if (client?.userId) {
           const user = await storage.getUser(client.userId);
-          if (user?.role === 'reader') {
+          
+          // Check if this is the last connection for this user
+          let hasOtherConnections = false;
+          for (const [otherClientId, otherClient] of this.connectedClients.entries()) {
+            if (otherClientId !== clientId && otherClient.userId === client.userId) {
+              console.log(`User ${client.userId} has another active connection: ${otherClientId}`);
+              hasOtherConnections = true;
+              break;
+            }
+          }
+          
+          // Only update status if this is the last connection
+          if (!hasOtherConnections) {
+            console.log(`User ${client.userId} has no other connections, marking as offline`);
             await storage.updateUser(client.userId, { isOnline: false });
-            this.broadcastReaderActivity(client.userId, 'offline');
+            
+            // For readers, broadcast offline status
+            if (user?.role === 'reader') {
+              console.log(`Reader ${client.userId} (${user.username}) disconnected and set offline`);
+              this.broadcastReaderActivity(client.userId, 'offline');
+            }
+          } else {
+            console.log(`User ${client.userId} still has active connections, keeping online`);
           }
         }
 

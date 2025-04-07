@@ -122,10 +122,21 @@ export default function ReadingSessionPage() {
       setIsLoading(true);
       try {
         console.log('Fetching Zego token for reading session', readingId);
+        
+        // Add deployment environment information
+        const origin = window.location.origin;
+        const isProduction = origin.includes('soulseer.app') || 
+                           origin.includes('.onrender.com') || 
+                           !origin.includes('localhost');
+        
+        console.log(`Request origin: ${origin}, isProduction: ${isProduction}`);
+        
         const response = await apiRequest('POST', '/api/generate-token', {
           roomId: `reading-${readingId}`,
           userId: user.id.toString(),
-          readingType: reading.type
+          readingType: reading.type,
+          environment: isProduction ? 'production' : 'development',
+          origin
         });
         
         if (!response.ok) {
