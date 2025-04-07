@@ -95,6 +95,14 @@ export default function ReadingSessionPage() {
     }
   }, [reading, startReadingMutation, isStartingSession]);
   
+  // Reset isStartingSession when mutation fails or completes
+  useEffect(() => {
+    if (startReadingMutation.isError || (startReadingMutation.isSuccess && reading?.status !== 'in_progress')) {
+      console.log('Resetting isStartingSession due to mutation state change');
+      setIsStartingSession(false);
+    }
+  }, [startReadingMutation.isError, startReadingMutation.isSuccess, reading?.status]);
+  
   // Get session token for the reading once it's in_progress
   // Previously used LiveKit, will be replaced with Zego Cloud
   useEffect(() => {

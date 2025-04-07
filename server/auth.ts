@@ -35,6 +35,9 @@ export function setupAuth(app: Express) {
   const isProduction = process.env.NODE_ENV === "production";
   console.log(`Setting up auth in ${isProduction ? 'production' : 'development'} mode`);
   
+  // Determine if we need special mobile-compatible session settings
+  const isMobileCompatible = process.env.ENABLE_MOBILE_SESSION === 'true';
+  
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
@@ -42,9 +45,10 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     cookie: {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      secure: false, // False always for now to fix login issues
-      sameSite: "lax", // Consistent setting
-      domain: undefined // No domain specification for now
+      secure: isProduction, // Set to true in production only
+      sameSite: "none", // Set to "none" to work across different sites (mobile webviews)
+      domain: undefined, // No domain specification for now
+      httpOnly: true // Ensure cookie is only accessible by the server
     }
   };
   
@@ -52,7 +56,8 @@ export function setupAuth(app: Express) {
   console.log("Session settings:", {
     secure: sessionSettings.cookie?.secure,
     sameSite: sessionSettings.cookie?.sameSite,
-    domain: sessionSettings.cookie?.domain
+    domain: sessionSettings.cookie?.domain,
+    httpOnly: sessionSettings.cookie?.httpOnly
   });
 
   app.set("trust proxy", 1);
@@ -161,13 +166,39 @@ export function setupAuth(app: Express) {
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Authentication failed" });
       
+      // Check if the request is from a mobile client via User-Agent
+      const userAgent = req.headers['user-agent'] || '';
+      const isMobileClient = /android|iphone|ipad|ipod|webos/i.test(userAgent);
+      
+      console.log(`Login request from ${isMobileClient ? 'mobile' : 'desktop'} client: ${userAgent}`);
+      
+      // For mobile clients, ensure cookie settings are compatible
+      if (isMobileClient && req.session && req.session.cookie) {
+        console.log("Setting mobile-friendly cookie parameters");
+        req.session.cookie.sameSite = "none";
+        req.session.cookie.secure = true; // For SameSite=None, Secure must be true
+      }
+      
       req.login(user, (err: any) => {
         if (err) return next(err);
         
         // Create a new object from user data without the password
         const { password: pwd, ...userResponse } = user;
         
-        res.status(200).json(userResponse);
+        // Add cache headers to prevent client-side caching
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Surrogate-Control', 'no-store');
+        
+        // Return user data
+        res.status(200).json({
+          ...userResponse,
+          // Include authentication status in the response
+          isAuthenticated: true,
+          // Include a timestamp to help debug sessions
+          authenticatedAt: new Date().toISOString()
+        });
       });
     })(req, res, next);
   });

@@ -130,9 +130,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const reader = await storage.getUser(readerId);
       if (!reader) return;
 
-      // Extract safe reader data
-      const { password, ...safeReader } = reader;
+      // Update the reader status in the database to match what we're broadcasting
+      // This ensures database and UI are always in sync
+      await storage.updateUser(readerId, { isOnline: status === 'online' });
 
+      // Get the fresh reader data with updated status
+      const updatedReader = await storage.getUser(readerId);
+      if (!updatedReader) return;
+
+      // Extract safe reader data
+      const { password, ...safeReader } = updatedReader;
+
+      // Log the broadcast for debugging
+      console.log(`Broadcasting reader ${readerId} (${safeReader.username}) status change to ${status}, isOnline=${safeReader.isOnline}`);
+
+      // Broadcast to all clients
       broadcastToAll({
         type: 'reader_status_change',
         reader: safeReader,
@@ -3261,7 +3273,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         scheduledFor: null
       });
       
+      if (!livestream) {
+        return res.status(500).json({ message: "Failed to create livestream" });
+      }
+      
       // Start the livestream immediately using reader-specific room format
+      const startedLivestream = await livekitService.startLivestream(livestream.id, true);
+      
       if (!startedLivestream) {
         return res.status(500).json({ message: "Failed to start livestream" });
       }
@@ -3322,6 +3340,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate token for the viewer
       const token = livekitService.generateReaderLivestreamToken(
+        viewerId,
+        readerId,
         viewerName
       );
       
@@ -3340,15 +3360,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
       // Extract user information from request
+      const { userId, roomId, room, userName } = req.body;
+      const user = req.user as User;
+      
+      if (!user) {
+        return res.status(400).json({ error: 'Missing required user information' });
+      }
       
       // Use provided values or fallback to user object
       const actualUserId = userId || user.id;
       const actualRoomId = roomId || room || `default_room_${Date.now()}`;
       const actualUserName = userName || user.fullName || user.username;
-      
-      if (!user) {
-        return res.status(400).json({ error: 'Missing required user information' });
-      }
       
       // Generate token using LiveKit service
       const token = livekitService.generateToken(
@@ -3488,12 +3510,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing room name' });
       }
       
+      // Get admin user info (already checked by adminOnly middleware)
+      const user = req.user as User;
       
-      // Generate admin token with longer expiration using req.user (which is an admin due to adminOnly middleware)
+      // Generate admin token with longer expiration
       const token = livekitService.generateToken(
-        req.user.id,
+        user.id,
         room,
-        req.user.fullName || req.user.username,
+        user.fullName || user.username,
         7200  // Longer expiration for recording (2 hours)
       );
       
@@ -3670,7 +3694,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Invalid reader ID' });
       }
 
-      if (req.user.role !== 'admin' && req.user.id !== readerId) {
+      const user = req.user as User;
+      if (user.role !== 'admin' && user.id !== readerId) {
         return res.status(403).json({ error: 'Unauthorized. You can only view your own balance.' });
       }
 
@@ -3705,7 +3730,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Invalid reader ID' });
       }
 
-      if (req.user.role !== 'admin' && req.user.id !== readerId) {
+      const user = req.user as User;
+      if (user.role !== 'admin' && user.id !== readerId) {
         return res.status(403).json({ error: 'Unauthorized. You can only view your own payouts.' });
       }
 
