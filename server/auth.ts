@@ -47,9 +47,9 @@ export function setupAuth(app: Express) {
     saveUninitialized: true, // Changed to true to save all sessions
     store: storage.sessionStore,
     cookie: {
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      secure: false, // We'll set this to false by default and override for mobile
-      sameSite: "lax", // Default to lax for better compatibility
+      maxAge: 1000 * 60 * 60 * 24 * 30, // Longer expiration (30 days) for better UX
+      secure: false, // We'll set this based on request in the middleware
+      sameSite: "lax", // Default setting that works for most browsers
       domain: undefined, // No domain specification for now
       httpOnly: true // Ensure cookie is only accessible by the server
     }
@@ -179,20 +179,27 @@ export function setupAuth(app: Express) {
       if (isMobileClient && req.session && req.session.cookie) {
         console.log("Setting mobile-friendly cookie parameters");
         
-        // Try multiple cookie configurations to improve mobile compatibility
-        // - First session cookie with SameSite=None and Secure=true
-        // - A second cookie with SameSite=Lax as fallback
-        req.session.cookie.sameSite = "none";
-        
-        // For SameSite=None, Secure must be true, but we'll check origin first
+        // Check if the connection is HTTPS
         const origin = req.headers.origin || '';
         const isHttps = origin.startsWith('https:') || req.secure;
-        req.session.cookie.secure = true; // Required for SameSite=None
         
-        // Additional session options for mobile
+        if (isHttps) {
+          // If HTTPS, set SameSite=None with Secure=true for cross-site functionality
+          // This works best with WebViews and cross-origin requests
+          req.session.cookie.sameSite = "none";
+          req.session.cookie.secure = true; // Required for SameSite=None
+        } else {
+          // For HTTP development environment, use a more permissive approach
+          // This won't be as secure, but works better for development testing
+          req.session.cookie.sameSite = "lax";
+          req.session.cookie.secure = false;
+        }
+        
+        // Extended session timeout for mobile users
         req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30; // 30 days for mobile
         
-        console.log(`Cookie settings for mobile: sameSite=${req.session.cookie.sameSite}, secure=${req.session.cookie.secure}, maxAge=${req.session.cookie.maxAge}`);
+        // Log the cookie settings applied
+        console.log(`Cookie settings for mobile: sameSite=${req.session.cookie.sameSite}, secure=${req.session.cookie.secure}, maxAge=${req.session.cookie.maxAge}, isHttps=${isHttps}`);
       }
       
       req.login(user, (err: any) => {

@@ -110,17 +110,42 @@ export default function ReadingSessionPage() {
   // Get Zego session token for the reading once it's in_progress
   useEffect(() => {
     const fetchToken = async () => {
-      if (!reading || reading.status !== 'in_progress' || !user?.id) return;
+      if (!reading || reading.status !== 'in_progress' || !user?.id) {
+        console.log('Skipping token fetch - conditions not met:', { 
+          hasReading: !!reading, 
+          status: reading?.status, 
+          hasUser: !!user?.id 
+        });
+        return;
+      }
       
       setIsLoading(true);
       try {
+        console.log('Fetching Zego token for reading session', readingId);
         const response = await apiRequest('POST', '/api/generate-token', {
           roomId: `reading-${readingId}`,
           userId: user.id.toString(),
           readingType: reading.type
         });
         
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Token request failed:', response.status, errorText);
+          throw new Error(`Failed to get token: ${response.status} ${errorText}`);
+        }
+        
         const data = await response.json();
+        console.log('Received token data:', { 
+          hasToken: !!data.token, 
+          roomId: data.roomId,
+          readingType: reading.type,
+          zegoType: data.zegoType 
+        });
+        
+        if (!data.token) {
+          throw new Error('No token received from server');
+        }
+        
         setSessionToken(data.token);
         setTokenError(null);
       } catch (error) {

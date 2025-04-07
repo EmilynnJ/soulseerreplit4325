@@ -35,32 +35,66 @@ export function VideoCall({ token, readingId, readingType, onSessionEnd }: Video
       try {
         setIsLoading(true);
         
-        // Get reading token using the dedicated Zego endpoint
-        const response = await apiRequest('POST', '/api/generate-token', {
-          roomId: `reading-${readingId}`,
-          readingType
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to get token');
+        // If token is already provided, use that directly
+        if (token) {
+          // We still need to get user information and app ID
+          const response = await apiRequest('POST', '/api/generate-token', {
+            roomId: `reading-${readingId}`,
+            readingType
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to get token');
+          }
+          
+          const data = await response.json();
+          
+          setZegoData({
+            roomId: data.roomId || `reading-${readingId}`,
+            userId: data.userId,
+            userName: data.userName || 'User',
+            token: token, // Use the token passed from props
+            appId: data.appId,
+            config: data.config,
+            zegoType: data.zegoType || readingType
+          });
+        } else {
+          // No token provided, get everything from API
+          console.log(`Fetching Zego token for reading ${readingId}, type: ${readingType}`);
+          const response = await apiRequest('POST', '/api/generate-token', {
+            roomId: `reading-${readingId}`,
+            readingType
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to get token');
+          }
+          
+          const data = await response.json();
+          console.log('Received Zego data:', { 
+            roomId: data.roomId, 
+            userId: data.userId,
+            hasToken: !!data.token,
+            hasAppId: !!data.appId,
+            zegoType: data.zegoType 
+          });
+          
+          // Use the app ID provided by the server
+          // If server doesn't provide one, use empty string (will be handled in error state)
+          const appId = data.appId || '';
+          
+          setZegoData({
+            roomId: data.roomId,
+            userId: data.userId,
+            userName: data.userName || 'User',
+            token: data.token,
+            appId: appId,
+            config: data.config,
+            zegoType: data.zegoType || readingType
+          });
         }
-        
-        const data = await response.json();
-        
-        // Use the app ID provided by the server
-        // If server doesn't provide one, use empty string (will be handled in error state)
-        const appId = data.appId || '';
-        
-        setZegoData({
-          roomId: data.roomId,
-          userId: data.userId,
-          userName: data.userName || 'User',
-          token: data.token,
-          appId: appId || data.appId,
-          config: data.config,
-          zegoType: data.zegoType || readingType
-        });
       } catch (error) {
         console.error('Error fetching Zego token:', error);
         setError('Failed to initialize session. Please try again.');

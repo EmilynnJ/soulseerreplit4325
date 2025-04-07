@@ -3409,15 +3409,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Token generation endpoint
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { readingType = 'video', userId, roomId } = req.body;
+      const { readingType = 'video', userId: providedUserId, roomId } = req.body;
       
-      if (!userId || !roomId) {
-        return res.status(400).json({ error: 'Missing required parameters' });
-      }
-
       // Get the current user
       const user = req.user as User;
       
+      // Use provided userId or fall back to the current user's ID
+      const userId = providedUserId || user.id.toString();
+      
+      if (!roomId) {
+        return res.status(400).json({ error: 'Missing required parameter: roomId' });
+      }
+      
+      console.log(`Generating token for ${readingType} session in room ${roomId} for user ${userId}`);
+
       // Map reading type to Zego type
       let zegoType: 'chat' | 'phone' | 'video' | 'live';
       switch (readingType) {
@@ -3433,6 +3438,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
       }
       
+      // Get app ID and server secret
+      const { appId, serverSecret } = getZegoCredentials(zegoType);
+      
+      // Check if credentials are available
+      if (!appId || !serverSecret) {
+        console.error(`Missing Zego credentials for ${zegoType} type`);
+        return res.status(500).json({ 
+          error: `Missing Zego ${zegoType} credentials. Please check environment configuration.`,
+          missingCredentials: !appId ? 'appId' : 'serverSecret'
+        });
+      }
+      
       // Generate Zego token
       const token = generateZegoToken(zegoType, {
         userId: userId.toString(),
@@ -3443,8 +3460,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get the Zego config
       const config = getZegoConfig(zegoType);
       
-      // Get the App ID for client-side use
-      const { appId } = getZegoCredentials(zegoType);
+      // Log success without showing the actual token
+      console.log(`Successfully generated ${zegoType} token for user ${userId} in room ${roomId}`);
       
       res.json({ 
         token, 
