@@ -35,7 +35,7 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-// LiveKit being replaced with Zego Cloud for video streaming functionality
+// LiveKit implementation for video streaming functionality
 
 export default function LivestreamDetailPage() {
   const { id } = useParams();
