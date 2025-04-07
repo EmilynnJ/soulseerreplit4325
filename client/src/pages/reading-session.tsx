@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, MonitorPlay, VideoIcon, MessageSquare, PhoneIcon } from 'lucide-react';
-import { VideoCall, VoiceCall } from '@/components/readings/video-call';
+import WebRTCSession from '@/components/readings/webrtc-session';
 import { apiRequest } from '@/lib/queryClient';
 import { Reading } from '@shared/schema';
 import { PATHS } from '@/lib/constants';
@@ -372,38 +372,19 @@ export default function ReadingSessionPage() {
       
       <Card className="max-w-6xl mx-auto overflow-hidden">
         <CardContent className="p-0">
-          {/* Call component based on reading type */}
-          {sessionToken && (
-            <div className="h-[70vh]">
-              {reading.type === 'video' && (
-                <VideoCall
-                  token={sessionToken}
-                  readingId={readingId}
-                  readingType="video"
-                  onSessionEnd={handleEndSession}
-                />
-              )}
-              {reading.type === 'voice' && (
-                <VoiceCall
-                  token={sessionToken}
-                  readingId={readingId}
-                  onSessionEnd={handleEndSession}
-                />
-              )}
-              {reading.type === 'chat' && (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-4 text-accent/60" />
-                    <h3 className="text-xl font-cinzel text-accent mb-2">Text Chat Reading</h3>
-                    <p className="text-light/70">
-                      Text chat readings are currently being updated to a new system.
-                      <br />Please use video or voice readings.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Call WebRTC session component */}
+          <div className="h-[70vh]">
+            <WebRTCSession
+              roomId={`reading-${readingId}`}
+              userId={user?.id || 0}
+              userName={user?.fullName || 'User'}
+              readerId={reading?.readerId || 0}
+              readerName={reading?.readerName || 'Reader'}
+              sessionType={reading.type}
+              isReader={user?.role === 'reader'}
+              onSessionEnd={handleEndSession}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

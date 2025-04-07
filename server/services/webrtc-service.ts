@@ -1,12 +1,10 @@
+import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import { Server } from 'http';
-import { User } from '@shared/schema';
-import { db } from '../db';
-import { users } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { v4 as uuidv4 } from 'uuid';
 import { sessionService } from './session-service';
+import { storage } from '../storage';
+import stripeClient from './stripe-client';
 
-// User connection tracking
 interface ConnectedUser {
   userId: number;
   userType: 'reader' | 'client';
@@ -15,23 +13,45 @@ interface ConnectedUser {
   sessionId?: string;
 }
 
+interface ActiveSession {
+  roomId: string;
+  readerId: number;
+  clientId: number;
+  readerName: string;
+  clientName: string;
+  type: 'video' | 'voice' | 'chat';
+  startTime: Date;
+  lastBillingTime: Date;
+  duration: number; // in minutes
+  status: 'waiting' | 'connected' | 'ended';
+  billingDetails?: {
+    totalAmount: number;
+    clientBilled: number;
+    readerEarned: number;
+    duration: number;
+  };
+}
+
 class WebRTCService {
   private io: SocketIOServer | null = null;
   private connectedUsers: Map<number, ConnectedUser> = new Map();
-  private activeSessions: Map<string, {
-    roomId: string;
-    readerId: number;
-    clientId: number;
-    startTime: number;
-    lastBillingTime: number;
-    isBillingActive: boolean;
-  }> = new Map();
+  private activeSessions: Map<string, ActiveSession> = new Map();
+  private storage = storage;
 
-  initialize(server: Server) {
+  /**
+   * Initialize WebRTC service with HTTP server
+   * @param server HTTP server instance
+   */
+  initialize(server: HTTPServer) {
+    if (this.io) {
+      console.log('WebRTC service already initialized');
+      return;
+    }
+
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: '*',
+        methods: ['GET', 'POST']
       }
     });
 
@@ -39,24 +59,36 @@ class WebRTCService {
     console.log('WebRTC service initialized');
   }
 
+  /**
+   * Set up socket event handlers
+   */
   private setupSocketHandlers() {
-    if (!this.io) return;
+    if (!this.io) {
+      console.error('Cannot setup socket handlers: io is null');
+      return;
+    }
 
     this.io.on('connection', (socket) => {
-      console.log('New socket connection:', socket.id);
+      console.log(`Socket connected: ${socket.id}`);
 
-      // Authentication and user registration
-      socket.on('register', async (data: { 
-        userId: number; 
-        userType: 'reader' | 'client';
-        token?: string;
-      }) => {
+      // Handle user registration
+      socket.on('register', async (data: { userId: number; userType: 'reader' | 'client' }) => {
         try {
-          // In a real implementation, verify the token here
-          // For now, we trust the client-sent userId
           const { userId, userType } = data;
           
-          // Store the connection
+          if (!userId || !userType) {
+            socket.emit('registered', { success: false, error: 'Missing user information' });
+            return;
+          }
+
+          // Get user from database to verify existence
+          const user = await this.storage.getUser(userId);
+          if (!user) {
+            socket.emit('registered', { success: false, error: 'User not found' });
+            return;
+          }
+
+          // Register the user
           this.connectedUsers.set(userId, {
             userId,
             userType,
@@ -64,455 +96,555 @@ class WebRTCService {
             inSession: false
           });
 
-          // Notify client of successful registration
-          socket.emit('registered', { 
-            success: true, 
-            userId, 
-            userType
-          });
+          // Update online status in database
+          await this.storage.updateUser(userId, { isOnline: true });
 
-          // If this is a reader, update their online status
-          if (userType === 'reader') {
-            try {
-              await db.update(users)
-                .set({ isOnline: true })
-                .where(eq(users.id, userId));
-              console.log(`Reader ${userId} is now online`);
-            } catch (error) {
-              console.error(`Failed to update online status for reader ${userId}:`, error);
-            }
-          }
+          socket.emit('registered', { success: true });
+          
+          // Broadcast online status change to all clients
+          this.broadcastOnlineStatus(userId, true);
           
           console.log(`User registered: ${userId} (${userType})`);
         } catch (error) {
-          console.error('Error in socket registration:', error);
-          socket.emit('registered', { 
-            success: false, 
-            error: 'Registration failed' 
-          });
+          console.error('Error registering user:', error);
+          socket.emit('registered', { success: false, error: 'Registration failed' });
         }
       });
 
-      // WebRTC signaling
-      socket.on('offer', (data) => {
-        const { target, offer, roomId, sender } = data;
-        console.log(`Forwarding offer from ${sender} to ${target} in room ${roomId}`);
-        
-        // Find the target socket
-        const targetUser = Array.from(this.connectedUsers.values())
-          .find(user => user.userId === target);
-        
-        if (targetUser) {
-          // Forward the offer to the target
-          this.io?.to(targetUser.socketId).emit('offer', {
-            offer,
-            sender,
-            roomId
+      // Handle join session
+      socket.on('join-session', async (data: { roomId: string; userId: number; userType: 'reader' | 'client' }) => {
+        try {
+          const { roomId, userId, userType } = data;
+          
+          if (!roomId || !userId || !userType) {
+            socket.emit('error', { message: 'Missing session information' });
+            return;
+          }
+
+          // Get session details
+          const session = this.activeSessions.get(roomId);
+          
+          if (!session) {
+            // Session not found in memory, try to retrieve from database
+            const dbSession = sessionService.getSessionByRoomName(roomId);
+            
+            if (!dbSession) {
+              socket.emit('error', { message: 'Session not found' });
+              return;
+            }
+            
+            // Create session in memory
+            this.activeSessions.set(roomId, {
+              roomId,
+              readerId: dbSession.readerId,
+              clientId: dbSession.clientId,
+              readerName: dbSession.readerName || 'Reader',
+              clientName: dbSession.clientName || 'Client',
+              type: dbSession.type as 'video' | 'voice' | 'chat',
+              startTime: new Date(),
+              lastBillingTime: new Date(),
+              duration: 0,
+              status: 'waiting',
+              billingDetails: {
+                totalAmount: 0,
+                clientBilled: 0,
+                readerEarned: 0,
+                duration: 0
+              }
+            });
+          }
+
+          // Update user session status
+          const user = this.connectedUsers.get(userId);
+          if (user) {
+            user.inSession = true;
+            user.sessionId = roomId;
+            this.connectedUsers.set(userId, user);
+          }
+
+          // Join the room
+          socket.join(roomId);
+          
+          // Notify all clients in the room
+          this.io.to(roomId).emit('user-joined', {
+            userId,
+            userType,
+            timestamp: new Date()
           });
-        } else {
-          // Target user not found
-          socket.emit('signal_error', {
-            error: 'Target user not connected',
+          
+          // Update session status
+          const updatedSession = this.activeSessions.get(roomId);
+          if (updatedSession && updatedSession.status === 'waiting') {
+            updatedSession.status = 'connected';
+            updatedSession.startTime = new Date();
+            updatedSession.lastBillingTime = new Date();
+            this.activeSessions.set(roomId, updatedSession);
+            
+            // Notify all clients that session has started
+            this.io.to(roomId).emit('session-started', {
+              roomId,
+              timestamp: new Date()
+            });
+          }
+          
+          console.log(`User ${userId} joined session ${roomId}`);
+        } catch (error) {
+          console.error('Error joining session:', error);
+          socket.emit('error', { message: 'Failed to join session' });
+        }
+      });
+
+      // Handle WebRTC signaling
+      socket.on('offer', (data) => {
+        const { roomId, sender, target, offer } = data;
+        
+        // Find target socket ID
+        const targetUser = this.connectedUsers.get(target);
+        if (targetUser) {
+          // Forward offer to target
+          socket.to(targetUser.socketId).emit('offer', {
+            sender,
+            offer,
             roomId
           });
         }
       });
 
       socket.on('answer', (data) => {
-        const { target, answer, roomId, sender } = data;
-        console.log(`Forwarding answer from ${sender} to ${target} in room ${roomId}`);
+        const { roomId, sender, target, answer } = data;
         
-        // Find the target socket
-        const targetUser = Array.from(this.connectedUsers.values())
-          .find(user => user.userId === target);
-        
+        // Find target socket ID
+        const targetUser = this.connectedUsers.get(target);
         if (targetUser) {
-          // Forward the answer to the target
-          this.io?.to(targetUser.socketId).emit('answer', {
-            answer,
+          // Forward answer to target
+          socket.to(targetUser.socketId).emit('answer', {
             sender,
-            roomId
-          });
-        } else {
-          // Target user not found
-          socket.emit('signal_error', {
-            error: 'Target user not connected',
+            answer,
             roomId
           });
         }
       });
 
       socket.on('ice-candidate', (data) => {
-        const { target, candidate, roomId, sender } = data;
+        const { roomId, sender, target, candidate } = data;
         
-        // Find the target socket
-        const targetUser = Array.from(this.connectedUsers.values())
-          .find(user => user.userId === target);
-        
+        // Find target socket ID
+        const targetUser = this.connectedUsers.get(target);
         if (targetUser) {
-          // Forward the ICE candidate to the target
-          this.io?.to(targetUser.socketId).emit('ice-candidate', {
-            candidate,
+          // Forward ICE candidate to target
+          socket.to(targetUser.socketId).emit('ice-candidate', {
             sender,
+            candidate,
             roomId
           });
         }
       });
 
-      // Session management
-      socket.on('join-session', (data: {
-        roomId: string;
-        userId: number;
-        userType: 'reader' | 'client';
-      }) => {
-        const { roomId, userId, userType } = data;
+      // Handle chat messages
+      socket.on('chat-message', (data) => {
+        const { roomId, sender, senderName, message, target } = data;
         
-        // Update user status
-        const user = this.connectedUsers.get(userId);
-        if (user) {
-          user.inSession = true;
-          user.sessionId = roomId;
-          this.connectedUsers.set(userId, user);
-        }
-
-        // Notify everyone in the room that a user has joined
-        socket.join(roomId);
-        this.io?.to(roomId).emit('user-joined', {
-          userId,
-          userType,
-          roomId
+        // Broadcast message to everyone in the room
+        this.io?.to(roomId).emit('chat-message', {
+          sender,
+          senderName,
+          message,
+          timestamp: new Date()
         });
-
-        console.log(`User ${userId} (${userType}) joined session ${roomId}`);
       });
 
-      socket.on('start-session', async (data: {
-        roomId: string;
-        readerId: number;
-        clientId: number;
-      }) => {
-        const { roomId, readerId, clientId } = data;
-        
-        // Check if both users are connected
-        const reader = this.connectedUsers.get(readerId);
-        const client = this.connectedUsers.get(clientId);
-        
-        if (!reader || !client) {
-          socket.emit('session-error', {
-            error: 'Both reader and client must be connected to start a session',
-            roomId
-          });
-          return;
-        }
-
-        // Start the session
-        const now = Date.now();
-        this.activeSessions.set(roomId, {
-          roomId,
-          readerId,
-          clientId,
-          startTime: now,
-          lastBillingTime: now,
-          isBillingActive: true
-        });
-
-        // Notify both users that the session has started
-        this.io?.to(roomId).emit('session-started', {
-          roomId,
-          startTime: now
-        });
-
-        console.log(`Session started: ${roomId} between reader ${readerId} and client ${clientId}`);
-      });
-
-      socket.on('pause-billing', (data: { roomId: string }) => {
-        const { roomId } = data;
-        const session = this.activeSessions.get(roomId);
-        
-        if (session) {
-          session.isBillingActive = false;
-          this.activeSessions.set(roomId, session);
-          
-          this.io?.to(roomId).emit('billing-paused', {
-            roomId,
-            pauseTime: Date.now()
-          });
-          
-          console.log(`Billing paused for session ${roomId}`);
-        }
-      });
-
-      socket.on('resume-billing', (data: { roomId: string }) => {
-        const { roomId } = data;
-        const session = this.activeSessions.get(roomId);
-        
-        if (session) {
-          session.lastBillingTime = Date.now();
-          session.isBillingActive = true;
-          this.activeSessions.set(roomId, session);
-          
-          this.io?.to(roomId).emit('billing-resumed', {
-            roomId,
-            resumeTime: Date.now()
-          });
-          
-          console.log(`Billing resumed for session ${roomId}`);
-        }
-      });
-
-      socket.on('end-session', async (data: { 
-        roomId: string;
-        totalDuration?: number;
-      }) => {
-        const { roomId, totalDuration } = data;
-        const session = this.activeSessions.get(roomId);
-        
-        if (session) {
-          // Calculate final duration if not provided
-          const finalDuration = totalDuration || 
-            Math.ceil((Date.now() - session.startTime) / 60000); // in minutes
-          
-          // End the session in our session service
-          try {
-            const updatedSession = await sessionService.endSession(roomId, finalDuration);
-            
-            // Notify both users that the session has ended
-            this.io?.to(roomId).emit('session-ended', {
-              roomId,
-              duration: finalDuration,
-              sessionDetails: updatedSession
-            });
-            
-            console.log(`Session ended: ${roomId}, duration: ${finalDuration} minutes`);
-          } catch (error) {
-            console.error(`Error ending session ${roomId}:`, error);
-            socket.emit('session-error', {
-              error: 'Failed to end session properly',
-              roomId
-            });
-          }
-          
-          // Remove the session
-          this.activeSessions.delete(roomId);
-          
-          // Find the reader and client and update their status
-          const reader = this.connectedUsers.get(session.readerId);
-          const client = this.connectedUsers.get(session.clientId);
-          
-          if (reader) {
-            reader.inSession = false;
-            reader.sessionId = undefined;
-            this.connectedUsers.set(session.readerId, reader);
-          }
-          
-          if (client) {
-            client.inSession = false;
-            client.sessionId = undefined;
-            this.connectedUsers.set(session.clientId, client);
-          }
-        }
-      });
-
-      // Process minute-by-minute billing
-      socket.on('process-billing', async (data: {
-        roomId: string;
-        duration: number; // duration in minutes since last billing
-        userId: number;
-        userRole: 'client' | 'reader';
-      }) => {
-        const { roomId, duration, userId, userRole } = data;
-        const session = this.activeSessions.get(roomId);
-        
-        if (!session || !session.isBillingActive) {
-          return;
-        }
-
-        // Only clients can trigger billing
-        if (userRole !== 'client') {
-          return;
-        }
-
+      // Handle billing
+      socket.on('process-billing', async (data: { roomId: string; duration: number; userId: number; userRole: string }) => {
         try {
-          // Record billing through our session service
-          const updatedSession = await sessionService.recordBilling(
-            roomId,
-            duration,
-            userId,
-            session.readerId
-          );
+          const { roomId, duration, userId, userRole } = data;
           
-          if (updatedSession) {
-            // Update the last billing time
-            session.lastBillingTime = Date.now();
-            this.activeSessions.set(roomId, session);
-            
-            // Notify both users about the billing
-            this.io?.to(roomId).emit('billing-processed', {
-              roomId,
-              duration,
-              billingDetails: updatedSession
+          if (userRole !== 'client') {
+            // Only clients can trigger billing
+            return;
+          }
+          
+          const session = this.activeSessions.get(roomId);
+          if (!session) {
+            socket.emit('error', { message: 'Session not found' });
+            return;
+          }
+          
+          // Get session from database
+          const dbSession = sessionService.getSessionByRoomName(roomId);
+          if (!dbSession) {
+            socket.emit('error', { message: 'Session not found in database' });
+            return;
+          }
+          
+          // Get client information
+          const client = await this.storage.getUser(session.clientId);
+          if (!client) {
+            socket.emit('error', { message: 'Client not found' });
+            return;
+          }
+          
+          // Check if client has payment method
+          if (!client.stripeCustomerId) {
+            socket.emit('error', { message: 'Client does not have payment method' });
+            return;
+          }
+          
+          // Get reader information
+          const reader = await this.storage.getUser(session.readerId);
+          if (!reader) {
+            socket.emit('error', { message: 'Reader not found' });
+            return;
+          }
+          
+          // Calculate amount to charge
+          const pricePerMinute = dbSession.pricePerMinute || 1.99; // Default price
+          const amountToCharge = duration * pricePerMinute;
+          
+          // Process payment via Stripe
+          try {
+            // Create a payment intent
+            const paymentIntent = await stripeClient.paymentIntents.create({
+              amount: Math.round(amountToCharge * 100), // Convert to cents
+              currency: 'usd',
+              customer: client.stripeCustomerId,
+              description: `Reading session with ${reader.fullName || reader.username} for ${duration} minute(s)`,
+              metadata: {
+                readerId: session.readerId.toString(),
+                clientId: session.clientId.toString(),
+                sessionId: roomId,
+                duration: duration.toString()
+              },
+              confirm: true,
+              off_session: true
             });
             
-            console.log(`Billing processed for session ${roomId}: ${duration} minutes`);
-          }
-        } catch (error) {
-          console.error(`Error processing billing for session ${roomId}:`, error);
-          socket.emit('billing-error', {
-            error: 'Failed to process billing',
-            roomId
-          });
-        }
-      });
-
-      // Handle disconnection
-      socket.on('disconnect', async () => {
-        console.log('Socket disconnected:', socket.id);
-        
-        // Find the user by socket ID
-        let disconnectedUser: ConnectedUser | undefined;
-        let userId: number | undefined;
-        
-        for (const [id, user] of this.connectedUsers.entries()) {
-          if (user.socketId === socket.id) {
-            disconnectedUser = user;
-            userId = id;
-            break;
-          }
-        }
-        
-        if (disconnectedUser && userId) {
-          console.log(`User disconnected: ${userId} (${disconnectedUser.userType})`);
-          
-          // If the user was in a session, handle that
-          if (disconnectedUser.inSession && disconnectedUser.sessionId) {
-            const roomId = disconnectedUser.sessionId;
-            const session = this.activeSessions.get(roomId);
-            
-            if (session) {
-              // Calculate the final duration
-              const finalDuration = Math.ceil((Date.now() - session.startTime) / 60000); // in minutes
+            // Check if payment was successful
+            if (paymentIntent.status === 'succeeded') {
+              // Update session information
+              session.duration += duration;
+              session.lastBillingTime = new Date();
               
-              // End the session in our session service
-              try {
-                const updatedSession = await sessionService.endSession(roomId, finalDuration);
-                
-                // Notify the other user that the session has ended due to disconnection
-                this.io?.to(roomId).emit('session-ended', {
-                  roomId,
-                  duration: finalDuration,
-                  sessionDetails: updatedSession,
-                  reason: 'user_disconnected'
-                });
-                
-                console.log(`Session ended due to user disconnect: ${roomId}, duration: ${finalDuration} minutes`);
-              } catch (error) {
-                console.error(`Error ending session ${roomId} due to disconnect:`, error);
+              // Calculate reader earnings (70%)
+              const readerEarnings = amountToCharge * 0.7;
+              
+              // Update billing details
+              if (!session.billingDetails) {
+                session.billingDetails = {
+                  totalAmount: amountToCharge,
+                  clientBilled: amountToCharge,
+                  readerEarned: readerEarnings,
+                  duration: session.duration
+                };
+              } else {
+                session.billingDetails.totalAmount += amountToCharge;
+                session.billingDetails.clientBilled += amountToCharge;
+                session.billingDetails.readerEarned += readerEarnings;
+                session.billingDetails.duration = session.duration;
               }
               
-              // Remove the session
-              this.activeSessions.delete(roomId);
+              this.activeSessions.set(roomId, session);
+              
+              // Update reader balance
+              await sessionService.addReaderEarnings(session.readerId, readerEarnings);
+              
+              // Update database session
+              sessionService.updateSession(roomId, {
+                duration: session.duration,
+                price: session.billingDetails.totalAmount
+              });
+              
+              // Notify clients of successful billing
+              this.io?.to(roomId).emit('billing-processed', {
+                success: true,
+                duration,
+                amount: amountToCharge,
+                timestamp: new Date(),
+                billingDetails: session.billingDetails
+              });
+              
+              console.log(`Billing processed for session ${roomId}: $${amountToCharge} for ${duration} minute(s)`);
+            } else {
+              // Payment failed
+              socket.emit('billing-error', {
+                message: 'Payment processing failed',
+                status: paymentIntent.status
+              });
+            }
+          } catch (stripeError) {
+            console.error('Stripe error:', stripeError);
+            socket.emit('billing-error', {
+              message: 'Payment processing failed',
+              error: (stripeError as any).message
+            });
+          }
+        } catch (error) {
+          console.error('Error processing billing:', error);
+          socket.emit('error', { message: 'Failed to process billing' });
+        }
+      });
+
+      // Handle session end
+      socket.on('end-session', async (data: { roomId: string; totalDuration: number }) => {
+        try {
+          const { roomId, totalDuration } = data;
+          
+          const session = this.activeSessions.get(roomId);
+          if (!session) {
+            socket.emit('error', { message: 'Session not found' });
+            return;
+          }
+          
+          // Update session status
+          session.status = 'ended';
+          this.activeSessions.set(roomId, session);
+          
+          // Notify all clients in the room
+          this.io?.to(roomId).emit('session-ended', {
+            roomId,
+            timestamp: new Date(),
+            duration: totalDuration
+          });
+          
+          // Update database session
+          sessionService.updateSession(roomId, {
+            status: 'completed',
+            duration: totalDuration,
+            price: session.billingDetails?.totalAmount || 0,
+            completedAt: new Date()
+          });
+          
+          // Update connected users
+          for (const [userId, user] of this.connectedUsers.entries()) {
+            if (user.sessionId === roomId) {
+              user.inSession = false;
+              user.sessionId = undefined;
+              this.connectedUsers.set(userId, user);
             }
           }
           
-          // If this is a reader, update their online status
-          if (disconnectedUser.userType === 'reader') {
-            try {
-              await db.update(users)
-                .set({ isOnline: false })
-                .where(eq(users.id, userId));
-              console.log(`Reader ${userId} is now offline`);
-            } catch (error) {
-              console.error(`Failed to update offline status for reader ${userId}:`, error);
+          // Remove session from active sessions
+          this.activeSessions.delete(roomId);
+          
+          console.log(`Session ${roomId} ended after ${totalDuration} minute(s)`);
+        } catch (error) {
+          console.error('Error ending session:', error);
+          socket.emit('error', { message: 'Failed to end session' });
+        }
+      });
+
+      // Handle disconnect
+      socket.on('disconnect', async () => {
+        try {
+          console.log(`Socket disconnected: ${socket.id}`);
+          
+          // Find disconnected user
+          let disconnectedUserId: number | null = null;
+          
+          for (const [userId, user] of this.connectedUsers.entries()) {
+            if (user.socketId === socket.id) {
+              disconnectedUserId = userId;
+              break;
             }
           }
           
-          // Remove the user from our connected users
-          this.connectedUsers.delete(userId);
+          if (disconnectedUserId) {
+            // Get user details
+            const user = this.connectedUsers.get(disconnectedUserId);
+            
+            if (user && user.inSession && user.sessionId) {
+              // Handle active session
+              const session = this.activeSessions.get(user.sessionId);
+              
+              if (session) {
+                // Automatically end session if client disconnects
+                // For reader, wait a bit to allow for reconnection
+                if (user.userType === 'client' || (user.userType === 'reader' && session.status === 'waiting')) {
+                  // End session
+                  session.status = 'ended';
+                  this.activeSessions.set(user.sessionId, session);
+                  
+                  // Notify remaining users
+                  this.io?.to(user.sessionId).emit('session-ended', {
+                    roomId: user.sessionId,
+                    timestamp: new Date(),
+                    duration: session.duration,
+                    reason: 'user_disconnected'
+                  });
+                  
+                  // Update database session
+                  sessionService.updateSession(user.sessionId, {
+                    status: 'completed',
+                    duration: session.duration,
+                    price: session.billingDetails?.totalAmount || 0,
+                    completedAt: new Date()
+                  });
+                  
+                  // Remove session from active sessions
+                  this.activeSessions.delete(user.sessionId);
+                  
+                  console.log(`Session ${user.sessionId} ended due to user ${disconnectedUserId} disconnection`);
+                } else if (user.userType === 'reader' && session.status === 'connected') {
+                  // For reader, set a timer to end session if they don't reconnect
+                  setTimeout(() => {
+                    // Check if user has reconnected
+                    const reconnectedUser = this.connectedUsers.get(disconnectedUserId as number);
+                    
+                    if (!reconnectedUser || (reconnectedUser.socketId !== socket.id && reconnectedUser.inSession && reconnectedUser.sessionId === user.sessionId)) {
+                      // User has reconnected
+                      return;
+                    }
+                    
+                    // User has not reconnected, end session
+                    const sessionToEnd = this.activeSessions.get(user.sessionId as string);
+                    
+                    if (sessionToEnd && sessionToEnd.status !== 'ended') {
+                      // End session
+                      sessionToEnd.status = 'ended';
+                      this.activeSessions.set(user.sessionId as string, sessionToEnd);
+                      
+                      // Notify remaining users
+                      this.io?.to(user.sessionId as string).emit('session-ended', {
+                        roomId: user.sessionId,
+                        timestamp: new Date(),
+                        duration: sessionToEnd.duration,
+                        reason: 'reader_disconnect_timeout'
+                      });
+                      
+                      // Update database session
+                      sessionService.updateSession(user.sessionId as string, {
+                        status: 'completed',
+                        duration: sessionToEnd.duration,
+                        price: sessionToEnd.billingDetails?.totalAmount || 0,
+                        completedAt: new Date()
+                      });
+                      
+                      // Remove session from active sessions
+                      this.activeSessions.delete(user.sessionId as string);
+                      
+                      console.log(`Session ${user.sessionId} ended due to reader disconnect timeout`);
+                    }
+                  }, 30000); // 30 seconds timeout for reconnection
+                }
+              }
+            }
+            
+            // Remove user from connected users
+            this.connectedUsers.delete(disconnectedUserId);
+            
+            // Update online status in database after a short delay
+            // This prevents flashing online/offline during page refresh
+            setTimeout(async () => {
+              // Check if user has reconnected
+              if (!this.connectedUsers.has(disconnectedUserId as number)) {
+                // Update status to offline
+                await this.storage.updateUser(disconnectedUserId as number, { isOnline: false });
+                
+                // Broadcast online status change
+                this.broadcastOnlineStatus(disconnectedUserId as number, false);
+                
+                console.log(`User ${disconnectedUserId} marked as offline`);
+              }
+            }, 5000); // 5 seconds delay
+          }
+        } catch (error) {
+          console.error('Error handling disconnect:', error);
         }
       });
     });
   }
 
-  // Helper method to create a reading session
-  async createSession(readerId: number, clientId: number, readingType: 'video' | 'voice' | 'chat'): Promise<{
-    roomId: string;
-    success: boolean;
-    error?: string;
-  }> {
-    try {
-      // Check if both users are online
-      const reader = this.connectedUsers.get(readerId);
-      const client = this.connectedUsers.get(clientId);
-      
-      if (!reader) {
-        return {
-          roomId: '',
-          success: false,
-          error: 'Reader is not online'
-        };
-      }
-      
-      if (!client) {
-        return {
-          roomId: '',
-          success: false,
-          error: 'Client is not online'
-        };
-      }
-      
-      // Check if either user is already in a session
-      if (reader.inSession) {
-        return {
-          roomId: '',
-          success: false,
-          error: 'Reader is already in a session'
-        };
-      }
-      
-      if (client.inSession) {
-        return {
-          roomId: '',
-          success: false,
-          error: 'Client is already in a session'
-        };
-      }
-      
-      // Generate a room ID
-      const timestamp = Date.now();
-      const roomId = `${readingType}_${readerId}_${clientId}_${timestamp}`;
-      
-      // Create a session record
-      sessionService.createSession(
-        readerId,
-        clientId,
-        roomId,
-        'Reader', // Will be updated with actual names
-        'Client',  // Will be updated with actual names
-        readingType
-      );
-      
-      console.log(`Created new ${readingType} session: ${roomId}`);
-      
-      return {
-        roomId,
-        success: true
-      };
-    } catch (error) {
-      console.error(`Error creating session:`, error);
-      return {
-        roomId: '',
-        success: false,
-        error: 'Failed to create session'
-      };
+  /**
+   * Broadcast online status change to all clients
+   * @param userId User ID
+   * @param isOnline Online status
+   */
+  private broadcastOnlineStatus(userId: number, isOnline: boolean) {
+    if (!this.io) {
+      return;
     }
+    
+    this.io.emit('user-status-change', {
+      userId,
+      isOnline,
+      timestamp: new Date()
+    });
   }
 
-  // Check if a user is online
+  /**
+   * Create a new WebRTC session
+   * @param readerId Reader ID
+   * @param clientId Client ID
+   * @param readingType Reading type
+   * @returns Session details
+   */
+  async createSession(readerId: number, clientId: number, readingType: 'video' | 'voice' | 'chat'): Promise<{
+    roomId: string;
+    readerId: number;
+    clientId: number;
+    type: string;
+  }> {
+    // Generate a unique room ID
+    const roomId = uuidv4();
+    
+    // Get reader and client names
+    const reader = await this.storage.getUser(readerId);
+    const client = await this.storage.getUser(clientId);
+    
+    if (!reader || !client) {
+      throw new Error('Reader or client not found');
+    }
+    
+    // Create session in database using existing session service
+    const dbSession = sessionService.createSession(
+      readerId,
+      clientId,
+      roomId,
+      reader.fullName || reader.username,
+      client.fullName || client.username,
+      readingType
+    );
+    
+    // Create session in memory
+    this.activeSessions.set(roomId, {
+      roomId,
+      readerId,
+      clientId,
+      readerName: reader.fullName || reader.username,
+      clientName: client.fullName || client.username,
+      type: readingType,
+      startTime: new Date(),
+      lastBillingTime: new Date(),
+      duration: 0,
+      status: 'waiting',
+      billingDetails: {
+        totalAmount: 0,
+        clientBilled: 0,
+        readerEarned: 0,
+        duration: 0
+      }
+    });
+    
+    return {
+      roomId,
+      readerId,
+      clientId,
+      type: readingType
+    };
+  }
+
+  /**
+   * Check if a user is online
+   * @param userId User ID
+   * @returns True if user is online
+   */
   isUserOnline(userId: number): boolean {
     return this.connectedUsers.has(userId);
   }
 
-  // Get a list of all online readers
+  /**
+   * Get a list of online readers
+   * @returns Array of reader IDs
+   */
   getOnlineReaders(): number[] {
     const onlineReaders: number[] = [];
     
@@ -523,6 +655,26 @@ class WebRTCService {
     }
     
     return onlineReaders;
+  }
+  
+  /**
+   * Check if a user is in session
+   * @param userId User ID
+   * @returns True if user is in session
+   */
+  isUserInSession(userId: number): boolean {
+    const user = this.connectedUsers.get(userId);
+    return user ? user.inSession : false;
+  }
+  
+  /**
+   * Get active session for a user
+   * @param userId User ID
+   * @returns Session ID or null
+   */
+  getUserSession(userId: number): string | null {
+    const user = this.connectedUsers.get(userId);
+    return user && user.inSession && user.sessionId ? user.sessionId : null;
   }
 }
 

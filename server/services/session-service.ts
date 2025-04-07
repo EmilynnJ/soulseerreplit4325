@@ -38,6 +38,12 @@ interface SessionRecord {
   totalAmount: number;
   billingRecords: SessionBillingRecord[];
   readingType?: 'chat' | 'voice' | 'video';
+  type?: 'chat' | 'voice' | 'video';
+  status?: 'scheduled' | 'waiting_payment' | 'payment_completed' | 'in_progress' | 'completed' | 'cancelled';
+  price?: number;
+  pricePerMinute?: number;
+  duration?: number;
+  completedAt?: string;
 }
 
 // Path to the sessions JSON file
@@ -276,5 +282,87 @@ export const sessionService = {
     
     // Filter by client ID
     return sessions.filter(s => s.clientId === clientId);
+  },
+  
+  /**
+   * Add earnings to a reader's balance from a session
+   * 
+   * @param readerId The ID of the reader
+   * @param amount The amount to add (in USD)
+   * @returns True if successful
+   */
+  addReaderEarnings: async (readerId: number, amount: number): Promise<boolean> => {
+    try {
+      // Import reader balance service
+      const { readerBalanceService } = await import('./reader-balance-service');
+      
+      // Get reader sessions to find name
+      const readerSessions = sessionService.getReaderSessions(readerId);
+      const readerName = readerSessions.length > 0 ? readerSessions[0].readerName : 'Unknown Reader';
+      
+      // Add to balance
+      readerBalanceService.addReaderEarnings(readerId, readerName, amount * 100); // Convert to cents
+      return true;
+    } catch (error) {
+      console.error('Error adding reader earnings:', error);
+      return false;
+    }
+  },
+  
+  /**
+   * Update a session with new information
+   * 
+   * @param roomName The name of the room
+   * @param updates The updates to apply
+   * @returns The updated session record
+   */
+  updateSession: (
+    roomName: string,
+    updates: {
+      status?: 'scheduled' | 'waiting_payment' | 'payment_completed' | 'in_progress' | 'completed' | 'cancelled';
+      duration?: number;
+      price?: number;
+      completedAt?: Date;
+      type?: 'chat' | 'voice' | 'video';
+    }
+  ): SessionRecord | null => {
+    ensureDataDirExists();
+    
+    // Load sessions
+    const sessions = JSON.parse(fs.readFileSync(SESSIONS_FILE_PATH, 'utf-8')) as SessionRecord[];
+    
+    // Find session
+    const sessionIndex = sessions.findIndex(s => s.roomName === roomName);
+    if (sessionIndex === -1) return null;
+    
+    // Apply updates
+    if (updates.status) {
+      sessions[sessionIndex].status = updates.status;
+    }
+    
+    if (updates.duration) {
+      sessions[sessionIndex].duration = updates.duration;
+      sessions[sessionIndex].totalDuration = updates.duration;
+    }
+    
+    if (updates.price) {
+      sessions[sessionIndex].price = updates.price;
+      sessions[sessionIndex].totalAmount = updates.price * 100; // Convert to cents for internal storage
+    }
+    
+    if (updates.completedAt) {
+      sessions[sessionIndex].completedAt = updates.completedAt.toISOString();
+      sessions[sessionIndex].endTime = updates.completedAt.toISOString();
+    }
+    
+    if (updates.type) {
+      sessions[sessionIndex].type = updates.type;
+      sessions[sessionIndex].readingType = updates.type;
+    }
+    
+    // Save updated sessions
+    fs.writeFileSync(SESSIONS_FILE_PATH, JSON.stringify(sessions, null, 2));
+    
+    return sessions[sessionIndex];
   }
 };
