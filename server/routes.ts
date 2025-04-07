@@ -3521,6 +3521,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to check reader livestream status' });
     }
   });
+  
+  // Health check endpoint
+  app.get('/health', (req: Request, res: Response) => {
+    res.json({ status: 'online' });
+  });
+  
+  // Start video reading session using Zego
+  app.post('/start-reading/video', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { clientId, readerId } = req.body;
+      
+      if (!clientId || !readerId) {
+        return res.status(400).json({ error: 'Missing required parameters: clientId, readerId' });
+      }
+      
+      // Generate unique room ID
+      const timestamp = Date.now();
+      const roomId = `video_${clientId}_${readerId}_${timestamp}`;
+      
+      // Generate token for client
+      const clientToken = generateZegoToken('video', {
+        userId: clientId.toString(),
+        roomId,
+        userName: 'Client'
+      });
+      
+      // Generate token for reader
+      const readerToken = generateZegoToken('video', {
+        userId: readerId.toString(),
+        roomId,
+        userName: 'Reader'
+      });
+      
+      // Get configs
+      const clientConfig = getZegoConfig('video', false); // client is not host
+      const readerConfig = getZegoConfig('video', true);  // reader is host
+      
+      // Create a session record
+      sessionService.createSession(
+        parseInt(readerId.toString()),
+        parseInt(clientId.toString()),
+        roomId,
+        'Reader', // Placeholder name
+        'Client',  // Placeholder name
+        'video'    // Reading type
+      );
+      
+      console.log(`Created new video reading session: ${roomId}`);
+      
+      // Return tokens and room information
+      res.json({
+        roomId,
+        appId: process.env.ZEGO_VIDEO_APP_ID || '',
+        client: {
+          userId: clientId.toString(),
+          token: clientToken,
+          config: clientConfig
+        },
+        reader: {
+          userId: readerId.toString(),
+          token: readerToken,
+          config: readerConfig
+        }
+      });
+    } catch (error) {
+      console.error('Error starting video session:', error);
+      res.status(500).json({ error: 'Failed to start video session' });
+    }
+  });
+  
+  // Start voice reading session using Zego
+  app.post('/start-reading/voice', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { clientId, readerId } = req.body;
+      
+      if (!clientId || !readerId) {
+        return res.status(400).json({ error: 'Missing required parameters: clientId, readerId' });
+      }
+      
+      // Generate unique room ID
+      const timestamp = Date.now();
+      const roomId = `voice_${clientId}_${readerId}_${timestamp}`;
+      
+      // Generate token for client
+      const clientToken = generateZegoToken('phone', {
+        userId: clientId.toString(),
+        roomId,
+        userName: 'Client'
+      });
+      
+      // Generate token for reader
+      const readerToken = generateZegoToken('phone', {
+        userId: readerId.toString(),
+        roomId,
+        userName: 'Reader'
+      });
+      
+      // Get configs
+      const clientConfig = getZegoConfig('phone', false); // client is not host
+      const readerConfig = getZegoConfig('phone', true);  // reader is host
+      
+      // Create a session record
+      sessionService.createSession(
+        parseInt(readerId.toString()),
+        parseInt(clientId.toString()),
+        roomId,
+        'Reader', // Placeholder name
+        'Client',  // Placeholder name
+        'voice'    // Reading type
+      );
+      
+      console.log(`Created new voice reading session: ${roomId}`);
+      
+      // Return tokens and room information
+      res.json({
+        roomId,
+        appId: process.env.ZEGO_PHONE_APP_ID || '',
+        client: {
+          userId: clientId.toString(),
+          token: clientToken,
+          config: clientConfig
+        },
+        reader: {
+          userId: readerId.toString(),
+          token: readerToken,
+          config: readerConfig
+        }
+      });
+    } catch (error) {
+      console.error('Error starting voice session:', error);
+      res.status(500).json({ error: 'Failed to start voice session' });
+    }
+  });
+  
+  // Start chat reading session using Zego
+  app.post('/start-reading/chat', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { clientId, readerId } = req.body;
+      
+      if (!clientId || !readerId) {
+        return res.status(400).json({ error: 'Missing required parameters: clientId, readerId' });
+      }
+      
+      // Generate unique room ID
+      const timestamp = Date.now();
+      const roomId = `chat_${clientId}_${readerId}_${timestamp}`;
+      
+      // Generate token for client
+      const clientToken = generateZegoToken('chat', {
+        userId: clientId.toString(),
+        roomId,
+        userName: 'Client'
+      });
+      
+      // Generate token for reader
+      const readerToken = generateZegoToken('chat', {
+        userId: readerId.toString(),
+        roomId,
+        userName: 'Reader'
+      });
+      
+      // Get configs
+      const clientConfig = getZegoConfig('chat', false); // client is not host
+      const readerConfig = getZegoConfig('chat', true);  // reader is host
+      
+      // Create a session record
+      sessionService.createSession(
+        parseInt(readerId.toString()),
+        parseInt(clientId.toString()),
+        roomId,
+        'Reader', // Placeholder name
+        'Client',  // Placeholder name
+        'chat'     // Reading type
+      );
+      
+      console.log(`Created new chat reading session: ${roomId}`);
+      
+      // Return tokens and room information
+      res.json({
+        roomId,
+        appId: process.env.ZEGO_CHAT_APP_ID || '',
+        client: {
+          userId: clientId.toString(),
+          token: clientToken,
+          config: clientConfig
+        },
+        reader: {
+          userId: readerId.toString(),
+          token: readerToken,
+          config: readerConfig
+        }
+      });
+    } catch (error) {
+      console.error('Error starting chat session:', error);
+      res.status(500).json({ error: 'Failed to start chat session' });
+    }
+  });
+  
+  // Legacy endpoint for backward compatibility
+  app.post('/start-reading', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { clientId, readerId, readingType } = req.body;
+      
+      if (!clientId || !readerId || !readingType) {
+        return res.status(400).json({ error: 'Missing required parameters: clientId, readerId, readingType' });
+      }
+      
+      // Validate reading type
+      if (!['chat', 'voice', 'video'].includes(readingType)) {
+        return res.status(400).json({ error: 'Invalid reading type. Must be chat, voice, or video.' });
+      }
+      
+      // Forward to specific endpoint
+      let forwardUrl = `/start-reading/${readingType}`;
+      
+      // Forward the request internally
+      req.url = forwardUrl;
+      app._router.handle(req, res);
+      
+    } catch (error) {
+      console.error('Error in legacy start reading endpoint:', error);
+      res.status(500).json({ error: 'Failed to start reading session' });
+    }
+  });
 
   // Recording token endpoint for admins
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {

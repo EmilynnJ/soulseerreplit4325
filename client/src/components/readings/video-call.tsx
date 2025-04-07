@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
-import { Video, Mic, MicOff, VideoOff, Phone, PhoneOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import { apiRequest } from '@/lib/queryClient';
+import { ZegoCall, ZegoVoiceCall, ZegoVideoCall, ZegoChatCall } from './zego-call';
 
 interface VideoCallProps {
   token: string;
@@ -12,132 +12,145 @@ interface VideoCallProps {
 }
 
 /**
- * Placeholder component for video calls - LIVEKIT REMOVED
- * 
- * This component will be replaced with Zego Cloud implementation
+ * Video/Voice Call component using Zego Cloud
+ * This component fetches the necessary Zego tokens and config based on reading type
  */
 export function VideoCall({ token, readingId, readingType, onSessionEnd }: VideoCallProps) {
   const { toast } = useToast();
-  const [connected, setConnected] = useState(false);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(readingType === 'video');
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [currentCost, setCurrentCost] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [zegoData, setZegoData] = useState<{
+    roomId: string;
+    userId: string;
+    userName: string;
+    token: string;
+    appId: string;
+    config: any;
+    zegoType: string;
+  } | null>(null);
   
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const timerRef = useRef<NodeJS.Timeout>();
-  
-  // Timer for elapsed time simulation
+  // Fetch Zego token and configuration
   useEffect(() => {
-    timerRef.current = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
-    }, 1000);
-    
-    // Display a notification that LiveKit has been removed
-    toast({
-      title: 'LiveKit has been removed',
-      description: 'Video calls will be implemented using Zego Cloud.',
-    });
-    
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
+    const fetchZegoToken = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Get reading token using the existing roomName
+        const response = await apiRequest('POST', '/api/livekit/token', {
+          roomId: `reading-${readingId}`,
+          readingType
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to get token');
+        }
+        
+        const data = await response.json();
+        
+        // Get appropriate app ID based on reading type
+        let appId = '';
+        if (readingType === 'chat') {
+          appId = import.meta.env.VITE_ZEGO_CHAT_APP_ID as string;
+        } else if (readingType === 'voice') {
+          appId = import.meta.env.VITE_ZEGO_PHONE_APP_ID as string;
+        } else {
+          appId = import.meta.env.VITE_ZEGO_VIDEO_APP_ID as string;
+        }
+        
+        setZegoData({
+          roomId: data.roomId,
+          userId: data.userId,
+          userName: data.userName || 'User',
+          token: data.token,
+          appId: appId || data.appId,
+          config: data.config,
+          zegoType: data.zegoType || readingType
+        });
+      } catch (error) {
+        console.error('Error fetching Zego token:', error);
+        setError('Failed to initialize session. Please try again.');
+        
+        toast({
+          title: 'Session Error',
+          description: 'Could not initialize reading session. Please try again later.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
       }
     };
-  }, [toast]);
+    
+    fetchZegoToken();
+  }, [readingId, readingType, token, toast]);
   
-  // Format seconds into MM:SS
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-  
-  // End the call
-  const endCall = () => {
-    if (onSessionEnd) {
-      onSessionEnd();
-    }
-  };
-  
-  return (
-    <div className="flex flex-col h-full bg-background rounded-lg overflow-hidden">
-      {/* Call status header */}
-      <div className="bg-muted p-3 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="bg-yellow-100 border-yellow-400 text-yellow-700">
-            LiveKit Removed
-          </Badge>
-          <span className="text-sm font-medium">Duration: {formatTime(elapsedTime)}</span>
-        </div>
-        <div className="text-sm font-medium">
-          Cost: ${currentCost.toFixed(2)}
-        </div>
-      </div>
-      
-      {/* Video area - placeholder */}
-      <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 relative">
-        {/* Local video placeholder */}
-        <div className="relative bg-muted rounded-lg overflow-hidden aspect-video">
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted">
-            <Video className="h-12 w-12 text-muted-foreground opacity-50" />
-            <p className="text-center text-muted-foreground mt-4 px-4">
-              LiveKit has been removed. Zego Cloud will be implemented for video calls.
-            </p>
-          </div>
-          <div className="absolute bottom-2 left-2 text-sm bg-black/50 text-white px-2 py-1 rounded">
-            You
-          </div>
-        </div>
-        
-        {/* Remote participant placeholder */}
-        <div className="relative bg-muted rounded-lg overflow-hidden aspect-video flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center justify-center bg-muted">
-            <Video className="h-12 w-12 text-muted-foreground opacity-50" />
-            <p className="text-sm text-muted-foreground absolute bottom-4">
-              Waiting for Zego Cloud implementation...
-            </p>
-          </div>
-          <div className="absolute bottom-2 left-2 text-sm bg-black/50 text-white px-2 py-1 rounded">
-            Participant
-          </div>
-        </div>
-      </div>
-      
-      {/* Controls - placeholders */}
-      <div className="bg-muted p-4 flex justify-center space-x-4">
-        {readingType === 'video' && (
-          <Button
-            variant="outline"
-            size="icon"
-            className={isVideoEnabled ? 'bg-primary/10' : 'bg-destructive/10'}
-            onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-            disabled
+  // Handle errors
+  if (error) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center bg-background rounded-lg">
+        <div className="text-center p-6">
+          <p className="text-lg text-red-500 mb-4">{error}</p>
+          <button 
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+            onClick={() => window.location.reload()}
           >
-            {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-          </Button>
-        )}
-        
-        <Button
-          variant="outline"
-          size="icon"
-          className={isAudioEnabled ? 'bg-primary/10' : 'bg-destructive/10'}
-          onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-          disabled
-        >
-          {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-        </Button>
-        
-        <Button
-          variant="destructive"
-          size="icon"
-          onClick={endCall}
-        >
-          <PhoneOff className="h-5 w-5" />
-        </Button>
+            Retry
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+  
+  // Show loading state
+  if (isLoading || !zegoData) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center bg-background rounded-lg">
+        <Loader2 className="h-10 w-10 animate-spin mb-4 text-primary" />
+        <p className="text-lg">Initializing {readingType} session...</p>
+      </div>
+    );
+  }
+  
+  // Render the appropriate call component based on reading type
+  switch (readingType) {
+    case 'voice':
+      return (
+        <ZegoVoiceCall
+          roomId={zegoData.roomId}
+          userId={zegoData.userId}
+          userName={zegoData.userName}
+          token={zegoData.token}
+          appId={zegoData.appId}
+          config={zegoData.config}
+          onSessionEnd={onSessionEnd}
+        />
+      );
+    case 'chat':
+      return (
+        <ZegoChatCall
+          roomId={zegoData.roomId}
+          userId={zegoData.userId}
+          userName={zegoData.userName}
+          token={zegoData.token}
+          appId={zegoData.appId}
+          config={zegoData.config}
+          onSessionEnd={onSessionEnd}
+        />
+      );
+    case 'video':
+    default:
+      return (
+        <ZegoVideoCall
+          roomId={zegoData.roomId}
+          userId={zegoData.userId}
+          userName={zegoData.userName}
+          token={zegoData.token}
+          appId={zegoData.appId}
+          config={zegoData.config}
+          onSessionEnd={onSessionEnd}
+        />
+      );
+  }
 }
 
 /**

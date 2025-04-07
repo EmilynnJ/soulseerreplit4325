@@ -37,6 +37,7 @@ interface SessionRecord {
   totalDuration: number;
   totalAmount: number;
   billingRecords: SessionBillingRecord[];
+  readingType?: 'chat' | 'voice' | 'video';
 }
 
 // Path to the sessions JSON file
@@ -63,9 +64,10 @@ export const sessionService = {
    * 
    * @param readerId The ID of the reader
    * @param clientId The ID of the client
-   * @param roomName The name of the LiveKit room
+   * @param roomName The name of the room
    * @param readerName The name of the reader
    * @param clientName The name of the client
+   * @param readingType The type of reading (optional)
    * @returns The created session record
    */
   createSession: (
@@ -73,7 +75,8 @@ export const sessionService = {
     clientId: number,
     roomName: string,
     readerName: string,
-    clientName: string
+    clientName: string,
+    readingType?: 'chat' | 'voice' | 'video'
   ): SessionRecord => {
     ensureDataDirExists();
     
@@ -92,7 +95,8 @@ export const sessionService = {
       endTime: '',
       totalDuration: 0,
       totalAmount: 0,
-      billingRecords: []
+      billingRecords: [],
+      readingType
     };
     
     // Save to file
