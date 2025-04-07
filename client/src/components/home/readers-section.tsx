@@ -43,61 +43,74 @@ export function ReadersSection() {
   useEffect(() => {
     if (!websocket.lastMessage) return;
     
-    // Handle both message types for backwards compatibility
-    if (websocket.lastMessage.type === 'reader_status_change' || websocket.lastMessage.type === 'reader_status') {
-      let reader, status;
+    if (websocket.lastMessage.type === 'reader_status_change') {
+      const { readerId, status, reader: readerData } = websocket.lastMessage;
       
-      if (websocket.lastMessage.type === 'reader_status_change') {
-        // Handle message from routes.ts broadcastReaderActivity
-        ({ reader, status } = websocket.lastMessage);
-      } else if (websocket.lastMessage.type === 'reader_status') {
-        // Handle message from websocket.ts broadcastReaderActivity
-        const { readerId, status: readerStatus } = websocket.lastMessage;
-        // Need to fetch reader details if we only have the ID
-        const matchingReader = readers.find(r => r.id === readerId);
-        if (!matchingReader) return;
+      // When there's full reader data in the message
+      if (readerData) {
+        console.log(`WebSocket: Received full reader data for reader ${readerId} (${readerData.username}): ${status}`);
         
-        reader = matchingReader;
-        status = readerStatus;
-      }
-      
-      if (!reader || !status) return;
-      
-      // Update the readers list with the new status
-      setReaders(prevReaders => {
-        // Find if the reader is already in the list
-        const readerIndex = prevReaders.findIndex(r => r.id === reader.id);
+        // Update all online readers list
+        setReaders(prevReaders => {
+          const readerIndex = prevReaders.findIndex(r => r.id === readerId);
+          
+          // Handle online status
+          if (status === 'online') {
+            if (readerIndex === -1) {
+              // Add to online readers list
+              console.log(`Adding reader ${readerData.username} to online list`);
+              return [...prevReaders, {...readerData, isOnline: true}];
+            } else {
+              // Update existing reader
+              console.log(`Updating reader ${readerData.username} to online`);
+              const updatedReaders = [...prevReaders];
+              updatedReaders[readerIndex] = {
+                ...updatedReaders[readerIndex],
+                ...readerData,
+                isOnline: true
+              };
+              return updatedReaders;
+            }
+          } 
+          // Handle offline status - remove from online list
+          else if (status === 'offline' && readerIndex !== -1) {
+            console.log(`Removing reader ${readerData.username} from online list`);
+            return prevReaders.filter(r => r.id !== readerId);
+          }
+          
+          return prevReaders;
+        });
+      } 
+      // Fall back to ID-only handling if no reader data provided
+      else if (readerId) {
+        console.log(`WebSocket: Received status update for reader ID ${readerId}: ${status}`);
         
-        console.log(`WebSocket status change for reader ${reader.id} (${reader.username}): ${status}`);
-        console.log(`Reader current state in UI:`, readerIndex !== -1 ? prevReaders[readerIndex] : 'Not in list');
-        
-        if (status === 'online' && readerIndex === -1) {
-          // Add the reader to the list if they're now online
-          console.log(`Adding reader ${reader.username} to the online list`);
-          return [...prevReaders, {...reader, isOnline: true}];
-        } else if (status === 'online' && readerIndex !== -1) {
-          // Update the existing reader's information
-          console.log(`Updating reader ${reader.username} to online`);
-          const updatedReaders = [...prevReaders];
-          updatedReaders[readerIndex] = {
-            ...updatedReaders[readerIndex],
-            ...reader,
-            isOnline: true
-          };
-          return updatedReaders;
-        } else if (status === 'offline' && readerIndex !== -1) {
-          // Update the reader's status to offline
-          console.log(`Updating reader ${reader.username} to offline`);
-          const updatedReaders = [...prevReaders];
-          updatedReaders[readerIndex] = {
-            ...updatedReaders[readerIndex],
-            isOnline: false
-          };
-          return updatedReaders;
+        // Update by ID (find reader in local state)
+        const existingReader = readers.find(r => r.id === readerId);
+        if (!existingReader) {
+          console.warn(`Cannot update reader ${readerId} - not found in local state`);
+          return;
         }
         
-        return prevReaders;
-      });
+        // Update readers list
+        setReaders(prevReaders => {
+          if (status === 'online') {
+            const readerIndex = prevReaders.findIndex(r => r.id === readerId);
+            if (readerIndex === -1) {
+              // Add to list if online
+              return [...prevReaders, {...existingReader, isOnline: true}];
+            } else {
+              // Update status if already in list
+              return prevReaders.map(r => 
+                r.id === readerId ? {...r, isOnline: true} : r
+              );
+            }
+          } else {
+            // Remove from list if offline
+            return prevReaders.filter(r => r.id !== readerId);
+          }
+        });
+      }
     }
   }, [websocket.lastMessage, readers]);
   

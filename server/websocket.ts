@@ -108,16 +108,30 @@ class WebSocketManager {
     }
   }
 
-  private broadcastReaderActivity(readerId: number, status: 'online' | 'offline') {
+  private async broadcastReaderActivity(readerId: number, status: 'online' | 'offline') {
+    // Get the reader details to include in the broadcast
+    const reader = await storage.getUser(readerId);
+    if (!reader) {
+      console.error(`Cannot broadcast status for non-existent reader ID: ${readerId}`);
+      return;
+    }
+
+    // Remove sensitive data
+    const { password, ...safeReader } = reader;
+    
     for (const [_, client] of this.connectedClients) {
       if (client.socket.readyState === WebSocket.OPEN) {
         try {
+          // Send consistent message structure with both 'readerId' and 'reader' fields
+          // This ensures compatibility with all client components
           client.socket.send(JSON.stringify({
             type: 'reader_status_change',
             readerId,
             status,
+            reader: safeReader, // Include full reader object
             timestamp: Date.now()
           }));
+          console.log(`Broadcasting ${status} status for reader ${readerId} (${reader.username})`);
         } catch (error) {
           console.error(`Error broadcasting reader ${readerId} status:`, error);
         }
