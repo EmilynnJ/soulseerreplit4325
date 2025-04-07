@@ -84,6 +84,8 @@ function CheckoutForm() {
 }
 
 function CheckoutSuccess() {
+  const [, navigate] = useLocation();
+  
   return (
     <div className="text-center py-16 px-4">
       <div className="mb-6 flex justify-center">
@@ -93,7 +95,7 @@ function CheckoutSuccess() {
       <p className="text-light/80 font-playfair mb-8 max-w-md mx-auto">
         Thank you for your purchase. Your mystical items will be on their way to you soon.
       </p>
-      <CelestialButton onClick={() => window.location.href = '/'}>
+      <CelestialButton onClick={() => navigate('/')}>
         Return to Home
       </CelestialButton>
     </div>
@@ -103,7 +105,7 @@ function CheckoutSuccess() {
 export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState('');
   const { items, totalAmount } = useCart();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -114,7 +116,7 @@ export default function CheckoutPage() {
         description: 'Your cart is empty. Add some items before checkout.',
         variant: 'destructive',
       });
-      window.location.href = '/shop';
+      setLocation('/shop');
       return;
     }
 
@@ -122,7 +124,7 @@ export default function CheckoutPage() {
     async function createPaymentIntent() {
       try {
         const response = await apiRequest('POST', '/api/create-payment-intent', { 
-          amount: totalAmount // API expects amount in cents, will convert to dollars
+          amount: totalAmount / 100 // Send in dollars, API will convert to cents
         });
         
         const data = await response.json();
@@ -143,7 +145,7 @@ export default function CheckoutPage() {
     }
 
     createPaymentIntent();
-  }, [items, totalAmount, toast]);
+  }, [items, totalAmount, toast, setLocation]);
 
   // If showing the success page
   if (location === '/checkout/success') {
