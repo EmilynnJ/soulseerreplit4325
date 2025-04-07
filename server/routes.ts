@@ -13,6 +13,8 @@ import fs from "fs";
 import { User, UserUpdate } from "../shared/schema";
 import { WebSocket } from "ws";
 import * as stripeClient from "./services/stripe-client";
+import { sessionService } from "./services/session-service";
+import { readerBalanceService } from "./services/reader-balance-service";
 
 // Authentication middleware
 const authenticate = (req: Request, res: Response, next: NextFunction) => {
@@ -3257,7 +3259,240 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Session management routes
+  app.post('/api/sessions/token', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { livekitService } = await import('./services/livekit-service');
+      const { sessionService } = await import('./services/session-service');
+      
+      const { userId, userName, readerId, readerName, roomName } = req.body;
+      
+      if (!userId || !readerId || !roomName || !userName || !readerName) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+      
+      // Get user and validate role
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      // Generate token
+      const token = livekitService.generateToken(
+        userId,
+        roomName,
+        userName
+      );
+      
+      // Create session record if this is a new session
+      const existingSession = sessionService.getSessionByRoomName(roomName);
+      
+      if (!existingSession) {
+        sessionService.createSession(
+          parseInt(readerId),
+          userId,
+          roomName,
+          readerName,
+          userName
+        );
+        
+        console.log(`Created new session record for room: ${roomName}`);
+      }
+      
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error('Error generating session token:', error);
+      res.status(500).json({ error: 'Failed to generate session token' });
+    }
+  });
+  
+  app.post('/api/sessions/billing', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { sessionService } = await import('./services/session-service');
+      
+      const { roomName, duration, userId, userRole } = req.body;
+      
+      if (!roomName || !duration || !userId || !userRole) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+      
+      // Get session
+      const session = sessionService.getSessionByRoomName(roomName);
+      
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      
+      // Only clients can be billed
+      if (userRole !== 'client') {
+        return res.status(200).json({ 
+          message: 'No billing for readers', 
+          session 
+        });
+      }
+      
+      // Record billing
+      const updatedSession = await sessionService.recordBilling(
+        roomName,
+        duration,
+        userId,
+        session.readerId
+      );
+      
+      if (!updatedSession) {
+        return res.status(500).json({ error: 'Failed to record billing' });
+      }
+      
+      res.status(200).json({
+        message: `Billing recorded: $${(duration * 1).toFixed(2)} for ${duration} minutes`,
+        session: updatedSession
+      });
+    } catch (error) {
+      console.error('Error recording billing:', error);
+      res.status(500).json({ error: 'Failed to record billing' });
+    }
+  });
+  
+  app.post('/api/sessions/end', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { sessionService } = await import('./services/session-service');
+      
+      const { roomName, totalDuration, userId, userRole } = req.body;
+      
+      if (!roomName || !totalDuration) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+      
+      // End session
+      const updatedSession = sessionService.endSession(roomName, totalDuration);
+      
+      if (!updatedSession) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+      
+      res.status(200).json({
+        message: `Session ended: ${totalDuration} minutes total`,
+        session: updatedSession
+      });
+    } catch (error) {
+      console.error('Error ending session:', error);
+      res.status(500).json({ error: 'Failed to end session' });
+    }
+  });
+  
+  app.get('/api/sessions/reader/:readerId', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { sessionService } = await import('./services/session-service');
+      
+      const readerId = parseInt(req.params.readerId);
+      
+      if (isNaN(readerId)) {
+        return res.status(400).json({ error: 'Invalid reader ID' });
+      }
+      
+      // Get reader sessions
+      const sessions = sessionService.getReaderSessions(readerId);
+      
+      res.status(200).json(sessions);
+    } catch (error) {
+      console.error('Error fetching reader sessions:', error);
+      res.status(500).json({ error: 'Failed to fetch sessions' });
+    }
+  });
+  
+  app.get('/api/sessions/client/:clientId', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { sessionService } = await import('./services/session-service');
+      
+      const clientId = parseInt(req.params.clientId);
+      
+      if (isNaN(clientId)) {
+        return res.status(400).json({ error: 'Invalid client ID' });
+      }
+      
+      // Get client sessions
+      const sessions = sessionService.getClientSessions(clientId);
+      
+      res.status(200).json(sessions);
+    } catch (error) {
+      console.error('Error fetching client sessions:', error);
+      res.status(500).json({ error: 'Failed to fetch sessions' });
+    }
+  });
+  
   // LiveKit token routes are now in place above
+  
+  // Reader Balance API Routes
+  
+  // Get a reader's balance
+  app.get('/api/reader-balance/:readerId', authenticate, async (req: Request, res: Response) => {
+    try {
+      // Only allow a reader to view their own balance, or admin to view any balance
+      const readerId = parseInt(req.params.readerId);
+      if (isNaN(readerId)) {
+        return res.status(400).json({ error: 'Invalid reader ID' });
+      }
+
+      if (req.user.role !== 'admin' && req.user.id !== readerId) {
+        return res.status(403).json({ error: 'Unauthorized. You can only view your own balance.' });
+      }
+
+      const balance = readerBalanceService.getReaderBalance(readerId);
+      if (!balance) {
+        return res.status(404).json({ error: 'Reader balance not found' });
+      }
+
+      res.json(balance);
+    } catch (error) {
+      console.error('Error fetching reader balance:', error);
+      res.status(500).json({ error: 'Failed to fetch reader balance' });
+    }
+  });
+
+  // Get all reader balances (admin only)
+  app.get('/api/reader-balances', authenticate, adminOnly, async (req: Request, res: Response) => {
+    try {
+      const balances = readerBalanceService.getAllReaderBalances();
+      res.json(balances);
+    } catch (error) {
+      console.error('Error fetching all reader balances:', error);
+      res.status(500).json({ error: 'Failed to fetch reader balances' });
+    }
+  });
+
+  // Get payouts for a reader
+  app.get('/api/reader-payouts/:readerId', authenticate, async (req: Request, res: Response) => {
+    try {
+      const readerId = parseInt(req.params.readerId);
+      if (isNaN(readerId)) {
+        return res.status(400).json({ error: 'Invalid reader ID' });
+      }
+
+      if (req.user.role !== 'admin' && req.user.id !== readerId) {
+        return res.status(403).json({ error: 'Unauthorized. You can only view your own payouts.' });
+      }
+
+      const payouts = readerBalanceService.getReaderPayouts(readerId);
+      res.json(payouts);
+    } catch (error) {
+      console.error('Error fetching reader payouts:', error);
+      res.status(500).json({ error: 'Failed to fetch reader payouts' });
+    }
+  });
+
+  // Process payouts for eligible readers (admin only)
+  app.post('/api/process-payouts', authenticate, adminOnly, async (req: Request, res: Response) => {
+    try {
+      const payouts = await readerBalanceService.processEligiblePayouts();
+      res.json({
+        message: `Processed ${payouts.length} payout(s)`,
+        payouts: payouts
+      });
+    } catch (error) {
+      console.error('Error processing payouts:', error);
+      res.status(500).json({ error: 'Failed to process payouts' });
+    }
+  });
 
   return httpServer;
 }

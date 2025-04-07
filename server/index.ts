@@ -101,6 +101,44 @@ app.use((req, res, next) => {
   
   const server = await registerRoutes(app);
 
+  // Initialize the daily reader payout scheduler
+  try {
+    const { readerBalanceService } = await import('./services/reader-balance-service');
+    
+    // Function to schedule payouts at midnight
+    const scheduleDailyPayouts = () => {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(24, 0, 0, 0); // Next midnight
+      
+      const timeUntilMidnight = midnight.getTime() - now.getTime();
+      
+      console.log(`[PAYOUT SCHEDULER] Next payout scheduled for ${midnight.toISOString()} (in ${Math.round(timeUntilMidnight / 60000)} minutes)`);
+      
+      // Schedule the payout
+      setTimeout(async () => {
+        try {
+          console.log('[PAYOUT SCHEDULER] Running scheduled daily payouts');
+          await readerBalanceService.scheduleDailyPayouts();
+          
+          // Schedule the next day's payout
+          scheduleDailyPayouts();
+        } catch (error) {
+          console.error('[PAYOUT SCHEDULER] Error running scheduled payouts:', error);
+          // Re-schedule even on error
+          scheduleDailyPayouts();
+        }
+      }, timeUntilMidnight);
+    };
+    
+    // Start the scheduler
+    scheduleDailyPayouts();
+    
+    console.log('[PAYOUT SCHEDULER] Reader payout scheduler initialized');
+  } catch (error) {
+    console.error('[PAYOUT SCHEDULER] Failed to initialize payout scheduler:', error);
+  }
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
