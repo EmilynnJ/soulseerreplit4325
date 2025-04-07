@@ -25,17 +25,39 @@ export default function WebRTCSessionPage() {
     queryKey: ['/api/sessions/details', roomId],
     queryFn: async () => {
       if (!roomId) return null;
-      const response = await fetch(`/api/sessions/details/${roomId}`, {
-        credentials: 'include', // This is needed for authentication cookies
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch session details: ${response.statusText}`);
+      if (!user) {
+        console.error('User not authenticated - cannot fetch session details');
+        throw new Error('Authentication required');
       }
-      const data = await response.json();
-      return data;
+      
+      try {
+        // Get the session token from localStorage
+        const sessionId = localStorage.getItem('sessionId') || '';
+        
+        const response = await fetch(`/api/sessions/details/${roomId}`, {
+          credentials: 'include', // Include credentials for cookies
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionId}`, // Add Authorization header with session ID
+            'X-Session-ID': sessionId // Also include X-Session-ID for compatibility
+          }
+        });
+        
+        if (!response.ok) {
+          console.error(`Session details fetch failed with status: ${response.status}`);
+          if (response.status === 401) {
+            throw new Error('Authentication error: Please login again');
+          }
+          throw new Error(`Failed to fetch session details: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Session details retrieved successfully:', data);
+        return data;
+      } catch (error) {
+        console.error('Error fetching session details:', error);
+        throw error;
+      }
     },
     enabled: !!roomId && !!user,
     staleTime: Infinity // Don't refetch during session
@@ -57,11 +79,16 @@ export default function WebRTCSessionPage() {
   // Handle session end
   const handleSessionEnd = async (totalDuration: number) => {
     try {
+      // Get the session token from localStorage
+      const sessionId = localStorage.getItem('sessionId') || '';
+      
       const response = await fetch('/api/sessions/end', {
         method: 'POST',
-        credentials: 'include', // Add credentials for authentication
+        credentials: 'include', // Include credentials for cookies
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionId}`, // Add Authorization header with session ID
+          'X-Session-ID': sessionId // Also include X-Session-ID for compatibility
         },
         body: JSON.stringify({
           roomName: roomId,
@@ -70,12 +97,17 @@ export default function WebRTCSessionPage() {
           userRole: user?.role
         })
       });
-
+      
       if (!response.ok) {
+        console.error(`Session end request failed with status: ${response.status}`);
+        if (response.status === 401) {
+          throw new Error('Authentication error: Please login again');
+        }
         throw new Error(`Failed to end session: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('Session ended successfully:', data);
       setSessionSummary(data);
       setSessionEnded(true);
     } catch (error) {

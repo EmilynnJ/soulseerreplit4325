@@ -638,6 +638,14 @@ class WebRTCService {
     const user = this.connectedUsers.get(userId);
     return user && user.inSession && user.sessionId ? user.sessionId : null;
   }
+  
+  /**
+   * Get the Socket.IO server instance
+   * @returns The Socket.IO server instance or null
+   */
+  getIO(): SocketIOServer | null {
+    return this.io;
+  }
 }
 
 export const webRTCService = new WebRTCService();

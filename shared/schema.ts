@@ -120,7 +120,9 @@ export const livestreams = pgTable("livestreams", {
   category: text("category").notNull(),
   viewerCount: integer("viewer_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
-  // LiveKit fields
+  // WebRTC fields
+  roomId: text("room_id"), // Used for WebRTC room identification
+  // Legacy LiveKit fields (keeping for backward compatibility)
   livekitRoomName: text("livekit_room_name"),
   duration: real("duration"), // Duration in seconds after stream ends
 });
@@ -212,6 +214,7 @@ export const insertLivestreamSchema = createInsertSchema(livestreams)
     endedAt: true, 
     viewerCount: true,
     duration: true,
+    roomId: true,
     livekitRoomName: true
   });
 
@@ -267,6 +270,7 @@ export type LivestreamUpdate = Partial<InsertLivestream> & {
   endedAt?: Date;
   viewerCount?: number;
   duration?: number;
+  roomId?: string;
   livekitRoomName?: string;
 };
 

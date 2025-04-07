@@ -83,6 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], user);
       console.log("User data set in query client cache");
       
+      // Store session ID in localStorage for authentication
+      if (user && (user as any).sessionID) {
+        localStorage.setItem('sessionId', (user as any).sessionID);
+        console.log("Session ID stored in localStorage:", (user as any).sessionID);
+      } else {
+        // Store the user ID as a fallback (not as secure but usable)
+        localStorage.setItem('sessionId', user.id.toString());
+        console.log("No session ID found, using user ID as fallback for authentication");
+      }
+      
       // Force an immediate refetch
       refetchUser();
       
@@ -159,6 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], user);
       console.log("User data set in query client cache after registration");
       
+      // Store session ID in localStorage for authentication
+      if (user && (user as any).sessionID) {
+        localStorage.setItem('sessionId', (user as any).sessionID);
+        console.log("Session ID stored in localStorage:", (user as any).sessionID);
+      } else {
+        // Store the user ID as a fallback (not as secure but usable)
+        localStorage.setItem('sessionId', user.id.toString());
+        console.log("No session ID found, using user ID as fallback for authentication");
+      }
+      
       // Force a refetch to ensure we have the latest data
       setTimeout(() => {
         refetchUser();
@@ -216,6 +236,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear all cache data to ensure clean state
       queryClient.clear();
       console.log("Query cache cleared after logout");
+      
+      // Remove the session ID from localStorage
+      localStorage.removeItem('sessionId');
+      console.log("Session ID removed from localStorage");
       
       // Set user to null explicitly
       queryClient.setQueryData(["/api/user"], null);

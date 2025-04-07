@@ -276,16 +276,57 @@ class LivestreamService {
       console.log('Livestream service already initialized');
       return;
     }
-
-    this.io = new SocketIOServer(server, {
-      path: '/livestream-socket',
-      cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
-      }
-    });
-
-    this.setupSocketHandlers();
+    
+    // Use the existing socket.io instance from webRTCService if available
+    try {
+      // Import dynamically instead of using require
+      import('./webrtc-service').then(module => {
+        const webRTCService = module.webRTCService;
+        if (webRTCService && webRTCService.getIO()) {
+          this.io = webRTCService.getIO();
+          console.log('Livestream service using existing Socket.IO instance from WebRTC service');
+          this.setupSocketHandlers();
+        } else {
+          // Create a new Socket.IO server as fallback with a different namespace
+          this.io = new SocketIOServer(server, {
+            path: '/livestream-socket',
+            cors: {
+              origin: '*',
+              methods: ['GET', 'POST']
+            }
+          });
+          console.log('Livestream service created new Socket.IO instance with custom path');
+          this.setupSocketHandlers();
+        }
+      }).catch(err => {
+        console.error('Error importing WebRTC service:', err);
+        // Create a new Socket.IO server with a different path
+        this.io = new SocketIOServer(server, {
+          path: '/livestream-socket',
+          cors: {
+            origin: '*',
+            methods: ['GET', 'POST']
+          }
+        });
+        this.setupSocketHandlers();
+      });
+      
+      // Return here as socket setup will happen asynchronously
+      return;
+    } catch (error) {
+      console.error('Error getting WebRTC service IO, creating new instance:', error);
+      // Create a new Socket.IO server with a different path
+      this.io = new SocketIOServer(server, {
+        path: '/livestream-socket',
+        cors: {
+          origin: '*',
+          methods: ['GET', 'POST']
+        }
+      });
+      // Setup socket handlers in this case
+      this.setupSocketHandlers();
+    }
+    
     console.log('Livestream service initialized');
   }
 

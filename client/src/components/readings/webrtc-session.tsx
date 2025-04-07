@@ -60,10 +60,17 @@ export default function WebRTCSession({
   // Function to initialize the WebRTC connection
   const initializeConnection = async () => {
     try {
-      // Initialize socket connection
+      // Get the session token from localStorage
+      const sessionId = localStorage.getItem('sessionId') || '';
+      
+      // Initialize socket connection with auth headers
       socketRef.current = io(window.location.origin, {
         transports: ['websocket'],
-        upgrade: false
+        upgrade: false,
+        extraHeaders: {
+          'Authorization': `Bearer ${sessionId}`,
+          'X-Session-ID': sessionId
+        }
       });
 
       // Register with the socket server

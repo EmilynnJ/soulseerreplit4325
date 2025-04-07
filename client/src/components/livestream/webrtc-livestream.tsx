@@ -78,10 +78,16 @@ export function WebRTCLivestream({ roomId, hostId, isHost, title, onEnd }: WebRT
     
     const initializeLivestream = async () => {
       try {
-        // Connect to socket server
+        // Get the session token from localStorage
+        const sessionId = localStorage.getItem('sessionId') || '';
+        
+        // Connect to socket server with auth headers - use the same path as the WebRTC service
         socketRef.current = io(window.location.origin, {
-          path: '/livestream-socket',
           transports: ['websocket', 'polling'],
+          extraHeaders: {
+            'Authorization': `Bearer ${sessionId}`,
+            'X-Session-ID': sessionId
+          }
         });
         
         // Set up event handlers
@@ -450,6 +456,7 @@ export function WebRTCLivestream({ roomId, hostId, isHost, title, onEnd }: WebRT
         // Call API to end livestream
         await apiRequest(`/api/livestreams/${roomId}/end`, {
           method: 'POST',
+          body: {}
         });
         
         toast({
