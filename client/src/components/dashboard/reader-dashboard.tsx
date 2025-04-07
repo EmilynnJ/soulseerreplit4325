@@ -76,18 +76,30 @@ export function ReaderDashboard() {
   }, [user]);
 
   const handleOnlineToggle = async (checked: boolean) => {
-    setIsOnline(checked);
-
     try {
-      await apiRequest("PATCH", "/api/readers/status", {
+      const response = await apiRequest("PATCH", "/api/readers/status", {
         isOnline: checked
       });
 
-      // Invalidate user data to refresh status
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      if (response.ok) {
+        setIsOnline(checked);
+        // Invalidate both user and online readers data
+        queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/readers/online"] });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update online status",
+          variant: "destructive"
+        });
+      }
     } catch (err) {
       console.error("Failed to update online status:", err);
-      setIsOnline(!checked); // Revert on failure
+      toast({
+        title: "Error",
+        description: "Failed to update online status",
+        variant: "destructive"
+      });
     }
   };
 

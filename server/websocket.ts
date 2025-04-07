@@ -94,8 +94,8 @@ class WebSocketManager {
           
           console.log(`User ${client.userId} (${user.username}) has ${activeConnections} remaining active connections`);
           
-          // Only update status if there are no remaining connections AND the user is currently online
-          if (activeConnections === 0 && user.isOnline === true) {
+          // Check if status needs to be updated
+          if (activeConnections === 0) {
             console.log(`User ${client.userId} (${user.username}) has no remaining connections, setting to offline`);
             
             try {
