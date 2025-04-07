@@ -424,16 +424,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "isOnline status is required" });
       }
 
-      // Log the status change for debugging
-      console.log(`Reader ${req.user.id} changing status to: ${isOnline ? 'online' : 'offline'}`);
+      // Get current user to check if status is actually changing
+      const currentUser = await storage.getUser(req.user.id);
+      if (!currentUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
+      // Log existing and requested status for debugging
+      console.log(`Reader ${req.user.id} (${currentUser.username}) status change request: Current=${currentUser.isOnline ? 'online' : 'offline'}, Requested=${isOnline ? 'online' : 'offline'}`);
+
+      // Only update if status is actually changing
+      if (currentUser.isOnline === isOnline) {
+        console.log(`Reader ${req.user.id} (${currentUser.username}) status is already ${isOnline ? 'online' : 'offline'}, skipping update`);
+        return res.json({ 
+          success: true, 
+          user: currentUser,
+          message: "Status already set to " + (isOnline ? "online" : "offline")
+        });
+      }
+
+      // Update user in database
       const updatedUser = await storage.updateUser(req.user.id, {
         isOnline,
         lastActive: new Date()
       });
 
-      // Broadcast status change to all connected clients
-      broadcastReaderActivity(req.user.id, isOnline ? 'online' : 'offline');
+      console.log(`Reader ${req.user.id} (${currentUser.username}) status updated to: ${isOnline ? 'online' : 'offline'}`);
+
+      // Broadcast status change to all connected clients using the WebSocket manager
+      // This also ensures the database status is consistent with what's being broadcast
+      if (global.websocket && global.websocket.broadcastReaderActivity) {
+        global.websocket.broadcastReaderActivity(req.user.id, isOnline ? 'online' : 'offline');
+      } else {
+        console.warn('WebSocket manager not available for broadcast');
+        // Fallback to direct broadcast function if available
+        if (typeof broadcastReaderActivity === 'function') {
+          broadcastReaderActivity(req.user.id, isOnline ? 'online' : 'offline');
+        }
+      }
 
       res.json({ success: true, user: updatedUser });
     } catch (error) {
@@ -3566,7 +3594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Reader-specific livestream token endpoint
+  // Reader-specific livestream token endpoint - upgraded to use Zego Cloud
   app.post('/api/livekit/reader-livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { readerId } = req.body;
@@ -3582,14 +3610,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user information
       const user = req.user as User;
       
-      // Generate token for reader's livestream room
-      const token = livekitService.generateReaderLivestreamToken(
-        user.id,
-        readerId,
-        user.fullName || user.username
-      );
+      // Create a unique room name for this reader's livestream
+      const roomId = `livestream-reader-${readerId}`;
       
-      res.status(200).json({ token });
+      // Determine if this is a production environment
+      const isProduction = req.hostname === 'soulseer.app' || 
+                         req.hostname.includes('.onrender.com');
+                         
+      console.log(`Generating reader livestream token: hostname=${req.hostname}, isProduction=${isProduction}, readerId=${readerId}`);
+      
+      // Generate token using Zego service (type: 'live')
+      const token = generateZegoToken('live', {
+        userId: user.id.toString(),
+        roomId: roomId,
+        userName: user.fullName || user.username
+      });
+      
+      // Include Zego configuration for the client
+      // If the user requesting the token is the reader, they are the host
+      const isHost = user.id.toString() === readerId.toString();
+      const config = getZegoConfig('live', isHost, isProduction);
+      
+      res.status(200).json({ 
+        token,
+        config,
+        roomId,
+        userId: user.id.toString(),
+        userName: user.fullName || user.username,
+        isHost,
+        appId: getZegoCredentials('live').appId
+      });
     } catch (error) {
       console.error('Error generating reader livestream token:', error);
       res.status(500).json({ error: 'Failed to generate reader livestream token' });
@@ -3877,7 +3927,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recording token endpoint for admins
+  // Recording token endpoint for admins - upgraded to use Zego Cloud
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
       const { room } = req.body;
@@ -3889,15 +3939,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get admin user info (already checked by adminOnly middleware)
       const user = req.user as User;
       
-      // Generate admin token with longer expiration
-      const token = livekitService.generateToken(
-        user.id,
-        room,
-        user.fullName || user.username,
-        7200  // Longer expiration for recording (2 hours)
-      );
+      // Determine if this is a production environment
+      const isProduction = req.hostname === 'soulseer.app' || 
+                         req.hostname.includes('.onrender.com');
+                         
+      console.log(`Generating recording token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      res.status(200).json({ token });
+      // Generate token using Zego service with longer expiration (2 hours)
+      const token = generateZegoToken('live', {
+        userId: user.id.toString(),
+        roomId: room,
+        userName: user.fullName || user.username,
+        expirationSeconds: 7200 // 2 hours
+      });
+      
+      // Include Zego configuration for the client
+      const config = getZegoConfig('live', true, isProduction); // Admin is always host
+      
+      res.status(200).json({ 
+        token,
+        config,
+        roomId: room,
+        userId: user.id.toString(),
+        userName: user.fullName || user.username,
+        appId: getZegoCredentials('live').appId
+      });
     } catch (error) {
       console.error('Error generating recording token:', error);
       res.status(500).json({ error: 'Failed to generate recording token' });

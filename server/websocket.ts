@@ -75,35 +75,73 @@ class WebSocketManager {
         console.log(`WebSocket client ${clientId} disconnected`);
         const client = this.connectedClients.get(clientId);
 
+        // First delete this client from the connection map to ensure proper connection counting
+        this.connectedClients.delete(clientId);
+        
         if (client?.userId) {
           const user = await storage.getUser(client.userId);
+          if (!user) return; // Skip if user no longer exists
           
-          // Check if this is the last connection for this user
-          let hasOtherConnections = false;
-          for (const [otherClientId, otherClient] of this.connectedClients.entries()) {
-            if (otherClientId !== clientId && otherClient.userId === client.userId) {
-              console.log(`User ${client.userId} has another active connection: ${otherClientId}`);
-              hasOtherConnections = true;
-              break;
+          // Count active connections for this user AFTER removing this connection
+          // This ensures accurate connection counting
+          let activeConnections = 0;
+          for (const [, otherClient] of this.connectedClients.entries()) {
+            if (otherClient.userId === client.userId && 
+                otherClient.socket.readyState === WebSocket.OPEN) {
+              activeConnections++;
             }
           }
           
-          // Only update status if this is the last connection
-          if (!hasOtherConnections) {
-            console.log(`User ${client.userId} has no other connections, marking as offline`);
-            await storage.updateUser(client.userId, { isOnline: false });
+          console.log(`User ${client.userId} (${user.username}) has ${activeConnections} remaining active connections`);
+          
+          // Only update status if there are no remaining connections AND the user is currently online
+          if (activeConnections === 0 && user.isOnline === true) {
+            console.log(`User ${client.userId} (${user.username}) has no remaining connections, setting to offline`);
             
-            // For readers, broadcast offline status
-            if (user?.role === 'reader') {
-              console.log(`Reader ${client.userId} (${user.username}) disconnected and set offline`);
-              this.broadcastReaderActivity(client.userId, 'offline');
+            try {
+              // Use setTimeout to ensure we're truly disconnected before setting offline
+              setTimeout(async () => {
+                // Recheck connection count in case a reconnect happened during the timeout
+                let finalConnectionCount = 0;
+                for (const [, checkClient] of this.connectedClients.entries()) {
+                  if (checkClient.userId === client.userId && 
+                      checkClient.socket.readyState === WebSocket.OPEN) {
+                    finalConnectionCount++;
+                  }
+                }
+                
+                // If still no connections after the delay, set to offline
+                if (finalConnectionCount === 0) {
+                  console.log(`Confirming user ${client.userId} (${user.username}) has no active connections after delay`);
+                  
+                  // Update user in database
+                  await storage.updateUser(client.userId, { 
+                    isOnline: false,
+                    lastActive: new Date()
+                  });
+                  
+                  // Only broadcast for readers
+                  if (user.role === 'reader') {
+                    console.log(`Broadcasting offline status for reader ${client.userId} (${user.username})`);
+                    // Fetch fresh user data after the update
+                    const updatedUser = await storage.getUser(client.userId);
+                    if (updatedUser) {
+                      this.broadcastReaderActivity(client.userId, 'offline');
+                    }
+                  }
+                } else {
+                  console.log(`User ${client.userId} reconnected during timeout, keeping online`);
+                }
+              }, 2000); // 2 second delay to handle reconnection scenarios
+            } catch (error) {
+              console.error(`Error setting user ${client.userId} offline:`, error);
             }
-          } else {
-            console.log(`User ${client.userId} still has active connections, keeping online`);
+          } else if (activeConnections > 0) {
+            console.log(`User ${client.userId} (${user.username}) still has active connections, keeping online`);
+          } else if (user.isOnline === false) {
+            console.log(`User ${client.userId} (${user.username}) is already offline in database`);
           }
         }
-
-        this.connectedClients.delete(clientId);
       });
     });
   }
@@ -133,33 +171,61 @@ class WebSocketManager {
   }
 
   private async broadcastReaderActivity(readerId: number, status: 'online' | 'offline') {
-    // Get the reader details to include in the broadcast
-    const reader = await storage.getUser(readerId);
-    if (!reader) {
-      console.error(`Cannot broadcast status for non-existent reader ID: ${readerId}`);
-      return;
-    }
+    try {
+      // First, ensure the reader's status in the database is consistent with what we're broadcasting
+      // This is crucial to prevent race conditions between UI and database state
+      await storage.updateUser(readerId, { 
+        isOnline: status === 'online',
+        lastActive: new Date()
+      });
+      
+      // Now get the updated reader details to include in the broadcast
+      const reader = await storage.getUser(readerId);
+      if (!reader) {
+        console.error(`Cannot broadcast status for non-existent reader ID: ${readerId}`);
+        return;
+      }
+      
+      console.log(`Broadcasting ${status} status for reader ${readerId} (${reader.username}), DB isOnline=${reader.isOnline}`);
+      
+      // Validate that database and status parameter are in sync
+      if ((status === 'online' && !reader.isOnline) || (status === 'offline' && reader.isOnline)) {
+        console.warn(`Status mismatch detected: broadcast status=${status}, DB status=${reader.isOnline ? 'online' : 'offline'}`);
+        // Force alignment between what we're broadcasting and what's in the DB
+        await storage.updateUser(readerId, { isOnline: status === 'online' });
+      }
 
-    // Remove sensitive data
-    const { password, ...safeReader } = reader;
-    
-    for (const [_, client] of this.connectedClients) {
-      if (client.socket.readyState === WebSocket.OPEN) {
-        try {
-          // Send consistent message structure with both 'readerId' and 'reader' fields
-          // This ensures compatibility with all client components
-          client.socket.send(JSON.stringify({
-            type: 'reader_status_change',
-            readerId,
-            status,
-            reader: safeReader, // Include full reader object
-            timestamp: Date.now()
-          }));
-          console.log(`Broadcasting ${status} status for reader ${readerId} (${reader.username})`);
-        } catch (error) {
-          console.error(`Error broadcasting reader ${readerId} status:`, error);
+      // Remove sensitive data
+      const { password, ...safeReader } = reader;
+      
+      // Count how many clients we send to for logging
+      let sentCount = 0;
+      
+      for (const [_, client] of this.connectedClients) {
+        if (client.socket.readyState === WebSocket.OPEN) {
+          try {
+            // Send consistent message structure with both 'readerId' and 'reader' fields
+            // This ensures compatibility with all client components
+            client.socket.send(JSON.stringify({
+              type: 'reader_status_change',
+              readerId,
+              status,
+              reader: {
+                ...safeReader,
+                isOnline: status === 'online' // Enforce consistency between status and reader.isOnline
+              },
+              timestamp: Date.now()
+            }));
+            sentCount++;
+          } catch (error) {
+            console.error(`Error broadcasting reader ${readerId} status:`, error);
+          }
         }
       }
+      
+      console.log(`Successfully broadcast ${status} status for reader ${readerId} to ${sentCount} clients`);
+    } catch (error) {
+      console.error(`Error in broadcastReaderActivity for reader ${readerId}:`, error);
     }
   }
 
@@ -194,6 +260,16 @@ class WebSocketManager {
 
 export function setupWebSocket(server: Server) {
   const wsManager = new WebSocketManager(server);
-  (global as any).websocket = wsManager;
+  
+  // Expose the WebSocketManager instance and its methods globally
+  (global as any).websocket = {
+    ...wsManager,
+    // Explicitly expose the methods that routes.ts calls directly
+    broadcastToAll: wsManager.broadcastToAll.bind(wsManager),
+    notifyUser: wsManager.notifyUser.bind(wsManager),
+    broadcastReaderActivity: wsManager.broadcastReaderActivity.bind(wsManager)
+  };
+  
+  console.log('WebSocket manager setup complete with enhanced methods');
   return wsManager;
 }
