@@ -3500,7 +3500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Livestream token endpoint
+  // Livestream token endpoint - upgraded to use Zego Cloud
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { name, room, useReaderRoom } = req.body;
@@ -3512,15 +3512,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get user information
       const user = req.user as User;
       
-      // Generate token for livestream
-      const token = livekitService.generateLivestreamToken(
-        user.id,
-        room,
-        name || user.fullName || user.username,
-        useReaderRoom === true
-      );
+      // Determine if this is a production environment
+      const isProduction = req.hostname === 'soulseer.app' || 
+                       req.hostname.includes('.onrender.com');
+                       
+      console.log(`Generating livestream token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      res.status(200).json({ token });
+      // Generate token using Zego service (type: 'live')
+      const token = generateZegoToken('live', {
+        userId: user.id.toString(),
+        roomId: room,
+        userName: name || user.fullName || user.username
+      });
+      
+      // Include Zego configuration for the client
+      const config = getZegoConfig('live', true, isProduction); // isHost=true
+      
+      res.status(200).json({ 
+        token,
+        config,
+        roomId: room,
+        userId: user.id.toString(),
+        userName: name || user.fullName || user.username,
+        appId: getZegoCredentials('live').appId
+      });
     } catch (error) {
       console.error('Error generating livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
