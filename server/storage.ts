@@ -1,4 +1,4 @@
-import { users, type User, type InsertUser, type UserUpdate, readings, type Reading, type InsertReading, products, type Product, type InsertProduct, orders, type Order, type InsertOrder, orderItems, type OrderItem, type InsertOrderItem, livestreams, type Livestream, type InsertLivestream, forumPosts, type ForumPost, type InsertForumPost, forumComments, type ForumComment, type InsertForumComment, messages, type Message, type InsertMessage, gifts, type Gift, type InsertGift } from "@shared/schema";
+import { users, type User, type InsertUser, type UserUpdate, readings, type Reading, type InsertReading, products, type Product, type InsertProduct, orders, type Order, type InsertOrder, orderItems, type OrderItem, type InsertOrderItem, livestreams, type Livestream, type InsertLivestream, type LivestreamUpdate, forumPosts, type ForumPost, type InsertForumPost, forumComments, type ForumComment, type InsertForumComment, messages, type Message, type InsertMessage, gifts, type Gift, type InsertGift } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
@@ -53,7 +53,7 @@ export interface IStorage {
   getLivestream(id: number): Promise<Livestream | undefined>;
   getLivestreams(): Promise<Livestream[]>;
   getLivestreamsByUser(userId: number): Promise<Livestream[]>;
-  updateLivestream(id: number, livestream: Partial<InsertLivestream>): Promise<Livestream | undefined>;
+  updateLivestream(id: number, livestream: LivestreamUpdate): Promise<Livestream | undefined>;
   
   // Forum Posts
   createForumPost(forumPost: InsertForumPost): Promise<ForumPost>;
@@ -388,7 +388,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.livestreams.values()).filter(livestream => livestream.userId === userId);
   }
   
-  async updateLivestream(id: number, livestreamData: Partial<InsertLivestream>): Promise<Livestream | undefined> {
+  async updateLivestream(id: number, livestreamData: LivestreamUpdate): Promise<Livestream | undefined> {
     const livestream = this.livestreams.get(id);
     if (!livestream) return undefined;
     
@@ -823,7 +823,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(livestreams).where(eq(livestreams.userId, userId));
   }
 
-  async updateLivestream(id: number, livestreamData: Partial<InsertLivestream>): Promise<Livestream | undefined> {
+  async updateLivestream(id: number, livestreamData: LivestreamUpdate): Promise<Livestream | undefined> {
     const [updatedLivestream] = await db.update(livestreams)
       .set(livestreamData)
       .where(eq(livestreams.id, id))

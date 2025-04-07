@@ -262,6 +262,13 @@ export type OrderItem = typeof orderItems.$inferSelect;
 
 export type InsertLivestream = z.infer<typeof insertLivestreamSchema>;
 export type Livestream = typeof livestreams.$inferSelect;
+export type LivestreamUpdate = Partial<InsertLivestream> & {
+  startedAt?: Date;
+  endedAt?: Date;
+  viewerCount?: number;
+  duration?: number;
+  livekitRoomName?: string;
+};
 
 export type InsertForumPost = z.infer<typeof insertForumPostSchema>;
 export type ForumPost = typeof forumPosts.$inferSelect;

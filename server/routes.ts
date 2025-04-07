@@ -1385,9 +1385,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Missing required gift data" });
       }
 
-      // Validate amount
-      if (isNaN(giftData.amount) || giftData.amount <= 0) {
-        return res.status(400).json({ message: "Invalid gift amount" });
+      // Standardize gift amounts to the defined denominations ($1, $5, $10 in cents)
+      const validAmounts = [100, 500, 1000]; // $1, $5, $10 in cents
+      const amount = parseInt(giftData.amount);
+      
+      if (!validAmounts.includes(amount)) {
+        return res.status(400).json({ 
+          message: "Invalid gift amount. Please choose from $1, $5, or $10",
+          validAmounts: validAmounts.map(a => a / 100) // Convert to dollars for display
+        });
       }
 
       // Check if recipient exists
@@ -1398,17 +1404,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if user has enough balance
       const sender = await storage.getUser(userId);
-      if (!sender || (sender.accountBalance || 0) < giftData.amount) {
+      if (!sender || (sender.accountBalance || 0) < amount) {
         return res.status(400).json({ 
           message: "Insufficient account balance",
           balance: sender ? sender.accountBalance || 0 : 0,
-          required: giftData.amount
+          required: amount
         });
       }
 
       // If there's a livestream, check if it's active
+      let livestream = null;
       if (giftData.livestreamId) {
-        const livestream = await storage.getLivestream(giftData.livestreamId);
+        livestream = await storage.getLivestream(giftData.livestreamId);
         if (!livestream) {
           return res.status(404).json({ message: "Livestream not found" });
         }
@@ -1418,7 +1425,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Calculate reader amount (70%) and platform amount (30%)
-      const amount = parseInt(giftData.amount);
       const readerAmount = Math.floor(amount * 0.7); // 70% to reader
       const platformAmount = amount - readerAmount; // Remainder to platform
 
@@ -1444,22 +1450,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         accountBalance: (recipient.accountBalance || 0) + readerAmount
       });
 
+      // Prepare the gift notification with user information
+      const giftNotification = {
+        type: 'new_gift',
+        gift,
+        senderUsername: sender.username,
+        senderName: sender.fullName || sender.username,
+        recipientUsername: recipient.username,
+        recipientName: recipient.fullName || recipient.username,
+        giftType: giftData.giftType,
+        giftAmount: amount / 100, // Convert cents to dollars for display
+        message: giftData.message || null,
+        timestamp: new Date().toISOString()
+      };
+
       // If there's a livestream, notify all users in the livestream
-      if (giftData.livestreamId) {
+      if (giftData.livestreamId && livestream) {
         try {
-          broadcastToAll({
-            type: 'new_gift',
-            gift,
-            senderUsername: sender.username,
-            recipientUsername: recipient.username
-          });
+          // Create a room name for the livestream
+          const roomName = `livestream-${recipient.id}`;
+          
+          // Broadcast the gift to all users in the livestream room
+          broadcastToAll(giftNotification);
+          
+          console.log(`Broadcasted gift notification to all users for room: ${roomName}`);
         } catch (broadcastError) {
           console.error("Failed to broadcast gift:", broadcastError);
           // Don't fail the request if broadcasting fails
         }
       }
 
-      res.status(201).json(gift);
+      res.status(201).json({
+        gift,
+        notification: giftNotification
+      });
     } catch (error) {
       console.error("Failed to create gift:", error);
       res.status(500).json({ message: "Failed to create gift. Please try again." });
@@ -3204,6 +3228,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to end livestream" });
     }
   });
+  
+  // API endpoint to start a reader-specific livestream
+  app.post("/api/reader-livestream/start", async (req, res) => {
+    if (!req.isAuthenticated() || req.user.role !== "reader") {
+      return res.status(403).json({ message: "Not authorized. Only readers can start livestreams." });
+    }
+
+    try {
+      const readerId = req.user.id;
+      const { title, description, category } = req.body;
+      
+      // Validate required fields
+      if (!title || !description || !category) {
+        return res.status(400).json({ message: "Missing required livestream data" });
+      }
+      
+      // Check if the reader already has an active livestream
+      const existingLivestreams = await storage.getLivestreamsByUser(readerId);
+      const activeLivestream = existingLivestreams.find(stream => stream.status === 'live');
+      
+      if (activeLivestream) {
+        return res.status(400).json({ 
+          message: "You already have an active livestream", 
+          livestream: activeLivestream 
+        });
+      }
+      
+      // Create a new livestream
+      const livestream = await storage.createLivestream({
+        userId: readerId,
+        title,
+        description,
+        category,
+        status: 'created',
+        thumbnailUrl: req.body.thumbnailUrl || null,
+        scheduledFor: null
+      });
+      
+      // Start the livestream immediately using reader-specific room format
+      const { livekitService } = await import('./services/livekit-service');
+      const startedLivestream = await livekitService.startLivestream(livestream.id, true);
+      
+      if (!startedLivestream) {
+        return res.status(500).json({ message: "Failed to start livestream" });
+      }
+      
+      // Generate a token for the reader to join their own room
+      const token = livekitService.generateLivestreamToken(
+        readerId,
+        startedLivestream.id.toString(),
+        req.user.fullName || req.user.username,
+        true  // Use reader-specific room format
+      );
+      
+      // Return livestream info along with the token
+      res.status(201).json({
+        livestream: startedLivestream,
+        token,
+        roomName: `livestream-${readerId}`
+      });
+    } catch (error) {
+      console.error("Error starting reader livestream:", error);
+      res.status(500).json({ message: "Failed to start livestream. Please try again." });
+    }
+  });
+  
+  // API endpoint to join a reader's livestream as a viewer
+  app.post("/api/reader-livestream/:readerId/join", async (req, res) => {
+    try {
+      const readerId = parseInt(req.params.readerId);
+      if (isNaN(readerId)) {
+        return res.status(400).json({ message: "Invalid reader ID" });
+      }
+      
+      // Check if the reader exists
+      const reader = await storage.getUser(readerId);
+      if (!reader || reader.role !== "reader") {
+        return res.status(404).json({ message: "Reader not found" });
+      }
+      
+      // Check if the reader has an active livestream
+      const readerLivestreams = await storage.getLivestreamsByUser(readerId);
+      const activeLivestream = readerLivestreams.find(stream => stream.status === 'live');
+      
+      if (!activeLivestream) {
+        return res.status(404).json({ message: "No active livestream found for this reader" });
+      }
+      
+      // Get viewer info
+      let viewerId = 0;
+      let viewerName = "Guest";
+      
+      if (req.isAuthenticated()) {
+        viewerId = req.user.id;
+        viewerName = req.user.fullName || req.user.username;
+      } else if (req.body.guestName) {
+        // Allow guests to join with a name
+        viewerName = req.body.guestName;
+      }
+      
+      // Generate token for the viewer
+      const { livekitService } = await import('./services/livekit-service');
+      const token = livekitService.generateReaderLivestreamToken(
+        viewerId, 
+        readerId,
+        viewerName
+      );
+      
+      res.status(200).json({
+        token,
+        livestream: activeLivestream,
+        roomName: `livestream-${readerId}`
+      });
+    } catch (error) {
+      console.error("Error joining reader livestream:", error);
+      res.status(500).json({ message: "Failed to join livestream" });
+    }
+  });
 
   // Compatibility endpoint for old LiveKit routes - forwards to Zego Cloud
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
@@ -3261,7 +3403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { livekitService } = await import('./services/livekit-service');
-      const { name, room } = req.body;
+      const { name, room, useReaderRoom } = req.body;
       
       if (!name || !room) {
         return res.status(400).json({ error: 'Missing name or room' });
@@ -3271,16 +3413,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       
       // Generate token for livestream
-      const token = livekitService.generateToken(
+      const token = livekitService.generateLivestreamToken(
         user.id,
         room,
-        name || user.fullName || user.username
+        name || user.fullName || user.username,
+        useReaderRoom === true
       );
       
       res.status(200).json({ token });
     } catch (error) {
       console.error('Error generating livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
+    }
+  });
+  
+  // Reader-specific livestream token endpoint
+  app.post('/api/livekit/reader-livestream-token', authenticate, async (req: Request, res: Response) => {
+    try {
+      const { livekitService } = await import('./services/livekit-service');
+      const { readerId } = req.body;
+      
+      if (!readerId) {
+        return res.status(400).json({ error: 'Missing readerId' });
+      }
+      
+      // Check if the reader exists
+      const reader = await storage.getUser(readerId);
+      if (!reader || reader.role !== 'reader') {
+        return res.status(404).json({ error: 'Reader not found' });
+      }
+      
+      // Get user information
+      const user = req.user as User;
+      
+      // Generate token for reader's livestream room
+      const token = livekitService.generateReaderLivestreamToken(
+        user.id,
+        readerId,
+        user.fullName || user.username
+      );
+      
+      res.status(200).json({ token });
+    } catch (error) {
+      console.error('Error generating reader livestream token:', error);
+      res.status(500).json({ error: 'Failed to generate reader livestream token' });
+    }
+  });
+
+  // Check if a reader is currently livestreaming
+  app.get('/api/livestream/reader/:readerId', async (req: Request, res: Response) => {
+    try {
+      const readerId = parseInt(req.params.readerId);
+      
+      if (isNaN(readerId)) {
+        return res.status(400).json({ error: 'Invalid reader ID' });
+      }
+      
+      // Check if the reader exists
+      const reader = await storage.getUser(readerId);
+      if (!reader || reader.role !== 'reader') {
+        return res.status(404).json({ error: 'Reader not found' });
+      }
+      
+      // Get all active livestreams for this reader
+      const livestreams = await storage.getLivestreamsByUser(readerId);
+      const activeLivestreams = livestreams.filter(stream => stream.status === 'live');
+      
+      // If there are active livestreams, return information about them
+      if (activeLivestreams.length > 0) {
+        return res.json({
+          isLive: true,
+          livestreams: activeLivestreams,
+          roomName: `livestream-${readerId}`,
+          readerName: reader.fullName || reader.username
+        });
+      }
+      
+      // No active livestreams found
+      res.json({
+        isLive: false
+      });
+    } catch (error) {
+      console.error('Error checking reader livestream status:', error);
+      res.status(500).json({ error: 'Failed to check reader livestream status' });
     }
   });
 

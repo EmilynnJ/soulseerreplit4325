@@ -7,7 +7,8 @@
  */
 
 import { AccessToken } from 'livekit-server-sdk';
-import { User } from '@shared/schema';
+import { User, Livestream } from '@shared/schema';
+import { storage } from '../storage';
 
 // Default configuration with environment variable fallbacks
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || '';
@@ -105,12 +106,127 @@ export const livekitService = {
   generateLivestreamToken: (
     streamerId: number,
     streamId: string,
-    streamerName: string
+    streamerName: string,
+    useReaderRoom: boolean = false
   ) => {
-    // Create a unique room ID for this livestream
-    const roomId = `livestream_${streamId}`;
+    // Create a room ID - either based on stream ID or reader ID
+    const roomId = useReaderRoom 
+      ? `livestream-${streamerId}` // Reader-specific room format
+      : `livestream_${streamId}`;  // Stream-specific room format
+    
+    console.log(`Creating livestream token for room: ${roomId}`);
     
     // Generate token
     return livekitService.generateToken(streamerId, roomId, streamerName);
+  },
+
+  /**
+   * Generate token for joining a reader's livestream room
+   * 
+   * @param userId The ID of the viewer
+   * @param readerId The ID of the reader hosting the stream
+   * @param userName The name of the viewer
+   * @returns The generated token string
+   */
+  generateReaderLivestreamToken: (
+    userId: number,
+    readerId: number,
+    userName: string
+  ) => {
+    // Create the reader-specific room ID
+    const roomId = `livestream-${readerId}`;
+    
+    console.log(`Creating viewer token for reader livestream room: ${roomId}`);
+    
+    // Generate token
+    return livekitService.generateToken(userId, roomId, userName);
+  },
+  
+  /**
+   * Start a livestream
+   * 
+   * @param livestreamId The ID of the livestream to start
+   * @param useReaderRoom Whether to use reader-specific room format
+   * @returns The updated livestream
+   */
+  startLivestream: async (
+    livestreamId: number,
+    useReaderRoom: boolean = false
+  ): Promise<Livestream | undefined> => {
+    try {
+      // Get the livestream
+      const livestream = await storage.getLivestream(livestreamId);
+      if (!livestream) {
+        console.error(`Livestream ${livestreamId} not found`);
+        return undefined;
+      }
+      
+      // Get the user who created the livestream
+      const user = await storage.getUser(livestream.userId);
+      if (!user) {
+        console.error(`User ${livestream.userId} not found`);
+        return undefined;
+      }
+      
+      // Create a room name - either based on livestream ID or reader ID
+      const roomName = useReaderRoom 
+        ? `livestream-${user.id}` // Reader-specific room format
+        : `livestream_${livestreamId}`; // Livestream ID format
+        
+      console.log(`Starting livestream ${livestreamId} with room name ${roomName}`);
+      
+      // Update the livestream record
+      const updatedLivestream = await storage.updateLivestream(livestreamId, {
+        status: 'live',
+        startedAt: new Date(),
+        livekitRoomName: roomName
+      });
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error(`Error starting livestream ${livestreamId}:`, error);
+      return undefined;
+    }
+  },
+  
+  /**
+   * End a livestream
+   * 
+   * @param livestreamId The ID of the livestream to end
+   * @returns The updated livestream
+   */
+  endLivestream: async (
+    livestreamId: number
+  ): Promise<Livestream | undefined> => {
+    try {
+      // Get the livestream
+      const livestream = await storage.getLivestream(livestreamId);
+      if (!livestream) {
+        console.error(`Livestream ${livestreamId} not found`);
+        return undefined;
+      }
+      
+      // Calculate duration in seconds (if possible)
+      let duration = null;
+      if (livestream.startedAt) {
+        const endTime = new Date();
+        const startTime = new Date(livestream.startedAt);
+        duration = (endTime.getTime() - startTime.getTime()) / 1000; // in seconds
+      }
+      
+      // Update the livestream record
+      const updatedLivestream = await storage.updateLivestream(livestreamId, {
+        status: 'ended',
+        endedAt: new Date(),
+        duration: duration
+      });
+      
+      console.log(`Ended livestream ${livestreamId} with duration ${duration} seconds`);
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error(`Error ending livestream ${livestreamId}:`, error);
+      return undefined;
+    }
   }
 };
