@@ -41,8 +41,27 @@ export function ReadersSection() {
   
   // Listen for WebSocket messages about reader status changes
   useEffect(() => {
-    if (websocket.lastMessage && websocket.lastMessage.type === 'reader_status_change') {
-      const { reader, status } = websocket.lastMessage;
+    if (!websocket.lastMessage) return;
+    
+    // Handle both message types for backwards compatibility
+    if (websocket.lastMessage.type === 'reader_status_change' || websocket.lastMessage.type === 'reader_status') {
+      let reader, status;
+      
+      if (websocket.lastMessage.type === 'reader_status_change') {
+        // Handle message from routes.ts broadcastReaderActivity
+        ({ reader, status } = websocket.lastMessage);
+      } else if (websocket.lastMessage.type === 'reader_status') {
+        // Handle message from websocket.ts broadcastReaderActivity
+        const { readerId, status: readerStatus } = websocket.lastMessage;
+        // Need to fetch reader details if we only have the ID
+        const matchingReader = readers.find(r => r.id === readerId);
+        if (!matchingReader) return;
+        
+        reader = matchingReader;
+        status = readerStatus;
+      }
+      
+      if (!reader || !status) return;
       
       // Update the readers list with the new status
       setReaders(prevReaders => {
@@ -80,7 +99,7 @@ export function ReadersSection() {
         return prevReaders;
       });
     }
-  }, [websocket.lastMessage]);
+  }, [websocket.lastMessage, readers]);
   
   // Filter online readers - add debug logs
   console.log("All readers data:", readers);

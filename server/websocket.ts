@@ -113,7 +113,7 @@ class WebSocketManager {
       if (client.socket.readyState === WebSocket.OPEN) {
         try {
           client.socket.send(JSON.stringify({
-            type: 'reader_status',
+            type: 'reader_status_change',
             readerId,
             status,
             timestamp: Date.now()

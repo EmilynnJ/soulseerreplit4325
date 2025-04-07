@@ -8,12 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Filter } from "lucide-react";
 import { ReaderCard } from "@/components/readers/reader-card";
+import { useWebSocketContext } from "@/hooks/websocket-provider";
 
 export default function ReadersPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
+  const [localReaders, setLocalReaders] = useState<Omit<User, 'password'>[]>([]);
+  const [localOnlineReaders, setLocalOnlineReaders] = useState<Omit<User, 'password'>[]>([]);
+  const websocket = useWebSocketContext();
 
   // Fetch all readers
   const { data: readers, isLoading: isLoadingReaders, error } = useQuery<Omit<User, 'password'>[]>({
@@ -35,6 +39,88 @@ export default function ReadersPage() {
       });
     }
   }, [error, toast]);
+  
+  // Update local state when API data changes
+  useEffect(() => {
+    if (readers) {
+      setLocalReaders(readers);
+    }
+  }, [readers]);
+  
+  useEffect(() => {
+    if (onlineReaders) {
+      setLocalOnlineReaders(onlineReaders);
+    }
+  }, [onlineReaders]);
+  
+  // Listen for WebSocket messages about reader status changes
+  useEffect(() => {
+    if (!websocket.lastMessage) return;
+    
+    // Handle both message types for backwards compatibility
+    if (websocket.lastMessage.type === 'reader_status_change' || websocket.lastMessage.type === 'reader_status') {
+      let reader, status;
+      
+      if (websocket.lastMessage.type === 'reader_status_change') {
+        // Handle message from routes.ts broadcastReaderActivity
+        ({ reader, status } = websocket.lastMessage);
+      } else if (websocket.lastMessage.type === 'reader_status') {
+        // Handle message from websocket.ts broadcastReaderActivity
+        const { readerId, status: readerStatus } = websocket.lastMessage;
+        // Need to fetch reader details if we only have the ID
+        const matchingReader = localReaders.find(r => r.id === readerId);
+        if (!matchingReader) return;
+        
+        reader = matchingReader;
+        status = readerStatus;
+      }
+      
+      if (!reader || !status) return;
+      
+      // Update both readers lists with the new status
+      setLocalReaders(prevReaders => {
+        // Find if the reader is already in the list
+        const readerIndex = prevReaders.findIndex(r => r.id === reader.id);
+        if (readerIndex === -1) return prevReaders;
+        
+        console.log(`WebSocket status change for reader ${reader.id} (${reader.username}): ${status}`);
+        
+        const updatedReaders = [...prevReaders];
+        updatedReaders[readerIndex] = {
+          ...updatedReaders[readerIndex],
+          ...reader,
+          isOnline: status === 'online'
+        };
+        return updatedReaders;
+      });
+      
+      // Also update the online readers list
+      if (status === 'online') {
+        setLocalOnlineReaders(prevReaders => {
+          const readerIndex = prevReaders.findIndex(r => r.id === reader.id);
+          
+          // If not in list, add reader
+          if (readerIndex === -1) {
+            return [...prevReaders, {...reader, isOnline: true}];
+          }
+          
+          // If in list, update reader
+          const updatedReaders = [...prevReaders];
+          updatedReaders[readerIndex] = {
+            ...updatedReaders[readerIndex],
+            ...reader,
+            isOnline: true
+          };
+          return updatedReaders;
+        });
+      } else {
+        // Remove from online readers if now offline
+        setLocalOnlineReaders(prevReaders => 
+          prevReaders.filter(r => r.id !== reader.id)
+        );
+      }
+    }
+  }, [websocket.lastMessage, localReaders]);
 
   // Filter readers based on search query and specialty
   const filterReaders = (readers: Omit<User, 'password'>[] | undefined, isOnline: boolean = false) => {
@@ -44,7 +130,7 @@ export default function ReadersPage() {
     
     // Filter by online status
     if (activeTab === "online" && !isOnline) {
-      filteredReaders = onlineReaders || [];
+      filteredReaders = localOnlineReaders || [];
     }
     
     // Filter by search query
@@ -71,8 +157,8 @@ export default function ReadersPage() {
   const extractSpecialties = () => {
     const specialtiesSet = new Set<string>();
     
-    if (readers) {
-      readers.forEach(reader => {
+    if (localReaders.length > 0) {
+      localReaders.forEach(reader => {
         if (reader.specialties) {
           reader.specialties.forEach(specialty => {
             specialtiesSet.add(specialty);
@@ -93,8 +179,8 @@ export default function ReadersPage() {
   };
 
   const displayedReaders = activeTab === "online" 
-    ? filterReaders(onlineReaders, true) 
-    : filterReaders(readers);
+    ? filterReaders(localOnlineReaders, true) 
+    : filterReaders(localReaders);
 
   return (
     <div className="max-w-6xl mx-auto py-12 px-4">
