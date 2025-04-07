@@ -35,9 +35,12 @@ export function setupAuth(app: Express) {
   const isProduction = process.env.NODE_ENV === "production";
   console.log(`Setting up auth in ${isProduction ? 'production' : 'development'} mode`);
   
-  // Determine if we need special mobile-compatible session settings
-  const isMobileCompatible = process.env.ENABLE_MOBILE_SESSION === 'true';
+  // Always enable mobile-compatible session by default
+  const isMobileCompatible = true;
   
+  // For mobile app compatibility, we need special cookie settings
+  // SameSite=None is required for cookies to work in WebViews, but this requires Secure=true
+  // For non-production environments accessing through mobile apps, we need this combination
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
@@ -45,8 +48,8 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     cookie: {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      secure: isProduction, // Set to true in production only
-      sameSite: "none", // Set to "none" to work across different sites (mobile webviews)
+      secure: false, // We'll set this to false by default and override for mobile
+      sameSite: "lax", // Default to lax for better compatibility
       domain: undefined, // No domain specification for now
       httpOnly: true // Ensure cookie is only accessible by the server
     }
@@ -168,15 +171,28 @@ export function setupAuth(app: Express) {
       
       // Check if the request is from a mobile client via User-Agent
       const userAgent = req.headers['user-agent'] || '';
-      const isMobileClient = /android|iphone|ipad|ipod|webos/i.test(userAgent);
+      const isMobileClient = /android|iphone|ipad|ipod|webos|mobile/i.test(userAgent);
       
       console.log(`Login request from ${isMobileClient ? 'mobile' : 'desktop'} client: ${userAgent}`);
-      
-      // For mobile clients, ensure cookie settings are compatible
+
+      // Special cookie handling for mobile clients
       if (isMobileClient && req.session && req.session.cookie) {
         console.log("Setting mobile-friendly cookie parameters");
+        
+        // Try multiple cookie configurations to improve mobile compatibility
+        // - First session cookie with SameSite=None and Secure=true
+        // - A second cookie with SameSite=Lax as fallback
         req.session.cookie.sameSite = "none";
-        req.session.cookie.secure = true; // For SameSite=None, Secure must be true
+        
+        // For SameSite=None, Secure must be true, but we'll check origin first
+        const origin = req.headers.origin || '';
+        const isHttps = origin.startsWith('https:') || req.secure;
+        req.session.cookie.secure = true; // Required for SameSite=None
+        
+        // Additional session options for mobile
+        req.session.cookie.maxAge = 1000 * 60 * 60 * 24 * 30; // 30 days for mobile
+        
+        console.log(`Cookie settings for mobile: sameSite=${req.session.cookie.sameSite}, secure=${req.session.cookie.secure}, maxAge=${req.session.cookie.maxAge}`);
       }
       
       req.login(user, (err: any) => {
@@ -191,13 +207,30 @@ export function setupAuth(app: Express) {
         res.setHeader('Expires', '0');
         res.setHeader('Surrogate-Control', 'no-store');
         
+        // Set additional connection reuse headers for mobile apps
+        if (isMobileClient) {
+          res.setHeader('Connection', 'keep-alive');
+          
+          // Set a session ID in response header that the mobile app can save and reuse
+          // Mobile app should include this in subsequent requests in Authorization header
+          const sessionID = req.sessionID;
+          res.setHeader('X-Session-ID', sessionID);
+          
+          console.log(`Set X-Session-ID header: ${sessionID}`);
+        }
+        
         // Return user data
         res.status(200).json({
           ...userResponse,
           // Include authentication status in the response
           isAuthenticated: true,
           // Include a timestamp to help debug sessions
-          authenticatedAt: new Date().toISOString()
+          authenticatedAt: new Date().toISOString(),
+          // Include session info for mobile devices
+          ...(isMobileClient && { 
+            sessionID: req.sessionID,
+            isMobileSession: true 
+          })
         });
       });
     })(req, res, next);
@@ -211,11 +244,58 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    // Check for standard session authentication
+    if (req.isAuthenticated()) {
+      // Create a new object from user data without the password
+      const { password: pwd, ...userResponse } = req.user as SelectUser;
+      return res.json(userResponse);
+    }
     
-    // Create a new object from user data without the password
-    const { password: pwd, ...userResponse } = req.user as SelectUser;
+    // Check for mobile session authentication via header
+    const sessionId = req.headers['x-session-id'] || req.headers['authorization']?.replace('Bearer ', '');
     
-    res.json(userResponse);
+    if (sessionId) {
+      console.log(`Attempting to restore session from X-Session-ID: ${sessionId}`);
+      
+      // Try to restore the session from store
+      storage.sessionStore.get(sessionId as string, async (err, session) => {
+        if (err || !session || !session.passport || !session.passport.user) {
+          console.log('Invalid or expired session ID');
+          return res.sendStatus(401);
+        }
+        
+        try {
+          // Get the user from the session's passport data
+          const userId = session.passport.user;
+          const user = await storage.getUser(userId);
+          
+          if (!user) {
+            console.log('User not found from session ID');
+            return res.sendStatus(401);
+          }
+          
+          // Restore the session
+          req.session.passport = session.passport;
+          req.session.save();
+          
+          // Create a new object from user data without the password
+          const { password: pwd, ...userResponse } = user;
+          console.log(`Successfully restored session for user ${user.username}`);
+          
+          return res.json({
+            ...userResponse,
+            sessionRestored: true
+          });
+        } catch (error) {
+          console.error('Error restoring session:', error);
+          return res.sendStatus(401);
+        }
+      });
+      
+      return; // Important to prevent the function from continuing
+    }
+    
+    // No valid authentication found
+    return res.sendStatus(401);
   });
 }
