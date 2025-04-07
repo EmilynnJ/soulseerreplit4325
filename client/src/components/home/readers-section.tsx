@@ -114,12 +114,7 @@ export function ReadersSection() {
     }
   }, [websocket.lastMessage, readers]);
   
-  // Filter online readers - add debug logs
-  console.log("All readers data:", readers);
-  const onlineReaders = readers.filter(reader => {
-    console.log(`Reader ${reader.username} isOnline status:`, reader.isOnline);
-    return reader.isOnline;
-  });
+  const onlineReaders = readers.filter(reader => reader.isOnline === true);
   
   return (
     <div className="mb-14">
