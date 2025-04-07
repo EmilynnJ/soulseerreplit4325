@@ -207,7 +207,7 @@ export const livekitService = {
       }
       
       // Calculate duration in seconds (if possible)
-      let duration = null;
+      let duration = undefined;
       if (livestream.startedAt) {
         const endTime = new Date();
         const startTime = new Date(livestream.startedAt);
@@ -218,7 +218,7 @@ export const livekitService = {
       const updatedLivestream = await storage.updateLivestream(livestreamId, {
         status: 'ended',
         endedAt: new Date(),
-        duration: duration
+        duration
       });
       
       console.log(`Ended livestream ${livestreamId} with duration ${duration} seconds`);

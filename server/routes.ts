@@ -10,11 +10,12 @@ import { promisify } from "util";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { User, UserUpdate } from "../shared/schema";
+import { User, UserUpdate, Reading } from "../shared/schema";
 import { WebSocket } from "ws";
 import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
+import { livekitService } from "./services/livekit-service";
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -1283,7 +1284,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const livestreamData = req.body;
 
       // Create the livestream with LiveKit integration (placeholder)
-      const { livekitService } = await import('./services/livekit-service');
       const livestream = await livekitService.createLivestream(
         req.user,
         livestreamData.title,
@@ -1332,7 +1332,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (status === "live") {
         // Start the livestream with LiveKit
-        const { livekitService } = await import('./services/livekit-service');
         updatedLivestream = await livekitService.startLivestream(id);
 
         // Broadcast to all connected clients that a new livestream is starting
@@ -1349,7 +1348,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else if (status === "ended") {
         // End the livestream with LiveKit
-        const { livekitService } = await import('./services/livekit-service');
         updatedLivestream = await livekitService.endLivestream(id);
 
         // Broadcast to all connected clients that the livestream has ended
@@ -3187,7 +3185,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const { livekitService } = await import('./services/livekit-service');
       const updatedLivestream = await livekitService.startLivestream(livestreamId);
 
       res.status(200).json(updatedLivestream);
@@ -3219,8 +3216,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const { livekitService } = await import('./services/livekit-service');
-      const updatedLivestream = await livekitService.endLivestream(livestreamId);
 
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -3267,9 +3262,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Start the livestream immediately using reader-specific room format
-      const { livekitService } = await import('./services/livekit-service');
-      const startedLivestream = await livekitService.startLivestream(livestream.id, true);
-      
       if (!startedLivestream) {
         return res.status(500).json({ message: "Failed to start livestream" });
       }
@@ -3329,10 +3321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Generate token for the viewer
-      const { livekitService } = await import('./services/livekit-service');
       const token = livekitService.generateReaderLivestreamToken(
-        viewerId, 
-        readerId,
         viewerName
       );
       
@@ -3350,11 +3339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Compatibility endpoint for old LiveKit routes - forwards to Zego Cloud
   app.post('/api/livekit/token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { livekitService } = await import('./services/livekit-service');
-      
       // Extract user information from request
-      const user = req.user as User;
-      const { roomId, room, userId, userName } = req.body;
       
       // Use provided values or fallback to user object
       const actualUserId = userId || user.id;
@@ -3382,11 +3367,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Token generation endpoint
   app.post('/api/generate-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { livekitService } = await import('./services/livekit-service');
       const { userType, userId, fullName, roomId } = req.body;
       
       if (!userType || !userId || !fullName || !roomId) {
-        return res.status(400).json({ error: 'Missing required fields' });
+        return res.status(400).json({ error: 'Missing required parameters' });
       }
       
       // Generate token using LiveKit service
@@ -3402,7 +3386,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Livestream token endpoint
   app.post('/api/livekit/livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { livekitService } = await import('./services/livekit-service');
       const { name, room, useReaderRoom } = req.body;
       
       if (!name || !room) {
@@ -3430,14 +3413,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reader-specific livestream token endpoint
   app.post('/api/livekit/reader-livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { livekitService } = await import('./services/livekit-service');
       const { readerId } = req.body;
       
       if (!readerId) {
         return res.status(400).json({ error: 'Missing readerId' });
       }
-      
-      // Check if the reader exists
       const reader = await storage.getUser(readerId);
       if (!reader || reader.role !== 'reader') {
         return res.status(404).json({ error: 'Reader not found' });
@@ -3502,21 +3482,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Recording token endpoint for admins
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
-      const { livekitService } = await import('./services/livekit-service');
       const { room } = req.body;
       
       if (!room) {
         return res.status(400).json({ error: 'Missing room name' });
       }
       
-      // Get admin user information
-      const admin = req.user as User;
       
-      // Generate admin token with longer expiration
+      // Generate admin token with longer expiration using req.user (which is an admin due to adminOnly middleware)
       const token = livekitService.generateToken(
-        admin.id,
+        req.user.id,
         room,
-        admin.fullName || admin.username,
+        req.user.fullName || req.user.username,
         7200  // Longer expiration for recording (2 hours)
       );
       
@@ -3530,16 +3507,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Session management routes
   app.post('/api/sessions/token', authenticate, async (req: Request, res: Response) => {
     try {
-      const { livekitService } = await import('./services/livekit-service');
-      const { sessionService } = await import('./services/session-service');
       
       const { userId, userName, readerId, readerName, roomName } = req.body;
       
       if (!userId || !readerId || !roomName || !userName || !readerName) {
         return res.status(400).json({ error: 'Missing required parameters' });
       }
-      
-      // Get user and validate role
       const user = req.user;
       if (!user) {
         return res.status(401).json({ message: 'Not authenticated' });
@@ -3576,7 +3549,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post('/api/sessions/billing', authenticate, async (req: Request, res: Response) => {
     try {
-      const { sessionService } = await import('./services/session-service');
       
       const { roomName, duration, userId, userRole } = req.body;
       
@@ -3623,7 +3595,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.post('/api/sessions/end', authenticate, async (req: Request, res: Response) => {
     try {
-      const { sessionService } = await import('./services/session-service');
       
       const { roomName, totalDuration, userId, userRole } = req.body;
       
@@ -3650,7 +3621,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get('/api/sessions/reader/:readerId', authenticate, async (req: Request, res: Response) => {
     try {
-      const { sessionService } = await import('./services/session-service');
       
       const readerId = parseInt(req.params.readerId);
       
@@ -3670,7 +3640,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get('/api/sessions/client/:clientId', authenticate, async (req: Request, res: Response) => {
     try {
-      const { sessionService } = await import('./services/session-service');
       
       const clientId = parseInt(req.params.clientId);
       
