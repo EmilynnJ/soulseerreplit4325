@@ -3483,20 +3483,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actualUserId = userId || user.id;
       const actualRoomId = roomId || room || `default_room_${Date.now()}`;
       const actualUserName = userName || user.fullName || user.username;
+      const actualReadingType = readingType || 'video';
       
-      // TODO: Implement the new token generation system
-      console.log('Token request received: ', {
+      // Import the webRTCService
+      const { webRTCService } = await import('./services/webrtc-service');
+      
+      // Generate a token using the WebRTC service
+      const token = webRTCService.generateToken(
+        Number(actualUserId),
+        actualRoomId,
+        actualUserName,
+        user.role === 'reader' ? 'reader' : 'client',
+        actualReadingType
+      );
+      
+      console.log('WebRTC token generated: ', {
         userId: actualUserId, 
-        roomId: actualRoomId, 
+        roomId: actualRoomId,
         userName: actualUserName,
-        readingType: readingType
+        readingType: actualReadingType
       });
       
-      // For now, return a temporary response
-      res.status(503).json({ 
-        error: 'Reading system is being rebuilt. Please try again later.',
-        message: 'The reading system is currently being migrated to a new provider.'
-      });
+      // Return the token
+      res.status(200).json(token);
     } catch (error) {
       console.error('Error in token endpoint:', error);
       res.status(500).json({ error: 'Failed to generate token' });
@@ -3535,8 +3544,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Request identified as ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 
-      // TODO: Implement new token generation system
-      console.log('Token request received for new reading system: ', {
+      // Import the webRTCService
+      const { webRTCService } = await import('./services/webrtc-service');
+      
+      // Generate a token using the WebRTC service
+      const token = webRTCService.generateToken(
+        Number(userId),
+        roomId,
+        user.fullName || user.username,
+        user.role === 'reader' ? 'reader' : 'client',
+        readingType
+      );
+      
+      console.log('WebRTC token generated for reading system: ', {
         userId, 
         roomId,
         readingType,
@@ -3544,11 +3564,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         environment: isProduction ? 'production' : 'development' 
       });
       
-      // For now, return a temporary response
-      res.status(503).json({ 
-        error: 'Reading system is being rebuilt. Please try again later.',
-        message: 'The reading system is currently being migrated to a new provider.'
-      });
+      res.status(200).json(token);
     } catch (error) {
       console.error('Error generating token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
@@ -3573,25 +3589,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
                        
       console.log(`Generating livestream token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      // TODO: Implement new livestream token generation
-      console.log('Livestream token request received: ', {
+      // Import the webRTCService
+      const { webRTCService } = await import('./services/webrtc-service');
+      
+      // Generate a token using the WebRTC service - viewer by default
+      const token = webRTCService.generateLivestreamToken(
+        user.id,
+        room,
+        name || user.fullName || user.username,
+        false // Not a host
+      );
+      
+      console.log('Livestream token generated: ', {
         userId: user.id.toString(), 
         roomId: room,
         userName: name || user.fullName || user.username
       });
       
-      // For now, return a temporary response
-      res.status(503).json({ 
-        error: 'Livestream system is being rebuilt. Please try again later.',
-        message: 'The livestream system is currently being migrated to a new provider.'
-      });
+      // Return the token
+      res.status(200).json(token);
     } catch (error) {
       console.error('Error generating livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
     }
   });
   
-  // Reader-specific livestream token endpoint for new reading system
+  // Reader-specific livestream token endpoint using WebRTC
   app.post('/api/livekit/reader-livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { readerId } = req.body;
@@ -3619,19 +3642,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If the user requesting the token is the reader, they are the host
       const isHost = user.id.toString() === readerId.toString();
       
-      // TODO: Implement new livestream token generation
-      console.log('Reader livestream token request received: ', {
+      // Import the webRTCService
+      const { webRTCService } = await import('./services/webrtc-service');
+      
+      // Generate a token using the WebRTC service
+      const token = webRTCService.generateLivestreamToken(
+        user.id,
+        roomId,
+        user.fullName || user.username,
+        isHost
+      );
+      
+      console.log('Reader livestream token generated: ', {
         userId: user.id.toString(), 
         roomId,
         isHost,
         userName: user.fullName || user.username
       });
       
-      // For now, return a temporary response
-      res.status(503).json({ 
-        error: 'Livestream system is being rebuilt. Please try again later.',
-        message: 'The livestream system is currently being migrated to a new provider.'
-      });
+      // Return the token
+      res.status(200).json(token);
     } catch (error) {
       console.error('Error generating reader livestream token:', error);
       res.status(500).json({ error: 'Failed to generate reader livestream token' });
@@ -3853,7 +3883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recording token endpoint for admins - new implementation
+  // Recording token endpoint for admins using WebRTC
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
       const { room } = req.body;
@@ -3871,17 +3901,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
                          
       console.log(`Generating recording token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      // TODO: Implement new recording token generation for admin
-      console.log('Admin recording token request received: ', {
+      // Import the webRTCService
+      const { webRTCService } = await import('./services/webrtc-service');
+      
+      // Generate a token using the WebRTC service - this is a special admin token
+      const token = webRTCService.generateToken(
+        user.id,
+        room,
+        user.fullName || user.username || 'Admin',
+        'client', // Admins connect as clients for recording
+        'recording'
+      );
+      
+      console.log('Admin recording token generated: ', {
         userId: user.id.toString(), 
         roomId: room,
         userName: user.fullName || user.username
       });
       
-      // For now, return a temporary response
-      res.status(503).json({ 
-        error: 'Recording system is being rebuilt. Please try again later.',
-        message: 'The recording system is currently being migrated to a new provider.'
+      // Return the token
+      res.status(200).json({
+        ...token,
+        isAdmin: true,
+        isRecording: true
       });
     } catch (error) {
       console.error('Error generating recording token:', error);

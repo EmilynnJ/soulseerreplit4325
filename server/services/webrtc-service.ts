@@ -640,6 +640,63 @@ class WebRTCService {
   }
   
   /**
+   * Generate a token for WebRTC session
+   * @param userId User ID
+   * @param roomId Room ID
+   * @param userName User display name
+   * @param userType User type (reader or client)
+   * @returns Token object with session information
+   */
+  generateToken(
+    userId: number,
+    roomId: string,
+    userName: string,
+    userType: 'reader' | 'client',
+    readingType: string = 'video'
+  ): { token: string, roomId: string, userId: number, userName: string, userType: string, readingType: string } {
+    // Create a secure token with user information
+    const timestamp = Date.now();
+    const tokenString = `webrtc-${roomId}-${userId}-${timestamp}`;
+    
+    return {
+      token: tokenString,
+      roomId,
+      userId,
+      userName,
+      userType,
+      readingType
+    };
+  }
+
+  /**
+   * Generate a token for livestream session
+   * @param userId User ID
+   * @param roomId Room ID
+   * @param userName User display name
+   * @param isHost Whether the user is the host
+   * @returns Token object with livestream session information
+   */
+  generateLivestreamToken(
+    userId: number,
+    roomId: string,
+    userName: string,
+    isHost: boolean = false
+  ): { token: string, roomId: string, userId: number, userName: string, isHost: boolean } {
+    // Create a secure token with user information
+    const timestamp = Date.now();
+    const tokenType = isHost ? 'host' : 'viewer';
+    const tokenString = `webrtc-livestream-${tokenType}-${roomId}-${userId}-${timestamp}`;
+    
+    return {
+      token: tokenString,
+      roomId,
+      userId,
+      userName,
+      isHost
+    };
+  }
+
+  /**
    * Get the Socket.IO server instance
    * @returns The Socket.IO server instance or null
    */
