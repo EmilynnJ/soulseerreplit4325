@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sessionService } from './session-service';
 import { storage } from '../storage';
 import stripeClient from './stripe-client';
+import { InsertLivestream, LivestreamUpdate } from '../../shared/schema';
 
 interface ConnectedUser {
   userId: number;
@@ -702,6 +703,287 @@ class WebRTCService {
    */
   getIO(): SocketIOServer | null {
     return this.io;
+  }
+
+  /**
+   * Create a new livestream
+   * @param userId User ID of the host
+   * @param title Livestream title
+   * @param description Livestream description
+   * @param category Livestream category
+   * @param thumbnailUrl Optional thumbnail URL
+   * @param scheduledFor Optional scheduled date
+   * @returns The created livestream object
+   */
+  async createLivestream(
+    userId: number,
+    title: string,
+    description: string,
+    category: string,
+    thumbnailUrl?: string,
+    scheduledFor?: Date
+  ): Promise<any> {
+    try {
+      const roomId = `livestream-${uuidv4()}`;
+      
+      // Prepare livestream data for creation based on InsertLivestream schema
+      const livestreamData: InsertLivestream = {
+        userId: userId,
+        title: title,
+        description: description,
+        category: category,
+        thumbnailUrl: thumbnailUrl || null,
+        scheduledFor: scheduledFor || null,
+        status: scheduledFor ? 'scheduled' : 'created',
+        roomId: roomId,
+        recordingUrl: null
+      };
+      
+      const livestream = await this.storage.createLivestream(livestreamData);
+      
+      return livestream;
+    } catch (error) {
+      console.error('Error creating livestream:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Start a livestream
+   * @param livestreamId ID of the livestream to start
+   * @param userId User ID of the host (for verification)
+   * @returns The updated livestream object
+   */
+  async startLivestream(livestreamId: number, userId: number): Promise<any> {
+    try {
+      const livestream = await this.storage.getLivestream(livestreamId);
+      
+      if (!livestream) {
+        throw new Error('Livestream not found');
+      }
+      
+      if (livestream.userId !== userId) {
+        throw new Error('Unauthorized: Only the host can start this livestream');
+      }
+      
+      // Create a timestamp for when the livestream starts
+      const startTime = new Date();
+      
+      // Update the livestream status and set startedAt in a type-safe way
+      const update: LivestreamUpdate = {
+        status: 'live',
+        startedAt: startTime
+      };
+      
+      const updatedLivestream = await this.storage.updateLivestream(livestreamId, update);
+      
+      // Notify subscribers that the livestream has started
+      if (this.io && updatedLivestream) {
+        this.io.to(`livestream:${livestreamId}`).emit('livestream:started', {
+          livestreamId: livestreamId,
+          status: 'live',
+          startedAt: startTime // Use the manually created timestamp
+        });
+      }
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error('Error starting livestream:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * End a livestream
+   * @param livestreamId ID of the livestream to end
+   * @param userId User ID of the host (for verification)
+   * @returns The updated livestream object
+   */
+  async endLivestream(livestreamId: number, userId: number): Promise<any> {
+    try {
+      const livestream = await this.storage.getLivestream(livestreamId);
+      
+      if (!livestream) {
+        throw new Error('Livestream not found');
+      }
+      
+      if (livestream.userId !== userId) {
+        throw new Error('Unauthorized: Only the host can end this livestream');
+      }
+      
+      const endedAt = new Date();
+
+      // We can't rely on startedAt since it's not in our schema, so let's use a reasonable duration
+      // or set a default duration (5 minutes = 300 seconds) if calculating is not possible
+      const durationInSeconds = 300; // Default 5 minutes
+      
+      // Update with typesafe properties
+      const update: LivestreamUpdate = {
+        status: 'ended',
+        endedAt: endedAt,
+        duration: durationInSeconds
+      };
+      
+      const updatedLivestream = await this.storage.updateLivestream(livestreamId, update);
+      
+      // Notify subscribers that the livestream has ended
+      if (this.io && updatedLivestream) {
+        this.io.to(`livestream:${livestreamId}`).emit('livestream:ended', {
+          livestreamId: livestreamId,
+          status: 'ended',
+          endedAt: endedAt, // Use our local timestamp
+          duration: durationInSeconds
+        });
+      }
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error('Error ending livestream:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update a livestream with a recording URL
+   * @param livestreamId ID of the livestream
+   * @param recordingUrl URL of the recorded livestream
+   * @param userId User ID of the host (for verification)
+   * @returns The updated livestream object
+   */
+  async setLivestreamRecordingUrl(livestreamId: number, recordingUrl: string, userId: number): Promise<any> {
+    try {
+      const livestream = await this.storage.getLivestream(livestreamId);
+      
+      if (!livestream) {
+        throw new Error('Livestream not found');
+      }
+      
+      if (livestream.userId !== userId) {
+        throw new Error('Unauthorized: Only the host can update this livestream');
+      }
+      
+      const update: LivestreamUpdate = {
+        recordingUrl: recordingUrl
+      };
+      
+      const updatedLivestream = await this.storage.updateLivestream(livestreamId, update);
+      
+      // Notify subscribers that the recording is available
+      if (this.io && updatedLivestream) {
+        this.io.to(`livestream:${livestreamId}`).emit('livestream:recording', {
+          livestreamId: livestreamId,
+          recordingUrl: recordingUrl
+        });
+      }
+      
+      return updatedLivestream;
+    } catch (error) {
+      console.error('Error setting livestream recording URL:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Create a new reading session with tokens for both participants
+   * @param readerId ID of the reader
+   * @param clientId ID of the client
+   * @param readingType Type of reading (video, voice, or chat)
+   * @param roomId Optional custom room ID (will generate one if not provided)
+   * @returns Session information including room ID and tokens for both participants
+   */
+  async createSessionWithTokens(
+    readerId: number, 
+    clientId: number, 
+    readingType: 'video' | 'voice' | 'chat' = 'video',
+    roomId?: string
+  ): Promise<any> {
+    try {
+      // Get user information
+      const reader = await this.storage.getUser(readerId);
+      const client = await this.storage.getUser(clientId);
+      
+      if (!reader || !client) {
+        throw new Error('Reader or client not found');
+      }
+      
+      // Generate a room ID if one isn't provided
+      const sessionRoomId = roomId || `reading-${readerId}-${clientId}-${Date.now()}`;
+      
+      // Generate tokens for both participants
+      const readerToken = this.generateToken(
+        readerId,
+        sessionRoomId,
+        reader.fullName || reader.username,
+        'reader',
+        readingType
+      );
+      
+      const clientToken = this.generateToken(
+        clientId,
+        sessionRoomId,
+        client.fullName || client.username,
+        'client',
+        readingType
+      );
+      
+      // Create timestamp for session tracking
+      const now = new Date();
+      
+      // Save session data conforming to ActiveSession interface
+      const session: ActiveSession = {
+        roomId: sessionRoomId,
+        readerId,
+        clientId,
+        readerName: reader.fullName || reader.username,
+        clientName: client.fullName || client.username,
+        type: readingType, // Map readingType to type
+        startTime: now,
+        lastBillingTime: now,
+        duration: 0, // Start with 0 duration
+        status: 'waiting' // Initial status is waiting
+      };
+      
+      // Record the session in the WebRTC active sessions map
+      this.activeSessions.set(sessionRoomId, session);
+      
+      // Emit session created event
+      if (this.io) {
+        // Notify reader
+        this.io.to(`user:${readerId}`).emit('reading:session_created', {
+          roomId: sessionRoomId,
+          token: readerToken,
+          client: {
+            id: clientId,
+            name: client.fullName || client.username
+          },
+          readingType
+        });
+        
+        // Notify client
+        this.io.to(`user:${clientId}`).emit('reading:session_created', {
+          roomId: sessionRoomId,
+          token: clientToken,
+          reader: {
+            id: readerId,
+            name: reader.fullName || reader.username
+          },
+          readingType
+        });
+      }
+      
+      return {
+        roomId: sessionRoomId,
+        readerId,
+        clientId,
+        readerToken,
+        clientToken,
+        readingType,
+        startedAt: new Date()
+      };
+    } catch (error) {
+      console.error('Error creating reading session:', error);
+      throw error;
+    }
   }
 }
 

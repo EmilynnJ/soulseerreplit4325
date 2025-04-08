@@ -79,10 +79,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wsManager = setupWebSocket(httpServer);
   (global as any).wsManager = wsManager;
 
-  // LiveKit webhook endpoint (placeholder for future implementation)
-  app.post('/api/webhooks/livekit', express.json(), async (req, res) => {
-    console.log('LiveKit webhook endpoint - not yet implemented');
-    res.status(501).json({ message: 'LiveKit integration coming soon' });
+  // WebRTC webhook endpoint (for events like recording completed)
+  app.post('/api/webhooks/webrtc', express.json(), async (req, res) => {
+    console.log('WebRTC webhook endpoint - processing event');
+    // Process WebRTC events here
+    res.status(200).json({ message: 'WebRTC webhook processed' });
   });
 
   // Track all connected WebSocket clients
@@ -1322,19 +1323,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const livestreamData = req.body;
 
-      // Create the livestream with LiveKit integration (placeholder)
-      const livestream = await livekitService.createLivestream(
-        req.user,
+      // Create the livestream with WebRTC integration
+      const { webRTCService } = await import('./services/webrtc-service');
+      const livestream = await webRTCService.createLivestream(
+        req.user.id,
         livestreamData.title,
-        livestreamData.description
+        livestreamData.description,
+        livestreamData.category || "General",
+        livestreamData.thumbnailUrl || null,
+        livestreamData.scheduledFor ? new Date(livestreamData.scheduledFor) : undefined
       );
-
-      // Add additional data from the request
-      await storage.updateLivestream(livestream.id, {
-        thumbnailUrl: livestreamData.thumbnailUrl || null,
-        scheduledFor: livestreamData.scheduledFor ? new Date(livestreamData.scheduledFor) : null,
-        category: livestreamData.category || "General"
-      });
 
       // Return the livestream 
       res.status(201).json(livestream);
@@ -1370,8 +1368,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updatedLivestream;
 
       if (status === "live") {
-        // Start the livestream with LiveKit
-        updatedLivestream = await livekitService.startLivestream(id);
+        // Start the livestream with WebRTC
+        const { webRTCService } = await import('./services/webrtc-service');
+        updatedLivestream = await webRTCService.startLivestream(id, req.user.id);
 
         // Broadcast to all connected clients that a new livestream is starting
         (global as any).websocket?.broadcastToAll?.({
@@ -1386,8 +1385,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: Date.now()
         });
       } else if (status === "ended") {
-        // End the livestream with LiveKit
-        updatedLivestream = await livekitService.endLivestream(id);
+        // End the livestream with WebRTC
+        const { webRTCService } = await import('./services/webrtc-service');
+        updatedLivestream = await webRTCService.endLivestream(id, req.user.id);
 
         // Broadcast to all connected clients that the livestream has ended
         (global as any).websocket?.broadcastToAll?.({
@@ -3309,7 +3309,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const updatedLivestream = await livekitService.startLivestream(livestreamId);
+      const { webRTCService } = await import('./services/webrtc-service');
+      const updatedLivestream = await webRTCService.startLivestream(livestreamId, req.user.id);
 
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -3340,6 +3341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
+      const { webRTCService } = await import('./services/webrtc-service');
+      const updatedLivestream = await webRTCService.endLivestream(livestreamId, req.user.id);
 
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -3390,18 +3393,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Start the livestream immediately using reader-specific room format
-      const startedLivestream = await livekitService.startLivestream(livestream.id, true);
+      const { webRTCService } = await import('./services/webrtc-service');
+      const startedLivestream = await webRTCService.startLivestream(livestream.id, readerId);
       
       if (!startedLivestream) {
         return res.status(500).json({ message: "Failed to start livestream" });
       }
       
       // Generate a token for the reader to join their own room
-      const token = livekitService.generateLivestreamToken(
+      const token = webRTCService.generateLivestreamToken(
         readerId,
         startedLivestream.id.toString(),
         req.user.fullName || req.user.username,
-        true  // Use reader-specific room format
+        true  // isHost = true for reader
       );
       
       // Return livestream info along with the token
@@ -3451,10 +3455,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Generate token for the viewer
-      const token = livekitService.generateReaderLivestreamToken(
+      const { webRTCService } = await import('./services/webrtc-service');
+      
+      // Generate a token for the viewer to connect to the room
+      const token = webRTCService.generateLivestreamToken(
         viewerId,
-        readerId,
-        viewerName
+        `livestream-${readerId}`,
+        viewerName,
+        false // Not the host
       );
       
       res.status(200).json({
@@ -3724,7 +3732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import at run-time to prevent circular dependencies
       const { webRTCService } = require('./services/webrtc-service');
       
-      // Use WebRTC service to create a session
+      // Use WebRTC service to create a session - use basic createSession method (not with tokens)
       const sessionResult = await webRTCService.createSession(
         parseInt(readerId.toString()),
         parseInt(clientId.toString()),
@@ -3772,7 +3780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import at run-time to prevent circular dependencies
       const { webRTCService } = require('./services/webrtc-service');
       
-      // Use WebRTC service to create a session
+      // Use WebRTC service to create a session - use basic createSession method (not with tokens)
       const sessionResult = await webRTCService.createSession(
         parseInt(readerId.toString()),
         parseInt(clientId.toString()),
@@ -3820,7 +3828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import at run-time to prevent circular dependencies
       const { webRTCService } = require('./services/webrtc-service');
       
-      // Use WebRTC service to create a session
+      // Use WebRTC service to create a session - use basic createSession method (not with tokens)
       const sessionResult = await webRTCService.createSession(
         parseInt(readerId.toString()),
         parseInt(clientId.toString()),

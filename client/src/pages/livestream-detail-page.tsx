@@ -22,6 +22,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { WebRTCLivestream } from "@/components/livestream/webrtc-livestream";
+import { WebRTCRecordingPlayer } from "@/components/livestream/webrtc-recording-player";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-// LiveKit implementation for video streaming functionality
+// WebRTC implementation for video streaming functionality
 
 export default function LivestreamDetailPage() {
   const { id } = useParams();
@@ -54,7 +55,7 @@ export default function LivestreamDetailPage() {
   const [giftAmountCustom, setGiftAmountCustom] = useState<string>("");
   const [showCustomAmount, setShowCustomAmount] = useState(false);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
-  const [liveKitToken, setLiveKitToken] = useState<string | null>(null);
+  const [webRTCToken, setWebRTCToken] = useState<string | null>(null);
   const [isLoadingToken, setIsLoadingToken] = useState(false);
   
   // Connect to websocket - use websocket context
@@ -238,28 +239,28 @@ export default function LivestreamDetailPage() {
     enabled: !!livestream?.userId,
   });
   
-  // Use effect for fetching session token for livestream (Zego Cloud implementation pending)
+  // Use effect for fetching session token for WebRTC livestream
   useEffect(() => {
     const fetchStreamToken = async () => {
-      if (!livestream?.livekitRoomName || user?.id === undefined || livestream.status !== 'live') {
+      if (!livestream?.id || user?.id === undefined || livestream.status !== 'live') {
         return;
       }
       
       setIsLoadingToken(true);
       
       try {
-        // This endpoint is a placeholder that will be replaced with Zego Cloud implementation
+        // WebRTC livestream token endpoint
         const response = await apiRequest('POST', '/api/livekit/livestream-token', {
-          room: livestream.livekitRoomName,
-          userId: user.id.toString(),
-          username: user.username || 'viewer'
+          room: `livestream-${livestream.id}`,
+          name: user.username || 'viewer',
+          useReaderRoom: false
         });
         
         const data = await response.json();
-        console.log('Session token retrieved (LiveKit removed)');
-        setLiveKitToken(data.token);
+        console.log('WebRTC stream token retrieved');
+        setWebRTCToken(data.token);
       } catch (error) {
-        console.error('Session token error (LiveKit removed):', error);
+        console.error('WebRTC token error:', error);
         toast({
           title: 'Connection Error',
           description: 'Failed to connect to the livestream',
@@ -271,7 +272,7 @@ export default function LivestreamDetailPage() {
     };
     
     fetchStreamToken();
-  }, [livestream?.livekitRoomName, user?.id, livestream?.status]);
+  }, [livestream?.id, user?.id, livestream?.status]);
   
   // Mutation for sending a chat message
   const sendChatMutation = useMutation({
@@ -564,10 +565,10 @@ export default function LivestreamDetailPage() {
                 )
               ) : livestream.status === "ended" ? (
                 <WebRTCRecordingPlayer 
-                  recordingUrl={undefined} 
+                  recordingUrl={livestream.recordingUrl || undefined} 
                   thumbnail={livestream.thumbnailUrl || undefined}
+                  title={livestream.title}
                 />
-
               ) : (
                 <div className="flex items-center justify-center bg-dark/50 h-full">
                   {livestream.status === "scheduled" ? (
