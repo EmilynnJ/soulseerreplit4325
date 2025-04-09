@@ -3,12 +3,28 @@ import { v4 as uuidv4 } from 'uuid';
 import { storage } from '../storage';
 import { sessionTrackerService } from './session-tracker-service';
 
-// ZEGO App credentials - should come from environment variables
+// ZEGO App credentials - different app IDs for different services
+const ZEGO_LIVE_APP_ID = process.env.VITE_ZEGO_LIVE_APP_ID;
+const ZEGO_LIVE_SERVER_SECRET = process.env.VITE_ZEGO_LIVE_SERVER_SECRET;
+
+const ZEGO_VIDEO_APP_ID = process.env.VITE_ZEGO_VIDEO_APP_ID;
+const ZEGO_VIDEO_SERVER_SECRET = process.env.VITE_ZEGO_VIDEO_SERVER_SECRET;
+
+const ZEGO_PHONE_APP_ID = process.env.VITE_ZEGO_PHONE_APP_ID;
+const ZEGO_PHONE_SERVER_SECRET = process.env.VITE_ZEGO_PHONE_SERVER_SECRET;
+
+const ZEGO_CHAT_APP_ID = process.env.VITE_ZEGO_CHAT_APP_ID;
+const ZEGO_CHAT_SERVER_SECRET = process.env.VITE_ZEGO_CHAT_SERVER_SECRET;
+
+// Fallback for backward compatibility
 const ZEGO_APP_ID = process.env.ZEGO_APP_ID;
 const ZEGO_SERVER_SECRET = process.env.ZEGO_SERVER_SECRET;
 
-if (!ZEGO_APP_ID || !ZEGO_SERVER_SECRET) {
-  console.warn('ZEGO credentials not configured in environment variables!');
+if (!ZEGO_LIVE_APP_ID || !ZEGO_LIVE_SERVER_SECRET ||
+    !ZEGO_VIDEO_APP_ID || !ZEGO_VIDEO_SERVER_SECRET ||
+    !ZEGO_PHONE_APP_ID || !ZEGO_PHONE_SERVER_SECRET ||
+    !ZEGO_CHAT_APP_ID || !ZEGO_CHAT_SERVER_SECRET) {
+  console.warn('One or more ZEGO service credentials not configured in environment variables!');
 }
 
 /**
@@ -36,8 +52,8 @@ class ZegoService {
       paymentMethodId
     );
 
-    // Generate tokens for reader and client
-    const tokens = this.generateSessionTokens(roomId, readerId, clientId);
+    // Generate tokens for reader and client using the appropriate service type
+    const tokens = this.generateSessionTokens(roomId, readerId, clientId, sessionType);
 
     return {
       roomId,
@@ -50,22 +66,30 @@ class ZegoService {
   /**
    * Generate client tokens for a session
    */
-  generateSessionTokens(roomId: string, readerId: number, clientId: number) {
+  generateSessionTokens(roomId: string, readerId: number, clientId: number, sessionType: 'video' | 'voice' | 'chat' = 'video') {
     // Generate unique user IDs for ZEGO
     const zegoReaderUserId = `reader_${readerId}`;
     const zegoClientUserId = `client_${clientId}`;
+
+    // Map session type to service type
+    const serviceType = sessionType === 'voice' ? 'voice' : 
+                        sessionType === 'chat' ? 'chat' : 'video';
 
     // Get user information for display names
     const readerToken = this.generateToken(
       zegoReaderUserId,
       roomId,
-      1800 // 30 minutes
+      1800, // 30 minutes
+      15, // full privileges
+      serviceType
     );
 
     const clientToken = this.generateToken(
       zegoClientUserId,
       roomId,
-      1800 // 30 minutes
+      1800, // 30 minutes
+      15, // full privileges
+      serviceType
     );
 
     return {
@@ -85,7 +109,8 @@ class ZegoService {
       zegoUserId,
       roomId,
       7200, // 2 hours validity
-      privileges
+      privileges,
+      'live' // Use the live streaming service type
     );
   }
 
@@ -96,10 +121,38 @@ class ZegoService {
     userId: string,
     roomId: string,
     effectiveTimeInSeconds: number,
-    privilege: number = 15 // Default to full privileges (1: LoginRoom, 2: PublishStream, 4: WebRTCPlay, 8: WebRTCPublish)
+    privilege: number = 15, // Default to full privileges (1: LoginRoom, 2: PublishStream, 4: WebRTCPlay, 8: WebRTCPublish)
+    serviceType: 'video' | 'voice' | 'chat' | 'live' = 'video'
   ): string {
-    if (!ZEGO_APP_ID || !ZEGO_SERVER_SECRET) {
-      throw new Error('ZEGO credentials not configured');
+    // Select the appropriate credentials based on service type
+    let appId: string | undefined;
+    let serverSecret: string | undefined;
+    
+    switch (serviceType) {
+      case 'video':
+        appId = ZEGO_VIDEO_APP_ID;
+        serverSecret = ZEGO_VIDEO_SERVER_SECRET;
+        break;
+      case 'voice':
+        appId = ZEGO_PHONE_APP_ID;
+        serverSecret = ZEGO_PHONE_SERVER_SECRET;
+        break;
+      case 'chat':
+        appId = ZEGO_CHAT_APP_ID;
+        serverSecret = ZEGO_CHAT_SERVER_SECRET;
+        break;
+      case 'live':
+        appId = ZEGO_LIVE_APP_ID;
+        serverSecret = ZEGO_LIVE_SERVER_SECRET;
+        break;
+      default:
+        // Fallback to general credentials
+        appId = ZEGO_APP_ID;
+        serverSecret = ZEGO_SERVER_SECRET;
+    }
+
+    if (!appId || !serverSecret) {
+      throw new Error(`ZEGO credentials for ${serviceType} service not configured`);
     }
 
     // Current timestamp in seconds
@@ -113,7 +166,7 @@ class ZegoService {
     
     // Payload to sign
     const payload = {
-      app_id: parseInt(ZEGO_APP_ID, 10),
+      app_id: parseInt(appId, 10),
       user_id: userId,
       nonce,
       ctime: timestamp,
@@ -126,7 +179,7 @@ class ZegoService {
     const payloadString = JSON.stringify(payload);
     
     // Create signature (HMAC-SHA256)
-    const hmac = crypto.createHmac('sha256', ZEGO_SERVER_SECRET);
+    const hmac = crypto.createHmac('sha256', serverSecret);
     hmac.update(payloadString);
     const signature = hmac.digest('base64');
     
