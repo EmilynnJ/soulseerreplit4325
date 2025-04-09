@@ -3,7 +3,7 @@ import { useLocation, useRoute } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import WebRTCSession from '@/components/readings/webrtc-session';
+import ZegoSession from '@/components/readings/zego-session';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -213,8 +213,9 @@ export default function WebRTCSessionPage() {
 
   return (
     <div className="container mx-auto py-4">
-      <WebRTCSession
+      <ZegoSession
         roomId={roomId}
+        token={sessionData.token || ''}
         userId={user?.id || 0}
         userName={user?.fullName || user?.username || 'User'}
         readerId={sessionData.readerId}
