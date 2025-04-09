@@ -13,6 +13,7 @@ import path from "path";
 import fs from "fs";
 import { User, UserUpdate, Reading } from "../shared/schema";
 import { WebSocket } from "ws";
+import { Server as SocketServer } from 'socket.io';
 import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
@@ -86,7 +87,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/zego', zegoRoutes);
   
   // Initialize gift service with socket.io for real-time notifications
-  const io = require('socket.io')(httpServer);
+  const io = new SocketServer(httpServer);
   giftService.setSocketServer(io);
 
   // WebRTC webhook endpoint (for events like recording completed)
