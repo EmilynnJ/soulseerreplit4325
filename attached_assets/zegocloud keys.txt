@@ -1,0 +1,81 @@
+Live streaming-SoulSeerLive
+
+App_Id: 1287837653
+SERVER_SECRET:c725451fd1a871e2223c71994190964c
+
+{
+           	turnOnCameraWhenJoining: true,
+           	showMyCameraToggleButton: true,
+           	showAudioVideoSettingsButton: true,
+           	showScreenSharingButton: true,
+           	showTextChat: true,
+           	showUserList: true,
+           	scenario: {
+           		mode: "LiveStreaming",
+           		config: {
+           			role: "Host",
+         		},
+         	},
+         }
+
+
+
+Video readings- SoulSeerVideo
+
+APP_ID: 1714322900
+SERVER_SECRET: c944e6fd6e126ed399759eb1cf4f0638
+
+{
+           	turnOnMicrophoneWhenJoining: true,
+           	turnOnCameraWhenJoining: true,
+           	showMyCameraToggleButton: true,
+           	showMyMicrophoneToggleButton: true,
+           	showAudioVideoSettingsButton: true,
+           	showScreenSharingButton: true,
+           	showTextChat: true,
+           	showUserList: true,
+           	maxUsers: 2,
+           	layout: "Auto",
+           	showLayoutButton: false,
+           	scenario: {
+           		mode: "OneONoneCall",
+           		config: {
+           			role: "Host",
+         		},
+         	},
+         }
+
+
+PHONE READINGS- SoulSeerPhone
+
+APP_ID: 2121316001
+SERVER_SECRET: 47ce0b8e2a1aa93915fd494e3083ff9c
+
+{
+           	turnOnMicrophoneWhenJoining: true,
+           	turnOnCameraWhenJoining: false,
+           	showMyCameraToggleButton: false,
+           	showMyMicrophoneToggleButton: true,
+           	showAudioVideoSettingsButton: false,
+           	showScreenSharingButton: false,
+           	showTextChat: true,
+           	showUserList: true,
+           	maxUsers: 2,
+           	layout: "Auto",
+           	showLayoutButton: false,
+           	scenario: {
+           		mode: "VideoConference",
+           		config: {
+           			role: "Host",
+         		},
+         	},
+         }
+
+
+CHAT READINGS-SoulSeerChat
+
+APP_ID: 390659863
+SERVER_SECRET: ffcbc25996c228ee7c057cfbdb364ed0
+CALLBACK_SECRET: 21b05a5f11e39ab2afb6e00d55e51a5d
+
+
