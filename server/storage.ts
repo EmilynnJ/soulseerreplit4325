@@ -1,4 +1,4 @@
-import { users, type User, type InsertUser, type UserUpdate, readings, type Reading, type InsertReading, products, type Product, type InsertProduct, orders, type Order, type InsertOrder, orderItems, type OrderItem, type InsertOrderItem, livestreams, type Livestream, type InsertLivestream, type LivestreamUpdate, forumPosts, type ForumPost, type InsertForumPost, forumComments, type ForumComment, type InsertForumComment, messages, type Message, type InsertMessage, gifts, type Gift, type InsertGift } from "@shared/schema";
+import { users, type User, type InsertUser, type UserUpdate, readings, type Reading, type InsertReading, products, type Product, type InsertProduct, orders, type Order, type InsertOrder, orderItems, type OrderItem, type InsertOrderItem, livestreams, type Livestream, type InsertLivestream, type LivestreamUpdate, forumPosts, type ForumPost, type InsertForumPost, forumComments, type ForumComment, type InsertForumComment, messages, type Message, type InsertMessage, gifts, type Gift, type InsertGift, sessionLogs, type SessionLog, type InsertSessionLog, giftLogs, type GiftLog, type InsertGiftLog } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import connectPgSimple from "connect-pg-simple";
@@ -72,11 +72,27 @@ export interface IStorage {
   
   // Gifts for livestreams
   createGift(gift: InsertGift): Promise<Gift>;
+  getGift(id: number): Promise<Gift | undefined>;
   getGiftsByLivestream(livestreamId: number): Promise<Gift[]>;
   getGiftsBySender(senderId: number): Promise<Gift[]>;
   getGiftsByRecipient(recipientId: number): Promise<Gift[]>;
   getUnprocessedGifts(): Promise<Gift[]>;
   markGiftAsProcessed(id: number): Promise<Gift | undefined>;
+  
+  // Session logs for pay-per-minute readings
+  createSessionLog(sessionLog: InsertSessionLog): Promise<SessionLog>;
+  getSessionLog(id: number): Promise<SessionLog | undefined>;
+  getSessionLogByRoomId(roomId: string): Promise<SessionLog | undefined>;
+  getSessionLogsByReader(readerId: number): Promise<SessionLog[]>;
+  getSessionLogsByClient(clientId: number): Promise<SessionLog[]>;
+  updateSessionLog(id: number, sessionLog: Partial<InsertSessionLog>): Promise<SessionLog | undefined>;
+  
+  // Gift logs for livestream tips/gifts
+  createGiftLog(giftLog: InsertGiftLog): Promise<GiftLog>;
+  getGiftLog(id: number): Promise<GiftLog | undefined>;
+  getGiftLogsByLivestream(livestreamId: number): Promise<GiftLog[]>;
+  getGiftLogsBySender(senderId: number): Promise<GiftLog[]>;
+  getGiftLogsByReceiver(receiverId: number): Promise<GiftLog[]>;
   
   // Session store for authentication
   sessionStore: SessionStore;
@@ -93,6 +109,8 @@ export class MemStorage implements IStorage {
   private forumComments: Map<number, ForumComment>;
   private messages: Map<number, Message>;
   private gifts: Map<number, Gift>;
+  private sessionLogs: Map<number, SessionLog>;
+  private giftLogs: Map<number, GiftLog>;
   
   sessionStore: SessionStore;
   
@@ -106,6 +124,8 @@ export class MemStorage implements IStorage {
   currentForumCommentId: number;
   currentMessageId: number;
   currentGiftId: number;
+  currentSessionLogId: number;
+  currentGiftLogId: number;
 
   constructor() {
     this.users = new Map();
@@ -118,6 +138,8 @@ export class MemStorage implements IStorage {
     this.forumComments = new Map();
     this.messages = new Map();
     this.gifts = new Map();
+    this.sessionLogs = new Map();
+    this.giftLogs = new Map();
     
     this.currentUserId = 1;
     this.currentReadingId = 1;
@@ -129,6 +151,8 @@ export class MemStorage implements IStorage {
     this.currentForumCommentId = 1;
     this.currentMessageId = 1;
     this.currentGiftId = 1;
+    this.currentSessionLogId = 1;
+    this.currentGiftLogId = 1;
     
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000 // prune expired entries every 24h
@@ -562,6 +586,10 @@ export class MemStorage implements IStorage {
       });
   }
   
+  async getGift(id: number): Promise<Gift | undefined> {
+    return this.gifts.get(id);
+  }
+
   async markGiftAsProcessed(id: number): Promise<Gift | undefined> {
     const gift = this.gifts.get(id);
     if (!gift) return undefined;
@@ -576,6 +604,105 @@ export class MemStorage implements IStorage {
     return processedGift;
   }
   
+  // Session logs for pay-per-minute readings
+  async createSessionLog(sessionLog: InsertSessionLog): Promise<SessionLog> {
+    const id = this.currentSessionLogId++;
+    const log: SessionLog = {
+      ...sessionLog,
+      id,
+      createdAt: new Date()
+    };
+    this.sessionLogs.set(id, log);
+    return log;
+  }
+
+  async getSessionLog(id: number): Promise<SessionLog | undefined> {
+    return this.sessionLogs.get(id);
+  }
+
+  async getSessionLogByRoomId(roomId: string): Promise<SessionLog | undefined> {
+    return Array.from(this.sessionLogs.values()).find(log => log.roomId === roomId);
+  }
+
+  async getSessionLogsByReader(readerId: number): Promise<SessionLog[]> {
+    return Array.from(this.sessionLogs.values())
+      .filter(log => log.readerId === readerId)
+      .sort((a, b) => {
+        if (!a.startTime) return 1;
+        if (!b.startTime) return -1;
+        return b.startTime.getTime() - a.startTime.getTime(); // newest first
+      });
+  }
+
+  async getSessionLogsByClient(clientId: number): Promise<SessionLog[]> {
+    return Array.from(this.sessionLogs.values())
+      .filter(log => log.clientId === clientId)
+      .sort((a, b) => {
+        if (!a.startTime) return 1;
+        if (!b.startTime) return -1;
+        return b.startTime.getTime() - a.startTime.getTime(); // newest first
+      });
+  }
+
+  async updateSessionLog(id: number, sessionLogData: Partial<InsertSessionLog>): Promise<SessionLog | undefined> {
+    const log = this.sessionLogs.get(id);
+    if (!log) return undefined;
+    
+    const updatedLog: SessionLog = {
+      ...log,
+      ...sessionLogData
+    };
+    
+    this.sessionLogs.set(id, updatedLog);
+    return updatedLog;
+  }
+
+  // Gift logs for livestream tips/gifts
+  async createGiftLog(giftLog: InsertGiftLog): Promise<GiftLog> {
+    const id = this.currentGiftLogId++;
+    const log: GiftLog = {
+      ...giftLog,
+      id,
+      createdAt: new Date()
+    };
+    this.giftLogs.set(id, log);
+    return log;
+  }
+
+  async getGiftLog(id: number): Promise<GiftLog | undefined> {
+    return this.giftLogs.get(id);
+  }
+
+  async getGiftLogsByLivestream(livestreamId: number): Promise<GiftLog[]> {
+    return Array.from(this.giftLogs.values())
+      .filter(log => log.livestreamId === livestreamId)
+      .sort((a, b) => {
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return b.timestamp.getTime() - a.timestamp.getTime(); // newest first
+      });
+  }
+
+  async getGiftLogsBySender(senderId: number): Promise<GiftLog[]> {
+    return Array.from(this.giftLogs.values())
+      .filter(log => log.senderId === senderId)
+      .sort((a, b) => {
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return b.timestamp.getTime() - a.timestamp.getTime(); // newest first
+      });
+  }
+
+  async getGiftLogsByReceiver(receiverId: number): Promise<GiftLog[]> {
+    return Array.from(this.giftLogs.values())
+      .filter(log => log.receiverId === receiverId)
+      .sort((a, b) => {
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return b.timestamp.getTime() - a.timestamp.getTime(); // newest first
+      });
+  }
+
   // Seed data for demonstration
   private seedData() {
     // No seed data in production
@@ -967,6 +1094,11 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(gifts.createdAt));
   }
   
+  async getGift(id: number): Promise<Gift | undefined> {
+    const [gift] = await db.select().from(gifts).where(eq(gifts.id, id));
+    return gift;
+  }
+  
   async getUnprocessedGifts(): Promise<Gift[]> {
     return await db.select().from(gifts)
       .where(eq(gifts.processed, false))
@@ -984,6 +1116,80 @@ export class DatabaseStorage implements IStorage {
       .returning();
       
     return processedGift;
+  }
+  
+  // Session logs methods
+  async createSessionLog(sessionLog: InsertSessionLog): Promise<SessionLog> {
+    const [createdLog] = await db.insert(sessionLogs).values({
+      ...sessionLog,
+      createdAt: new Date()
+    }).returning();
+    
+    return createdLog;
+  }
+
+  async getSessionLog(id: number): Promise<SessionLog | undefined> {
+    const [log] = await db.select().from(sessionLogs).where(eq(sessionLogs.id, id));
+    return log;
+  }
+
+  async getSessionLogByRoomId(roomId: string): Promise<SessionLog | undefined> {
+    const [log] = await db.select().from(sessionLogs).where(eq(sessionLogs.roomId, roomId));
+    return log;
+  }
+
+  async getSessionLogsByReader(readerId: number): Promise<SessionLog[]> {
+    return await db.select().from(sessionLogs)
+      .where(eq(sessionLogs.readerId, readerId))
+      .orderBy(desc(sessionLogs.startTime));
+  }
+
+  async getSessionLogsByClient(clientId: number): Promise<SessionLog[]> {
+    return await db.select().from(sessionLogs)
+      .where(eq(sessionLogs.clientId, clientId))
+      .orderBy(desc(sessionLogs.startTime));
+  }
+
+  async updateSessionLog(id: number, sessionLogData: Partial<InsertSessionLog>): Promise<SessionLog | undefined> {
+    const [updatedLog] = await db.update(sessionLogs)
+      .set(sessionLogData)
+      .where(eq(sessionLogs.id, id))
+      .returning();
+      
+    return updatedLog;
+  }
+  
+  // Gift logs methods
+  async createGiftLog(giftLog: InsertGiftLog): Promise<GiftLog> {
+    const [createdLog] = await db.insert(giftLogs).values({
+      ...giftLog,
+      createdAt: new Date()
+    }).returning();
+    
+    return createdLog;
+  }
+
+  async getGiftLog(id: number): Promise<GiftLog | undefined> {
+    const [log] = await db.select().from(giftLogs).where(eq(giftLogs.id, id));
+    return log;
+  }
+
+  async getGiftLogsByLivestream(livestreamId: number): Promise<GiftLog[]> {
+    return await db.select().from(giftLogs)
+      .where(eq(giftLogs.livestreamId, livestreamId))
+      .orderBy(desc(giftLogs.timestamp));
+  }
+
+  async getGiftLogsBySender(senderId: number): Promise<GiftLog[]> {
+    return await db.select().from(giftLogs)
+      .where(eq(giftLogs.senderId, senderId))
+      .orderBy(desc(giftLogs.timestamp));
+  }
+
+  async getGiftLogsByReceiver(receiverId: number): Promise<GiftLog[]> {
+    return await db.select().from(giftLogs)
+      .where(eq(giftLogs.receiverId, receiverId))
+      .orderBy(desc(giftLogs.timestamp));
   }
 }
 

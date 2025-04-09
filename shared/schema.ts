@@ -36,6 +36,10 @@ export const users = pgTable("users", {
   // No longer using Square - only Stripe
   // stripeCustomerId field already exists
   stripeCustomerId: text("stripe_customer_id"), // Stripe customer ID for payment processing
+  // Fields for pay-per-minute readings
+  balance: real("balance").default(0), // User balance in dollars
+  earnings: real("earnings").default(0), // Reader's earnings in dollars
+  ratePerMinute: real("rate_per_minute").default(5.0), // Reader's rate per minute in dollars
 });
 
 export const messages = pgTable("messages", {
@@ -240,6 +244,10 @@ export type UserUpdate = Partial<InsertUser> & {
   stripeCustomerId?: string;
   accountBalance?: number;
   reviewCount?: number;
+  // Pay-per-minute reading system fields
+  balance?: number;
+  earnings?: number;
+  ratePerMinute?: number;
   // Fixed pricing for scheduled readings
   scheduledChatPrice15?: number;
   scheduledChatPrice30?: number;
@@ -287,3 +295,49 @@ export type Message = typeof messages.$inferSelect;
 
 export type InsertGift = z.infer<typeof insertGiftSchema>;
 export type Gift = typeof gifts.$inferSelect;
+
+// Pay-per-minute reading system tables
+
+export const sessionLogs = pgTable("session_logs", {
+  id: serial("id").primaryKey(),
+  roomId: text("room_id").notNull(),
+  readerId: integer("reader_id").notNull().references(() => users.id),
+  clientId: integer("client_id").notNull().references(() => users.id),
+  sessionType: text("session_type", { enum: ["video", "voice", "chat"] }).notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // in minutes
+  totalAmount: real("total_amount"), // in dollars
+  readerEarned: real("reader_earned"), // in dollars (70% of total)
+  platformEarned: real("platform_earned"), // in dollars (30% of total)
+  status: text("status", { enum: ["waiting", "connected", "ended"] }).notNull(),
+  endReason: text("end_reason"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+export const giftLogs = pgTable("gift_logs", {
+  id: serial("id").primaryKey(),
+  livestreamId: integer("livestream_id").references(() => livestreams.id),
+  senderId: integer("sender_id").notNull().references(() => users.id),
+  receiverId: integer("receiver_id").notNull().references(() => users.id),
+  giftType: text("gift_type").notNull(),
+  giftValue: real("gift_value").notNull(), // in dollars
+  receiverEarned: real("receiver_earned").notNull(), // in dollars (70% of gift value)
+  platformEarned: real("platform_earned").notNull(), // in dollars (30% of gift value)
+  timestamp: timestamp("timestamp").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+
+// Insert schemas for new tables
+export const insertSessionLogSchema = createInsertSchema(sessionLogs)
+  .omit({ id: true, createdAt: true });
+
+export const insertGiftLogSchema = createInsertSchema(giftLogs)
+  .omit({ id: true, createdAt: true });
+
+// Types for new tables
+export type InsertSessionLog = z.infer<typeof insertSessionLogSchema>;
+export type SessionLog = typeof sessionLogs.$inferSelect;
+
+export type InsertGiftLog = z.infer<typeof insertGiftLogSchema>;
+export type GiftLog = typeof giftLogs.$inferSelect;

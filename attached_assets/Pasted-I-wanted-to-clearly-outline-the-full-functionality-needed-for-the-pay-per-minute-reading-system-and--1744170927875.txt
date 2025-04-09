@@ -1,0 +1,240 @@
+I wanted to clearly outline the full functionality needed for the pay-per-minute reading system and livestreaming with gifting features for SoulSeer.
+---
+SoulSeer App – Feature Implementation Overview
+
+Platform: Replit
+RTC Provider: ZEGOCloud (chat / voice / video / livestreaming)
+Payments: Stripe (for balance top-ups and earnings tracking)
+Roles: client, reader, admin
+Backend: Tracks user balances, session logs, gift logs, and earnings
+
+---
+
+1. On-Demand Pay-Per-Minute Reading System
+
+Client Starts a Session
+
+Client selects an available reader
+
+Chooses a session type: chat, voice, or video
+
+
+Before Starting the Session
+
+Please add a client balance check:
+
+If the client’s balance is less than one minute’s worth of the reader’s rate, block the session from starting
+
+Show a message such as:
+"You need more funds to begin a session. Please top up your balance."
+
+Direct them to Stripe to add funds
+
+
+
+If Balance is Sufficient
+
+Create a ZEGO RTC room (room_id = readerId + timestamp)
+
+Generate ZEGO tokens for both client and reader
+
+Save a session log with:
+
+client_id, reader_id, session_type, room_id, start_time, status = active
+
+
+
+Reader Joins the Session
+
+Reader receives a notification or session request
+
+When they join, update session status to in_progress
+
+
+During the Session
+
+Every 60 seconds:
+
+Deduct the reader’s per-minute rate from the client’s balance
+
+Credit 70% to the reader’s earnings
+
+Credit 30% to the platform earnings
+
+Log the session duration and ongoing cost
+
+
+
+If the Client’s Balance Reaches $0
+
+End the session automatically
+
+Disconnect both users from the RTC session
+
+Update the session log with:
+
+end_time, total_duration, total_cost, final_status = ended_due_to_balance
+
+
+
+
+---
+
+2. Livestreaming with Gifting
+
+Reader Starts a Livestream
+
+Reader clicks “Start Livestream”
+
+Create a ZEGO livestream room
+
+Generate ZEGO token for the reader
+
+Set livestream status = live, and make it visible in the list of live streams
+
+
+Client Joins Livestream
+
+Client selects a livestream to join
+
+Join the ZEGO room using their generated token
+
+Show interactive gift buttons (e.g., heart, star, rose)
+
+
+Client Sends a Gift
+
+When clicked:
+
+Deduct the gift cost from client’s balance
+
+Credit 70% to reader’s earnings
+
+Credit 30% to platform earnings
+
+Log the gift with:
+
+reader_id, client_id, gift_type, gift_value, timestamp
+
+
+
+Trigger gift animation overlay on stream (ZEGO supports this with events)
+
+
+Ending the Livestream
+
+Reader clicks “End Stream”
+
+End ZEGO room session
+
+Set livestream status = ended
+
+Total up gift value and update the reader’s dashboard
+
+
+
+---
+
+What I’m Asking You To Do:
+
+Integrate ZEGO RTC for both 1-on-1 sessions and livestreaming (keys attached)
+
+Add the client balance check before any session starts
+
+Implement per-minute billing logic (deduct, split earnings, and log every 60 seconds)
+
+Automatically end sessions if the client runs out of funds
+
+Add gifting functionality for livestreams with client balance deduction and visual gift animation
+
+Store session logs and gift logs in the database
+
+Use the credentials provided below to test (since account creation currently has an issue)
+
+And look into account creation issue (new issue)Live streaming-SoulSeerLive
+
+ZEGOCLOUD Keys:
+
+App_Id: 1287837653
+SERVER_SECRET:c725451fd1a871e2223c71994190964c
+
+{
+           	turnOnCameraWhenJoining: true,
+           	showMyCameraToggleButton: true,
+           	showAudioVideoSettingsButton: true,
+           	showScreenSharingButton: true,
+           	showTextChat: true,
+           	showUserList: true,
+           	scenario: {
+           		mode: "LiveStreaming",
+           		config: {
+           			role: "Host",
+         		},
+         	},
+         }
+
+
+
+Video readings- SoulSeerVideo
+
+APP_ID: 1714322900
+SERVER_SECRET: c944e6fd6e126ed399759eb1cf4f0638
+
+{
+           	turnOnMicrophoneWhenJoining: true,
+           	turnOnCameraWhenJoining: true,
+           	showMyCameraToggleButton: true,
+           	showMyMicrophoneToggleButton: true,
+           	showAudioVideoSettingsButton: true,
+           	showScreenSharingButton: true,
+           	showTextChat: true,
+           	showUserList: true,
+           	maxUsers: 2,
+           	layout: "Auto",
+           	showLayoutButton: false,
+           	scenario: {
+           		mode: "OneONoneCall",
+           		config: {
+           			role: "Host",
+         		},
+         	},
+         }
+
+
+PHONE READINGS- SoulSeerPhone
+
+APP_ID: 2121316001
+SERVER_SECRET: 47ce0b8e2a1aa93915fd494e3083ff9c
+
+{
+           	turnOnMicrophoneWhenJoining: true,
+           	turnOnCameraWhenJoining: false,
+           	showMyCameraToggleButton: false,
+           	showMyMicrophoneToggleButton: true,
+           	showAudioVideoSettingsButton: false,
+           	showScreenSharingButton: false,
+           	showTextChat: true,
+           	showUserList: true,
+           	maxUsers: 2,
+           	layout: "Auto",
+           	showLayoutButton: false,
+           	scenario: {
+           		mode: "VideoConference",
+           		config: {
+           			role: "Host",
+         		},
+         	},
+         }
+
+
+CHAT READINGS-SoulSeerChat
+
+APP_ID: 390659863
+SERVER_SECRET: ffcbc25996c228ee7c057cfbdb364ed0
+CALLBACK_SECRET: 21b05a5f11e39ab2afb6e00d55e51a5d
+
+
+
+
+
+

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupWebSocket } from "./websocket";
 import { setupAuth } from "./auth";
 import readingRouter from "./routes/readings";
+import zegoRoutes from "./routes/zego-routes";
 import { z } from "zod";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
@@ -15,6 +16,8 @@ import { WebSocket } from "ws";
 import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
+import { sessionTrackerService } from "./services/session-tracker-service";
+import { giftService } from "./services/gift-service";
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -78,6 +81,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server for live readings and real-time communication
   const wsManager = setupWebSocket(httpServer);
   (global as any).wsManager = wsManager;
+  
+  // Register ZEGO routes for video/voice/chat sessions
+  app.use('/api/zego', zegoRoutes);
+  
+  // Initialize gift service with socket.io for real-time notifications
+  const io = require('socket.io')(httpServer);
+  giftService.setSocketServer(io);
 
   // WebRTC webhook endpoint (for events like recording completed)
   app.post('/api/webhooks/webrtc', express.json(), async (req, res) => {
