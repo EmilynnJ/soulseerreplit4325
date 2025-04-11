@@ -260,7 +260,7 @@ async function populateDatabase() {
             user_id, title, description, thumbnail_url, status, category,
             viewer_count, created_at, room_id
           ) VALUES (
-            2, 'Weekly Tarot Guidance', 
+            44, 'Weekly Tarot Guidance', 
             'Join me for weekly tarot readings and spiritual guidance.',
             '/images/livestreams/default-thumbnail.svg',
             'scheduled',
@@ -386,7 +386,7 @@ async function populateDatabase() {
         INSERT INTO forum_posts (
           user_id, title, content, category, likes, views, created_at, updated_at
         ) VALUES (
-          2, 'Understanding the Major Arcana',
+          44, 'Understanding the Major Arcana',
           'The Major Arcana cards in a tarot deck represent significant life events and spiritual lessons.',
           'education',
           28,
