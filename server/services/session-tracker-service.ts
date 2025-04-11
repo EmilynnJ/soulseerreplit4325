@@ -1,351 +1,490 @@
-import { InsertSessionLog, SessionLog } from "@shared/schema";
-import { storage } from "../storage";
-import { User } from "@shared/schema";
-import stripeClient, { stripe } from "./stripe-client";
-
 /**
  * SessionTrackerService
- * Tracks active reading sessions and handles billing
+ * This service manages the pay-per-minute reading sessions, including:
+ * - Creating and tracking sessions
+ * - Managing session state (waiting, active, ended)
+ * - Calculating billing amounts based on duration
+ * - Handling revenue sharing between platform and readers
+ * - Recording session logs for reporting
  */
-class SessionTrackerService {
-  private activeSessions: Map<string, {
-    readerId: number;
-    clientId: number;
-    startTime: Date;
-    lastBillingTime: Date;
-    sessionType: "video" | "voice" | "chat";
-    status: "waiting" | "connected" | "ended";
-    paymentIntentId?: string;
-    paymentMethodId?: string;
-    ratePerMinute: number;
-    billingIntervalMs: number; // how often to bill the client (in ms)
-    sessionLogId?: number;
-  }>;
 
-  private sessionTimeouts: Map<string, NodeJS.Timeout>;
+import { v4 as uuidv4 } from 'uuid';
+import { db, sql } from '../db';
 
-  constructor() {
-    this.activeSessions = new Map();
-    this.sessionTimeouts = new Map();
+// Session status types
+export type SessionStatus = 'waiting' | 'active' | 'ended';
+
+// Session types
+export type SessionType = 'video' | 'voice' | 'chat';
+
+// Session model
+export interface Session {
+  id?: number;
+  roomId: string;
+  readerId: number;
+  clientId: number;
+  startTime?: Date;
+  endTime?: Date;
+  duration?: number;
+  status: SessionStatus;
+  totalAmount?: number;
+  readerEarned?: number;
+  platformEarned?: number;
+  sessionType: SessionType;
+  ratePerMinute?: number;
+}
+
+/**
+ * Service for tracking and billing reading sessions
+ */
+export class SessionTrackerService {
+  private static instance: SessionTrackerService;
+  
+  // Revenue split percentages
+  private readerSharePercentage: number = 70; // 70% to reader
+  private platformSharePercentage: number = 30; // 30% to platform
+  
+  // Active sessions map (roomId -> Session)
+  private activeSessions: Map<string, Session> = new Map();
+  
+  // Minimum billing amount in minutes
+  private minimumBillingTime: number = 5; // 5 minutes minimum
+  
+  private constructor() {
+    console.log('SessionTrackerService initialized');
+    
+    // Schedule regular cleanup of stale sessions
+    setInterval(this.cleanupStaleSessions.bind(this), 15 * 60 * 1000); // Every 15 min
   }
-
+  
   /**
-   * Create a new reading session
+   * Get singleton instance
    */
-  async createSession(
-    roomId: string,
+  public static getInstance(): SessionTrackerService {
+    if (!SessionTrackerService.instance) {
+      SessionTrackerService.instance = new SessionTrackerService();
+    }
+    return SessionTrackerService.instance;
+  }
+  
+  /**
+   * Clean up any stale sessions (sessions that have been inactive for more than 2 hours)
+   */
+  private async cleanupStaleSessions(): Promise<void> {
+    try {
+      console.log('Cleaning up stale sessions...');
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      
+      // Find sessions with status 'waiting' or 'active' but created more than 2 hours ago
+      for (const session of this.activeSessions.values()) {
+        if (
+          (session.status === 'waiting' || session.status === 'active') && 
+          session.startTime && 
+          session.startTime < twoHoursAgo
+        ) {
+          console.log(`Cleaning up stale session: ${session.roomId}`);
+          await this.endSession(session.roomId);
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up stale sessions:', error);
+    }
+  }
+  
+  /**
+   * Create a new session
+   */
+  public async createSession(
     readerId: number,
     clientId: number,
-    sessionType: "video" | "voice" | "chat",
-    paymentMethodId: string
-  ): Promise<SessionLog> {
-    // Get reader information to determine rate
-    const reader = await storage.getUser(readerId);
-    if (!reader) {
-      throw new Error("Reader not found");
-    }
-
-    // Get client information
-    const client = await storage.getUser(clientId);
-    if (!client) {
-      throw new Error("Client not found");
-    }
-
-    // Make sure reader has a rate set
-    if (!reader.ratePerMinute) {
-      throw new Error("Reader does not have a rate configured");
-    }
-
-    const startTime = new Date();
-
-    // Create initial session log
-    const sessionLog: InsertSessionLog = {
-      roomId,
-      readerId,
-      clientId,
-      sessionType,
-      startTime,
-      status: "waiting", // Initially waiting until both join
-    };
-
-    const createdLog = await storage.createSessionLog(sessionLog);
-
-    // Create payment intent for authorization
-    const authorizationAmount = Number(reader.ratePerMinute) * 5; // 5 minutes upfront
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(authorizationAmount * 100), // convert to cents
-      currency: "usd",
-      customer: client.stripeCustomerId!, // assuming client has a Stripe customer ID
-      payment_method: paymentMethodId,
-      description: `SoulSeer ${sessionType} reading with ${reader.fullName}`,
-      confirm: true,
-      capture_method: "manual", // just authorize, we'll capture later
-      metadata: {
-        roomId,
-        readerId: readerId.toString(),
-        clientId: clientId.toString(),
-        sessionType
-      }
-    });
-
-    // Store session information
-    this.activeSessions.set(roomId, {
-      readerId,
-      clientId,
-      startTime,
-      lastBillingTime: startTime,
-      sessionType,
-      status: "waiting",
-      paymentIntentId: paymentIntent.id,
-      paymentMethodId,
-      ratePerMinute: Number(reader.ratePerMinute),
-      billingIntervalMs: 1000 * 60 * 5, // bill every 5 minutes
-      sessionLogId: createdLog.id
-    });
-
-    return createdLog;
-  }
-
-  /**
-   * Mark session as connected (both parties joined)
-   */
-  async sessionConnected(roomId: string): Promise<void> {
-    const session = this.activeSessions.get(roomId);
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
-    session.status = "connected";
-    session.lastBillingTime = new Date(); // Reset billing time to when connection established
-
-    // Update session log
-    if (session.sessionLogId) {
-      await storage.updateSessionLog(session.sessionLogId, {
-        status: "connected"
-      });
-    }
-
-    // Schedule first billing
-    this.scheduleNextBilling(roomId);
-  }
-
-  /**
-   * Schedule next billing cycle
-   */
-  private scheduleNextBilling(roomId: string): void {
-    const session = this.activeSessions.get(roomId);
-    if (!session || session.status === "ended") return;
-
-    // Clear any existing timeout
-    const existingTimeout = this.sessionTimeouts.get(roomId);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
-    }
-
-    // Schedule next billing
-    const timeout = setTimeout(async () => {
-      await this.processBilling(roomId);
-      
-      // Schedule next billing if session is still active
-      if (this.activeSessions.has(roomId) && this.activeSessions.get(roomId)!.status === "connected") {
-        this.scheduleNextBilling(roomId);
-      }
-    }, session.billingIntervalMs);
-
-    this.sessionTimeouts.set(roomId, timeout);
-  }
-
-  /**
-   * Process billing for a session
-   */
-  private async processBilling(roomId: string): Promise<void> {
-    const session = this.activeSessions.get(roomId);
-    if (!session || session.status !== "connected") return;
-
-    const now = new Date();
-    const minutesElapsed = (now.getTime() - session.lastBillingTime.getTime()) / (1000 * 60);
-    
-    if (minutesElapsed < 1) return; // Don't bill for less than a minute
-
-    // Calculate amount to bill
-    const amountToCharge = session.ratePerMinute * minutesElapsed;
-    const readerShare = amountToCharge * 0.7; // 70% to reader
-    const platformShare = amountToCharge * 0.3; // 30% to platform
-
+    sessionType: SessionType
+  ): Promise<Session> {
     try {
-      // Capture payment from the authorized payment intent
-      await stripe.paymentIntents.capture(session.paymentIntentId!, {
-        amount_to_capture: Math.round(amountToCharge * 100) // convert to cents
-      });
-
-      // Update reader balance
-      const reader = await storage.getUser(session.readerId);
-      if (reader) {
-        await storage.updateUser(session.readerId, {
-          earnings: (reader.earnings || 0) + readerShare
-        });
-      }
-
-      // Update session log with billing information
-      if (session.sessionLogId) {
-        const sessionLog = await storage.getSessionLog(session.sessionLogId);
-        if (sessionLog) {
-          const totalDuration = Math.round(
-            (now.getTime() - session.startTime.getTime()) / (1000 * 60)
-          );
-          
-          const totalAmount = sessionLog.totalAmount 
-            ? Number(sessionLog.totalAmount) + amountToCharge 
-            : amountToCharge;
-            
-          const readerEarned = sessionLog.readerEarned 
-            ? Number(sessionLog.readerEarned) + readerShare 
-            : readerShare;
-            
-          const platformEarned = sessionLog.platformEarned 
-            ? Number(sessionLog.platformEarned) + platformShare 
-            : platformShare;
-
-          await storage.updateSessionLog(session.sessionLogId, {
-            duration: totalDuration,
-            totalAmount,
-            readerEarned,
-            platformEarned
-          });
-        }
-      }
-
-      // Create a new payment intent for the next interval
-      const nextAuthAmount = session.ratePerMinute * 5; // Another 5 minutes
-      const nextPaymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(nextAuthAmount * 100), // convert to cents
-        currency: "usd",
-        customer: (await storage.getUser(session.clientId))?.stripeCustomerId!,
-        payment_method: session.paymentMethodId,
-        description: `SoulSeer ${session.sessionType} reading continued`,
-        confirm: true,
-        capture_method: "manual", // just authorize, we'll capture later
-        metadata: {
-          roomId,
-          readerId: session.readerId.toString(),
-          clientId: session.clientId.toString(),
-          sessionType: session.sessionType
-        }
-      });
-
-      // Update session with new payment intent
-      session.paymentIntentId = nextPaymentIntent.id;
-      session.lastBillingTime = now;
+      // Generate a unique room ID
+      const roomId = `session_${uuidv4().replace(/-/g, '')}`;
       
-      console.log(`Billed for session ${roomId}: $${amountToCharge.toFixed(2)} for ${minutesElapsed.toFixed(1)} minutes`);
+      // Get reader's rate per minute
+      const readerResult = await db.execute(sql`
+        SELECT rate_per_minute FROM users WHERE id = ${readerId}
+      `);
+      
+      if (!readerResult || !readerResult.rows || readerResult.rows.length === 0) {
+        throw new Error(`Reader not found: ${readerId}`);
+      }
+      
+      const ratePerMinute = parseFloat(readerResult.rows[0].rate_per_minute);
+      
+      // Create the session object
+      const session: Session = {
+        roomId,
+        readerId,
+        clientId,
+        status: 'waiting',
+        sessionType,
+        ratePerMinute,
+        startTime: new Date()
+      };
+      
+      // Store in the active sessions map
+      this.activeSessions.set(roomId, session);
+      
+      // Store in the database
+      await db.execute(sql`
+        INSERT INTO session_logs (
+          room_id, reader_id, client_id, start_time, status, 
+          session_type, rate_per_minute
+        ) VALUES (
+          ${session.roomId}, ${session.readerId}, ${session.clientId}, 
+          ${session.startTime}, ${session.status}, ${session.sessionType},
+          ${session.ratePerMinute}
+        )
+      `);
+      
+      console.log(`Session created: ${roomId} (${sessionType})`);
+      return session;
     } catch (error) {
-      console.error(`Failed to process billing for session ${roomId}:`, error);
-      // End session on payment failure
-      this.endSession(roomId, "payment_failed");
+      console.error('Error creating session:', error);
+      throw error;
     }
   }
-
+  
   /**
-   * End a reading session
+   * Start a session (transition from waiting to active)
    */
-  async endSession(roomId: string, reason: string = "completed"): Promise<SessionLog | undefined> {
-    const session = this.activeSessions.get(roomId);
-    if (!session) return undefined;
-
-    // Process final billing
-    if (session.status === "connected") {
-      await this.processBilling(roomId);
+  public async startSession(roomId: string): Promise<Session | null> {
+    try {
+      // Get session from memory or database
+      let session = this.activeSessions.get(roomId);
+      
+      if (!session) {
+        // Try to find in database
+        const sessionResult = await db.execute(sql`
+          SELECT * FROM session_logs WHERE room_id = ${roomId} AND status = 'waiting'
+        `);
+        
+        if (!sessionResult || !sessionResult.rows || sessionResult.rows.length === 0) {
+          console.error(`Session not found: ${roomId}`);
+          return null;
+        }
+        
+        const dbSession = sessionResult.rows[0];
+        
+        // Convert from DB format to Session object
+        session = {
+          roomId: dbSession.room_id,
+          readerId: dbSession.reader_id,
+          clientId: dbSession.client_id,
+          startTime: dbSession.start_time ? new Date(dbSession.start_time) : new Date(),
+          status: dbSession.status,
+          sessionType: dbSession.session_type,
+          ratePerMinute: parseFloat(dbSession.rate_per_minute)
+        };
+        
+        // Add to active sessions
+        this.activeSessions.set(roomId, session);
+      }
+      
+      // Only start if it's in waiting status
+      if (session.status === 'waiting') {
+        // Update session status to active
+        session.status = 'active';
+        
+        // Update database
+        await db.execute(sql`
+          UPDATE session_logs 
+          SET status = 'active' 
+          WHERE room_id = ${roomId}
+        `);
+        
+        console.log(`Session started: ${roomId}`);
+      }
+      
+      return session;
+    } catch (error) {
+      console.error('Error starting session:', error);
+      return null;
     }
-
-    // Cancel any pending timeouts
-    const timeout = this.sessionTimeouts.get(roomId);
-    if (timeout) {
-      clearTimeout(timeout);
-      this.sessionTimeouts.delete(roomId);
-    }
-
-    // Mark session as ended
-    session.status = "ended";
-
-    // Update session log
-    let finalLog: SessionLog | undefined;
-    if (session.sessionLogId) {
-      const now = new Date();
-      const totalDuration = Math.round(
-        (now.getTime() - session.startTime.getTime()) / (1000 * 60)
-      );
-
-      finalLog = await storage.updateSessionLog(session.sessionLogId, {
-        status: "ended",
-        endTime: now,
-        duration: totalDuration,
-        endReason: reason
-      });
-    }
-
-    // Remove from active sessions
-    this.activeSessions.delete(roomId);
-
-    return finalLog;
   }
-
+  
+  /**
+   * Track the current billing amount for a session
+   */
+  public async trackSessionBilling(roomId: string): Promise<number> {
+    try {
+      // Get session from memory or database
+      let session = this.activeSessions.get(roomId);
+      
+      if (!session) {
+        // Try to find in database
+        const sessionResult = await db.execute(sql`
+          SELECT * FROM session_logs WHERE room_id = ${roomId}
+        `);
+        
+        if (!sessionResult || !sessionResult.rows || sessionResult.rows.length === 0) {
+          console.error(`Session not found: ${roomId}`);
+          return 0;
+        }
+        
+        const dbSession = sessionResult.rows[0];
+        
+        // If the session is already ended, return the recorded amount
+        if (dbSession.status === 'ended') {
+          return parseFloat(dbSession.total_amount) || 0;
+        }
+        
+        // Convert from DB format to Session object
+        session = {
+          roomId: dbSession.room_id,
+          readerId: dbSession.reader_id,
+          clientId: dbSession.client_id,
+          startTime: dbSession.start_time ? new Date(dbSession.start_time) : new Date(),
+          status: dbSession.status as SessionStatus,
+          sessionType: dbSession.session_type as SessionType,
+          ratePerMinute: parseFloat(dbSession.rate_per_minute)
+        };
+        
+        // Add to active sessions
+        this.activeSessions.set(roomId, session);
+      }
+      
+      // Calculate current duration in minutes
+      const now = new Date();
+      const startTime = session.startTime || now;
+      const durationMs = now.getTime() - startTime.getTime();
+      const durationMinutes = Math.max(this.minimumBillingTime, Math.ceil(durationMs / (60 * 1000)));
+      
+      // Calculate current billing amount
+      const ratePerMinute = session.ratePerMinute || 0;
+      const totalAmount = durationMinutes * ratePerMinute;
+      
+      return parseFloat(totalAmount.toFixed(2));
+    } catch (error) {
+      console.error('Error tracking session billing:', error);
+      return 0;
+    }
+  }
+  
+  /**
+   * End a session and calculate final billing
+   */
+  public async endSession(roomId: string): Promise<Session | null> {
+    try {
+      console.log(`Ending session: ${roomId}`);
+      // Get session from memory or database
+      let session = this.activeSessions.get(roomId);
+      
+      if (!session) {
+        // Try to find in database
+        const sessionResult = await db.execute(sql`
+          SELECT * FROM session_logs WHERE room_id = ${roomId} AND status != 'ended'
+        `);
+        
+        if (!sessionResult || !sessionResult.rows || sessionResult.rows.length === 0) {
+          console.error(`Active session not found: ${roomId}`);
+          return null;
+        }
+        
+        const dbSession = sessionResult.rows[0];
+        
+        // Convert from DB format to Session object
+        session = {
+          roomId: dbSession.room_id,
+          readerId: dbSession.reader_id,
+          clientId: dbSession.client_id,
+          startTime: dbSession.start_time ? new Date(dbSession.start_time) : new Date(),
+          status: dbSession.status as SessionStatus,
+          sessionType: dbSession.session_type as SessionType,
+          ratePerMinute: parseFloat(dbSession.rate_per_minute)
+        };
+        
+        // Add to active sessions
+        this.activeSessions.set(roomId, session);
+      }
+      
+      // Calculate final duration in minutes
+      const now = new Date();
+      const startTime = session.startTime || now;
+      const durationMs = now.getTime() - startTime.getTime();
+      const durationMinutes = Math.max(this.minimumBillingTime, Math.ceil(durationMs / (60 * 1000)));
+      const durationSeconds = Math.ceil(durationMs / 1000);
+      
+      // Calculate final billing amount
+      const ratePerMinute = session.ratePerMinute || 0;
+      const totalAmount = parseFloat((durationMinutes * ratePerMinute).toFixed(2));
+      
+      // Calculate revenue split
+      const readerEarned = parseFloat((totalAmount * (this.readerSharePercentage / 100)).toFixed(2));
+      const platformEarned = parseFloat((totalAmount * (this.platformSharePercentage / 100)).toFixed(2));
+      
+      // Update session data
+      session.status = 'ended';
+      session.endTime = now;
+      session.duration = durationSeconds;
+      session.totalAmount = totalAmount;
+      session.readerEarned = readerEarned;
+      session.platformEarned = platformEarned;
+      
+      // Remove from active sessions
+      this.activeSessions.delete(roomId);
+      
+      // Update client's balance
+      await db.execute(sql`
+        UPDATE users 
+        SET balance = balance - ${totalAmount} 
+        WHERE id = ${session.clientId}
+      `);
+      
+      // Update reader's earnings
+      await db.execute(sql`
+        UPDATE users 
+        SET earnings = earnings + ${readerEarned} 
+        WHERE id = ${session.readerId}
+      `);
+      
+      // Update session in database
+      await db.execute(sql`
+        UPDATE session_logs 
+        SET 
+          status = 'ended',
+          end_time = ${now},
+          duration = ${durationSeconds},
+          total_amount = ${totalAmount},
+          reader_earned = ${readerEarned},
+          platform_earned = ${platformEarned}
+        WHERE room_id = ${roomId}
+      `);
+      
+      console.log(`Session ended: ${roomId}, Duration: ${durationMinutes} minutes, Amount: $${totalAmount}`);
+      return session;
+    } catch (error) {
+      console.error('Error ending session:', error);
+      return null;
+    }
+  }
+  
   /**
    * Get all active sessions
    */
-  getActiveSessions(): { roomId: string, session: any }[] {
-    const sessions: { roomId: string, session: any }[] = [];
-    
-    for (const [roomId, session] of this.activeSessions.entries()) {
-      sessions.push({
-        roomId,
-        session: {
-          ...session,
-          // Don't include sensitive payment information
-          paymentIntentId: undefined,
-          paymentMethodId: undefined
-        }
-      });
+  public getActiveSessions(): Session[] {
+    // Convert the Map values to an array
+    return Array.from(this.activeSessions.values());
+  }
+  
+  /**
+   * Get active sessions count
+   */
+  public getActiveSessionsCount(): number {
+    return this.activeSessions.size;
+  }
+  
+  /**
+   * Check if a user is in an active session
+   */
+  public async isUserInActiveSession(userId: number): Promise<boolean> {
+    // Check in memory first
+    for (const session of this.activeSessions.values()) {
+      if (session.readerId === userId || session.clientId === userId) {
+        return true;
+      }
     }
     
-    return sessions;
+    // Then check database
+    try {
+      const result = await db.execute(sql`
+        SELECT COUNT(*) as count 
+        FROM session_logs 
+        WHERE (reader_id = ${userId} OR client_id = ${userId}) 
+        AND status != 'ended'
+      `);
+      
+      return result.rows[0].count > 0;
+    } catch (error) {
+      console.error('Error checking if user is in active session:', error);
+      return false;
+    }
   }
-
+  
   /**
-   * Get details of a specific session
+   * Get user's active session
    */
-  getSessionDetails(roomId: string): any | undefined {
-    const session = this.activeSessions.get(roomId);
-    if (!session) return undefined;
+  public async getUserActiveSession(userId: number): Promise<Session | null> {
+    // Check in memory first
+    for (const session of this.activeSessions.values()) {
+      if (session.readerId === userId || session.clientId === userId) {
+        return session;
+      }
+    }
     
-    return {
-      ...session,
-      // Don't include sensitive payment information
-      paymentIntentId: undefined, 
-      paymentMethodId: undefined
-    };
+    // Then check database
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM session_logs 
+        WHERE (reader_id = ${userId} OR client_id = ${userId}) 
+        AND status != 'ended'
+        ORDER BY start_time DESC
+        LIMIT 1
+      `);
+      
+      if (!result || !result.rows || result.rows.length === 0) {
+        return null;
+      }
+      
+      const dbSession = result.rows[0];
+      
+      // Convert from DB format to Session object
+      const session: Session = {
+        roomId: dbSession.room_id,
+        readerId: dbSession.reader_id,
+        clientId: dbSession.client_id,
+        startTime: dbSession.start_time ? new Date(dbSession.start_time) : new Date(),
+        status: dbSession.status,
+        sessionType: dbSession.session_type,
+        ratePerMinute: parseFloat(dbSession.rate_per_minute)
+      };
+      
+      return session;
+    } catch (error) {
+      console.error('Error getting user active session:', error);
+      return null;
+    }
   }
-
+  
   /**
-   * Check if a session exists and is active
+   * Get session history for a user
    */
-  isSessionActive(roomId: string): boolean {
-    const session = this.activeSessions.get(roomId);
-    return !!session && session.status === "connected";
-  }
-
-  /**
-   * Get all sessions for a reader
-   */
-  async getReaderSessions(readerId: number): Promise<SessionLog[]> {
-    return await storage.getSessionLogsByReader(readerId);
-  }
-
-  /**
-   * Get all sessions for a client
-   */
-  async getClientSessions(clientId: number): Promise<SessionLog[]> {
-    return await storage.getSessionLogsByClient(clientId);
+  public async getSessionHistory(userId: number, userType: 'reader' | 'client'): Promise<any[]> {
+    try {
+      let query;
+      if (userType === 'reader') {
+        query = sql`
+          SELECT sl.*, 
+            u.username as client_username
+          FROM session_logs sl
+          JOIN users u ON sl.client_id = u.id
+          WHERE sl.reader_id = ${userId}
+          ORDER BY sl.start_time DESC
+        `;
+      } else {
+        query = sql`
+          SELECT sl.*, 
+            u.username as reader_username
+          FROM session_logs sl
+          JOIN users u ON sl.reader_id = u.id
+          WHERE sl.client_id = ${userId}
+          ORDER BY sl.start_time DESC
+        `;
+      }
+      
+      const result = await db.execute(query);
+      
+      return result.rows || [];
+    } catch (error) {
+      console.error('Error getting session history:', error);
+      return [];
+    }
   }
 }
 
-export const sessionTrackerService = new SessionTrackerService();
+// Export singleton instance
+export const sessionTrackerService = SessionTrackerService.getInstance();

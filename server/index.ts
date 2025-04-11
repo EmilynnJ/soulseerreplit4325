@@ -118,6 +118,31 @@ app.use((req, res, next) => {
   } catch (error) {
     console.error('Failed to initialize Livestream service:', error);
   }
+  
+  // Initialize the ZEGO WebRTC routes
+  try {
+    const { registerZegoRoutes } = await import('./routes/zego-routes');
+    registerZegoRoutes(app);
+    console.log('ZEGO routes registered successfully');
+  } catch (error) {
+    console.error('Failed to register ZEGO routes:', error);
+  }
+  
+  // Initialize the session tracker service
+  try {
+    const { sessionTrackerService } = await import('./services/session-tracker-service');
+    console.log('Session tracker service initialized');
+  } catch (error) {
+    console.error('Failed to initialize session tracker service:', error);
+  }
+  
+  // Initialize the gift service
+  try {
+    const { giftService } = await import('./services/gift-service');
+    console.log('Gift service initialized');
+  } catch (error) {
+    console.error('Failed to initialize gift service:', error);
+  }
 
   // Initialize the daily reader payout scheduler
   try {
