@@ -4,7 +4,7 @@ require('dotenv').config();
 const NEW_DATABASE_URL = process.env.DATABASE_URL;
 
 // Old database connection (previous Neon database)
-const OLD_DATABASE_URL = 'postgresql://neondb_owner:npg_1tA3DvNckXoW@ep-noisy-union-a5mhired-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const OLD_DATABASE_URL = 'postgresql://neondb_owner:npg_1tA3DvNckXoW@ep-noisy-union-a5mhired.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 // Import pg
 const { Pool } = require('pg');
