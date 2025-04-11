@@ -9,7 +9,7 @@ const { Pool } = require('pg');
 // Configure PostgreSQL client for Neon
 const pool = new Pool({
   host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
+  database: process.env.PGDATABASE, // Use neondb database
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT || 5432,
