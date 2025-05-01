@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, ReactNode, useContext, useEffect } from "react";
 import {
   useQuery,
   useMutation,
@@ -7,6 +7,7 @@ import {
 import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@clerk/clerk-react"; // Import Clerk's useUser hook
 
 type AuthContextType = {
   user: User | null;
@@ -34,6 +35,8 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const { isSignedIn: isClerkSignedIn } = useUser(); // Get Clerk auth state
+  
   const {
     data: user,
     error,
@@ -48,6 +51,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refetchOnWindowFocus: true, // Reload when tab gets focus
     refetchOnMount: true // Reload when component mounts
   });
+
+  // Sync with Clerk authentication state
+  useEffect(() => {
+    if (isClerkSignedIn) {
+      // If Clerk is signed in but our custom auth isn't, refetch user data
+      if (!user) {
+        refetchUser();
+      }
+    } else {
+      // If Clerk is signed out, clear our custom auth state
+      if (user) {
+        queryClient.setQueryData(["/api/user"], null);
+      }
+    }
+  }, [isClerkSignedIn, user, refetchUser]);
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {

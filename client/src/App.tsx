@@ -26,6 +26,7 @@ import { ClerkProtectedRoute } from "./lib/clerk-protected-route";
 import { Layout } from "./components/layout";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import { AuthProvider } from "@/hooks/use-auth";
 import "@/styles/globals.css";
 
 // Import at the top level instead of using require
@@ -227,14 +228,16 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <CartProvider>
-            <SafeWebSocketProvider>
-              <Router />
-              <AppUpdater />
-              <PwaInstallBanner />
-              <Toaster />
-            </SafeWebSocketProvider>
-          </CartProvider>
+          <AuthProvider>
+            <CartProvider>
+              <SafeWebSocketProvider>
+                <Router />
+                <AppUpdater />
+                <PwaInstallBanner />
+                <Toaster />
+              </SafeWebSocketProvider>
+            </CartProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>
