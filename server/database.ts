@@ -12,7 +12,7 @@ neonConfig.wsReconnectMaxAttempts = 5;
 neonConfig.wsReconnectTimeout = 5000;
 
 // Use the connection URL from environment variables or fall back to default for Replit
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_1tA3DvNckXoW@ep-noisy-union-a5mhired-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=10';
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_Pbpz9TuH5AhX@ep-lively-base-a4k2rid7-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&connect_timeout=10';
 
 const sql = neon(DATABASE_URL);
 

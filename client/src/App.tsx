@@ -5,9 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { AuthProvider } from "@/hooks/use-auth";
 import { CartProvider } from "@/hooks/use-cart";
-// TRTC has been completely removed
 import { WebSocketProvider } from "@/hooks/websocket-provider";
 import HomePage from "@/pages/home-page";
 import AboutPage from "@/pages/about-page";
@@ -24,15 +22,14 @@ import ReaderProfilePage from "@/pages/reader-profile-page";
 import PoliciesPage from "@/pages/policies-page";
 import LivestreamPage from "@/pages/livestream-page";
 import LivestreamDetailPage from "@/pages/livestream-detail-page";
-import { ProtectedRoute } from "./lib/protected-route";
+import { ClerkProtectedRoute } from "./lib/clerk-protected-route";
 import { Layout } from "./components/layout";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import "@/styles/globals.css";
 
 // Import at the top level instead of using require
 import env from './lib/env';
-
-// Dashboard page has been moved to its own component file
 
 // Messages component
 const Messages = () => (
@@ -65,13 +62,51 @@ function Router() {
         {/* Public home routes */}
         <Route path="/" component={HomePage} />
         <Route path="/about" component={AboutPage} />
-        <Route path="/auth" component={AuthPage} />
+        <Route path="/auth">
+          <SignedIn>
+            <Route path="/auth" component={HomePage} />
+          </SignedIn>
+          <SignedOut>
+            <AuthPage />
+          </SignedOut>
+        </Route>
         
         {/* Protected routes - require login */}
-        <ProtectedRoute path="/dashboard" component={DashboardPage} />
-        <ProtectedRoute path="/messages" component={Messages} />
-        <ProtectedRoute path="/reading-session/:id" component={ReadingSessionPage} />
-        <ProtectedRoute path="/add-funds" component={AddFundsPage} />
+        <Route path="/dashboard">
+          <SignedIn>
+            <DashboardPage />
+          </SignedIn>
+          <SignedOut>
+            <RedirectToSignIn />
+          </SignedOut>
+        </Route>
+        
+        <Route path="/messages">
+          <SignedIn>
+            <Messages />
+          </SignedIn>
+          <SignedOut>
+            <RedirectToSignIn />
+          </SignedOut>
+        </Route>
+        
+        <Route path="/reading-session/:id">
+          <SignedIn>
+            <ReadingSessionPage />
+          </SignedIn>
+          <SignedOut>
+            <RedirectToSignIn />
+          </SignedOut>
+        </Route>
+        
+        <Route path="/add-funds">
+          <SignedIn>
+            <AddFundsPage />
+          </SignedIn>
+          <SignedOut>
+            <RedirectToSignIn />
+          </SignedOut>
+        </Route>
         
         {/* Public routes */}
         <Route path="/readers" component={ReadersPage} />
@@ -192,16 +227,14 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <CartProvider>
-              <SafeWebSocketProvider>
-                <Router />
-                <AppUpdater />
-                <PwaInstallBanner />
-                <Toaster />
-              </SafeWebSocketProvider>
-            </CartProvider>
-          </AuthProvider>
+          <CartProvider>
+            <SafeWebSocketProvider>
+              <Router />
+              <AppUpdater />
+              <PwaInstallBanner />
+              <Toaster />
+            </SafeWebSocketProvider>
+          </CartProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>

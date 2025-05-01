@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupWebSocket } from "./websocket";
 import { setupAuth } from "./auth";
+import { setupClerkAuth, requireAuth } from "./clerk-auth";
 import readingRouter from "./routes/readings";
 import zegoRoutes from "./routes/zego-routes";
 import { z } from "zod";
@@ -23,13 +24,36 @@ import { giftService } from "./services/gift-service";
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Authentication middleware
+// Authentication middleware - legacy method using passport
 const authenticate = (req: Request, res: Response, next: NextFunction) => {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Not authenticated" });
   }
 
   next();
+};
+
+// New authentication middleware using Clerk
+const authenticateWithClerk = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Check if we have legacy auth first
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      return next();
+    }
+    
+    // Otherwise use Clerk
+    // Extract token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    // Let Clerk handle auth through the requireAuth middleware
+    requireAuth(req, res, next);
+  } catch (error) {
+    console.error("Authentication error:", error);
+    return res.status(401).json({ message: "Authentication failed" });
+  }
 };
 
 // Admin middleware
@@ -55,8 +79,6 @@ const adminOnly = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-// No longer using fileURLToPath and dirname
-
 // Define the uploads path
 const uploadsPath = path.join(process.cwd(), 'public', 'uploads');
 
@@ -69,12 +91,11 @@ async function scrypt_hash(password: string) {
   return `${buf.toString("hex")}.${salt}`;
 }
 
-// Removed helper function for processing reading payments
-
 export async function registerRoutes(app: Express): Promise<Server> {
 
-  // Setup authentication routes
+  // Setup authentication routes - both legacy and Clerk
   setupAuth(app);
+  setupClerkAuth(app);
 
   // Create HTTP server
   const httpServer = createServer(app);

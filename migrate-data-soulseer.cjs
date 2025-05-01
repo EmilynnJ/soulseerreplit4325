@@ -3,25 +3,23 @@ require('dotenv').config();
 // Store current (new) DATABASE_URL
 const NEW_DATABASE_URL = process.env.DATABASE_URL;
 
-// Old database connection (previous Neon database)
-const OLD_DATABASE_URL = 'postgresql://neondb_owner:npg_1tA3DvNckXoW@ep-noisy-union-a5mhired.us-east-2.aws.neon.tech/neondb?sslmode=require';
+// Set the OLD_DATABASE_URL to the source DB we're migrating FROM
+const OLD_DATABASE_URL = 'postgresql://neondb_owner:npg_Pbpz9TuH5AhX@ep-lively-base-a4k2rid7.us-east-1.aws.neon.tech/neondb?sslmode=require';
 
-// Import pg
-const { Pool } = require('pg');
+console.log("Starting migration from old database to new database...");
 
-// Create pools for both databases
-const oldPool = new Pool({ 
+// Connect to the source (old) database
+const { Pool: SourcePool } = require('pg');
+const sourcePool = new SourcePool({
   connectionString: OLD_DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-const newPool = new Pool({ 
+// Connect to the destination (new) database
+const { Pool: DestPool } = require('pg');
+const destPool = new DestPool({
   connectionString: NEW_DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
 async function migrateData() {
@@ -50,8 +48,8 @@ async function migrateData() {
     console.error('Error during migration:', error);
   } finally {
     // Close connections
-    await oldPool.end();
-    await newPool.end();
+    await sourcePool.end();
+    await destPool.end();
   }
 }
 
@@ -60,13 +58,13 @@ async function testConnections() {
     console.log('Testing database connections...');
     
     // Test old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     const oldResult = await oldClient.query('SELECT version()');
     console.log('Old database connection successful:', oldResult.rows[0].version);
     oldClient.release();
     
     // Test new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     const newResult = await newClient.query('SELECT version()');
     console.log('New database connection successful:', newResult.rows[0].version);
     newClient.release();
@@ -83,7 +81,7 @@ async function migrateUsers() {
     console.log('Migrating users...');
     
     // Get all users from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let users = [];
     try {
       const result = await oldClient.query('SELECT * FROM users');
@@ -99,7 +97,7 @@ async function migrateUsers() {
     }
     
     // Insert users into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE users CASCADE');
@@ -189,7 +187,7 @@ async function migrateMessages() {
     console.log('Migrating messages...');
     
     // Get all messages from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let messages = [];
     try {
       const result = await oldClient.query('SELECT * FROM messages');
@@ -205,7 +203,7 @@ async function migrateMessages() {
     }
     
     // Insert messages into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE messages CASCADE');
@@ -255,7 +253,7 @@ async function migrateReadings() {
     console.log('Migrating readings...');
     
     // Get all readings from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let readings = [];
     try {
       const result = await oldClient.query('SELECT * FROM readings');
@@ -271,7 +269,7 @@ async function migrateReadings() {
     }
     
     // Insert readings into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE readings CASCADE');
@@ -344,7 +342,7 @@ async function migrateProducts() {
     console.log('Migrating products...');
     
     // Get all products from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let products = [];
     try {
       const result = await oldClient.query('SELECT * FROM products');
@@ -360,7 +358,7 @@ async function migrateProducts() {
     }
     
     // Insert products into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE products CASCADE');
@@ -415,7 +413,7 @@ async function migrateOrders() {
     console.log('Migrating orders...');
     
     // Get all orders from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let orders = [];
     try {
       const result = await oldClient.query('SELECT * FROM orders');
@@ -431,7 +429,7 @@ async function migrateOrders() {
     }
     
     // Insert orders into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE orders CASCADE');
@@ -484,7 +482,7 @@ async function migrateOrderItems() {
     console.log('Migrating order items...');
     
     // Get all order items from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let orderItems = [];
     try {
       const result = await oldClient.query('SELECT * FROM order_items');
@@ -500,7 +498,7 @@ async function migrateOrderItems() {
     }
     
     // Insert order items into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE order_items CASCADE');
@@ -546,7 +544,7 @@ async function migrateLivestreams() {
     console.log('Migrating livestreams...');
     
     // Get all livestreams from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let livestreams = [];
     try {
       const result = await oldClient.query('SELECT * FROM livestreams');
@@ -562,7 +560,7 @@ async function migrateLivestreams() {
     }
     
     // Insert livestreams into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE livestreams CASCADE');
@@ -626,7 +624,7 @@ async function migrateForumPosts() {
     console.log('Migrating forum posts...');
     
     // Get all forum posts from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let posts = [];
     try {
       const result = await oldClient.query('SELECT * FROM forum_posts');
@@ -642,7 +640,7 @@ async function migrateForumPosts() {
     }
     
     // Insert forum posts into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE forum_posts CASCADE');
@@ -693,7 +691,7 @@ async function migrateForumComments() {
     console.log('Migrating forum comments...');
     
     // Get all forum comments from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let comments = [];
     try {
       const result = await oldClient.query('SELECT * FROM forum_comments');
@@ -709,7 +707,7 @@ async function migrateForumComments() {
     }
     
     // Insert forum comments into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE forum_comments CASCADE');
@@ -758,7 +756,7 @@ async function migrateGifts() {
     console.log('Migrating gifts...');
     
     // Get all gifts from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let gifts = [];
     try {
       const result = await oldClient.query('SELECT * FROM gifts');
@@ -774,7 +772,7 @@ async function migrateGifts() {
     }
     
     // Insert gifts into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE gifts CASCADE');
@@ -830,7 +828,7 @@ async function migrateSessionLogs() {
     console.log('Migrating session logs...');
     
     // Get all session logs from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let sessionLogs = [];
     try {
       const result = await oldClient.query('SELECT * FROM session_logs');
@@ -846,7 +844,7 @@ async function migrateSessionLogs() {
     }
     
     // Insert session logs into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE session_logs CASCADE');
@@ -904,7 +902,7 @@ async function migrateGiftLogs() {
     console.log('Migrating gift logs...');
     
     // Get all gift logs from old database
-    const oldClient = await oldPool.connect();
+    const oldClient = await sourcePool.connect();
     let giftLogs = [];
     try {
       const result = await oldClient.query('SELECT * FROM gift_logs');
@@ -920,7 +918,7 @@ async function migrateGiftLogs() {
     }
     
     // Insert gift logs into new database
-    const newClient = await newPool.connect();
+    const newClient = await destPool.connect();
     
     // First, clear the table in the new database
     await newClient.query('TRUNCATE gift_logs CASCADE');
