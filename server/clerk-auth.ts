@@ -1,5 +1,5 @@
 import { Express, Request, Response, NextFunction } from 'express';
-import { clerkClient } from '@clerk/backend';
+import { clerkClient } from '@clerk/clerk-sdk-node';
 
 // Clerk auth middleware
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
