@@ -5,9 +5,12 @@ import * as schema from '@shared/schema';
 
 const { Pool } = pg;
 
-// Create a PostgreSQL pool using the DATABASE_URL environment variable
+// Define DATABASE_URL with fallback
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_Pbpz9TuH5AhX@ep-lively-base-a4k2rid7-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&connect_timeout=10';
+
+// Create a PostgreSQL pool using the DATABASE_URL 
 export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
+  connectionString: DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
@@ -18,7 +21,7 @@ export const pool = new Pool({
 });
 
 // Also create a Neon serverless client for edge functions or serverless environments
-export const sql = neon(process.env.DATABASE_URL!);
+export const sql = neon(DATABASE_URL);
 
 // Initialize Drizzle with the pool and schema (primary connection method)
 export const db = drizzle(pool, { schema });
