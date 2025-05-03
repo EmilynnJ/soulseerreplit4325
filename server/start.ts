@@ -132,9 +132,9 @@ server.listen(port, '0.0.0.0', async () => {
   log(`Server started on port ${port}`);
   
   // Test database connection
-  await testDatabase();
+  const isDbOk = await testDatabase();
   
-  log(`Service status: Database=OK, LiveKit=OK`);
+  log(`Service status: Database=${isDbOk ? 'OK' : 'ERROR'}`);
   
   // Server status is broadcast by the WebSocket setup in routes.ts
 });

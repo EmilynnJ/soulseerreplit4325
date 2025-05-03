@@ -274,7 +274,7 @@ export class MemStorage implements IStorage {
   // Readings
   async createReading(reading: InsertReading): Promise<Reading> {
     const id = this.currentReadingId++;
-    const reading: Reading = {
+    const newReading: Reading = {
       ...reading,
       id,
       createdAt: new Date(),
@@ -290,7 +290,7 @@ export class MemStorage implements IStorage {
       paymentLinkUrl: null
     };
     this.readings.set(id, reading);
-    return reading;
+    return newReading;
   }
   
   async getReading(id: number): Promise<Reading | undefined> {
@@ -325,7 +325,7 @@ export class MemStorage implements IStorage {
   // Products
   async createProduct(product: InsertProduct): Promise<Product> {
     const id = this.currentProductId++;
-    const product: Product = {
+    const newProduct: Product = {
       ...product,
       id,
       createdAt: new Date(),
@@ -336,7 +336,7 @@ export class MemStorage implements IStorage {
       squareVariationId: product.squareVariationId || null
     };
     this.products.set(id, product);
-    return product;
+    return newProduct;
   }
   
   async getProduct(id: number): Promise<Product | undefined> {
@@ -368,7 +368,7 @@ export class MemStorage implements IStorage {
   async createOrder(order: InsertOrder): Promise<Order> {
     const id = this.currentOrderId++;
     const now = new Date();
-    const order: Order = {
+    const newOrder: Order = {
       ...order,
       id,
       createdAt: now,
@@ -379,7 +379,7 @@ export class MemStorage implements IStorage {
       squarePaymentId: null
     };
     this.orders.set(id, order);
-    return order;
+    return newOrder;
   }
   
   async getOrder(id: number): Promise<Order | undefined> {
