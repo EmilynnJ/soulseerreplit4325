@@ -1,5 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as Auth0Strategy } from "passport-auth0"; 
 import { Express } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
@@ -68,6 +69,19 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // --- Auth0 Configuration ---
+  const auth0Domain = process.env.AUTH0_DOMAIN;
+  const auth0ClientId = process.env.AUTH0_CLIENT_ID;
+  const auth0ClientSecret = process.env.AUTH0_CLIENT_SECRET;
+  const auth0CallbackUrl = process.env.AUTH0_CALLBACK_URL;
+
+  if (!auth0Domain || !auth0ClientId || !auth0ClientSecret || !auth0CallbackUrl) {
+    console.warn("Auth0 environment variables (AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_CALLBACK_URL) are not fully set. Auth0 login will be disabled.");
+  } else {
+    console.log("Auth0 configured.");
+  }
+  // ---------------------------
+
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -96,6 +110,34 @@ export function setupAuth(app: Express) {
       }
     }),
   );
+
+  // --- Auth0 Strategy --- (Only if configured)
+  if (auth0Domain && auth0ClientId && auth0ClientSecret && auth0CallbackUrl) {
+    passport.use(
+      new Auth0Strategy(
+        {
+          domain: auth0Domain,
+          clientID: auth0ClientId,
+          clientSecret: auth0ClientSecret,
+          callbackURL: auth0CallbackUrl,
+          passReqToCallback: false, // We don't need the req object in the verify callback
+        },
+        async (accessToken, refreshToken, extraParams, profile, done) => {
+          // profile contains user information from Auth0
+          try {
+            const user = await storage.findOrCreateUserFromAuth0(profile);
+            // Update last active time for Auth0 users as well
+            await storage.updateUser(user.id, { lastActive: new Date() });
+            return done(null, user);
+          } catch (error) {
+            console.error("Error during Auth0 user find/create:", error);
+            return done(error);
+          }
+        }
+      )
+    );
+  }
+  // ----------------------
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
@@ -242,6 +284,32 @@ export function setupAuth(app: Express) {
       });
     })(req, res, next);
   });
+
+  // --- Auth0 Routes --- (Only if configured)
+  if (auth0Domain && auth0ClientId && auth0ClientSecret && auth0CallbackUrl) {
+    // Route to start Auth0 login flow
+    app.get('/auth/auth0', passport.authenticate('auth0', {
+      scope: 'openid email profile' // Request basic profile info
+    }));
+
+    // Route for Auth0 callback
+    app.get(
+      '/auth/callback',
+      passport.authenticate('auth0', {
+        // On failure, redirect back to the login page (or homepage)
+        // TODO: Consider adding a query parameter to show an error message on redirect
+        failureRedirect: '/login',
+        failureMessage: true // Store failure message in session flash
+      }),
+      (req, res) => {
+        // On successful authentication, redirect to the dashboard or homepage.
+        // The user object is available as req.user
+        console.log('Auth0 login successful, redirecting to /dashboard');
+        res.redirect('/dashboard');
+      }
+    );
+  }
+  // --------------------
 
   app.post("/api/logout", (req, res, next) => {
     req.logout((err: any) => {

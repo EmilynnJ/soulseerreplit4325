@@ -5,7 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { AuthProvider } from "@/hooks/use-auth";
+import { useAuth0 } from "@auth0/auth0-react";
 import { CartProvider } from "@/hooks/use-cart";
 // TRTC has been completely removed
 import { WebSocketProvider } from "@/hooks/websocket-provider";
@@ -188,20 +188,29 @@ const SafeWebSocketProvider = ({ children }: { children: ReactNode }) => {
 };
 
 function App() {
+  const { isLoading } = useAuth0();
+
+  // Show a loading indicator while the Auth0 SDK initializes
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-background text-foreground">
+        Loading authentication...
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <CartProvider>
-              <SafeWebSocketProvider>
-                <Router />
-                <AppUpdater />
-                <PwaInstallBanner />
-                <Toaster />
-              </SafeWebSocketProvider>
-            </CartProvider>
-          </AuthProvider>
+          <CartProvider>
+            <SafeWebSocketProvider>
+              <Router />
+              <AppUpdater />
+              <PwaInstallBanner />
+              <Toaster />
+            </SafeWebSocketProvider>
+          </CartProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </ErrorBoundary>

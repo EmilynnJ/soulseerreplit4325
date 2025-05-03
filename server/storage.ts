@@ -16,8 +16,10 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByAuth0Id(auth0Id: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: UserUpdate): Promise<User | undefined>;
+  findOrCreateUserFromAuth0(profile: any): Promise<User>;
   getReaders(): Promise<User[]>;
   getOnlineReaders(): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
@@ -176,6 +178,12 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserByAuth0Id(auth0Id: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.auth0_id === auth0Id
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
     const now = new Date();
@@ -213,6 +221,44 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
+  async findOrCreateUserFromAuth0(profile: any): Promise<User> {
+    const auth0Id = profile.id;
+    const email = profile.emails?.[0]?.value;
+    const username = profile.nickname || profile.displayName || email;
+    const fullName = profile.displayName || username;
+    const profileImage = profile.picture;
+
+    if (!auth0Id) {
+      throw new Error('Auth0 profile ID is missing');
+    }
+    if (!email) {
+      throw new Error('Auth0 profile email is missing');
+    }
+
+    let user = await this.getUserByAuth0Id(auth0Id);
+
+    if (!user) {
+      const existingUserByEmail = await this.getUserByEmail(email);
+      if (existingUserByEmail && !existingUserByEmail.auth0_id) {
+        user = await this.updateUser(existingUserByEmail.id, { auth0_id: auth0Id });
+        if (!user) {
+          throw new Error(`Failed to link user ${existingUserByEmail.id} with Auth0 ID`);
+        }
+      } else {
+        user = await this.createUser({
+          username: username,
+          email: email,
+          fullName: fullName,
+          profileImage: profileImage,
+          auth0_id: auth0Id,
+          role: 'client',
+        });
+      }
+    }
+
+    return user;
+  }
+  
   async getReaders(): Promise<User[]> {
     return Array.from(this.users.values()).filter(user => user.role === "reader");
   }
@@ -226,20 +272,19 @@ export class MemStorage implements IStorage {
   }
   
   // Readings
-  async createReading(insertReading: InsertReading): Promise<Reading> {
+  async createReading(reading: InsertReading): Promise<Reading> {
     const id = this.currentReadingId++;
     const reading: Reading = {
-      ...insertReading,
+      ...reading,
       id,
       createdAt: new Date(),
       completedAt: null,
       rating: null,
       review: null,
-      scheduledFor: insertReading.scheduledFor ?? null,
-      notes: insertReading.notes ?? null,
+      scheduledFor: reading.scheduledFor ?? null,
+      notes: reading.notes ?? null,
       startedAt: null,
       totalPrice: null,
-      duration: insertReading.duration ?? null,
       paymentStatus: "pending",
       paymentId: null,
       paymentLinkUrl: null
@@ -264,16 +309,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.readings.values()).filter(reading => reading.readerId === readerId);
   }
   
-  async updateReading(id: number, readingData: Partial<InsertReading> & {
-    startedAt?: Date | null;
-    completedAt?: Date | null;
-    totalPrice?: number | null;
-    paymentStatus?: "pending" | "authorized" | "paid" | "failed" | "refunded" | null;
-    paymentId?: string | null;
-    paymentLinkUrl?: string | null;
-    rating?: number | null;
-    review?: string | null;
-  }): Promise<Reading | undefined> {
+  async updateReading(id: number, readingData: Partial<InsertReading>): Promise<Reading | undefined> {
     const reading = this.readings.get(id);
     if (!reading) return undefined;
     
@@ -287,17 +323,17 @@ export class MemStorage implements IStorage {
   }
   
   // Products
-  async createProduct(insertProduct: InsertProduct): Promise<Product> {
+  async createProduct(product: InsertProduct): Promise<Product> {
     const id = this.currentProductId++;
     const product: Product = {
-      ...insertProduct,
+      ...product,
       id,
       createdAt: new Date(),
-      featured: insertProduct.featured ?? null,
+      featured: product.featured ?? null,
       isSynced: false,
       updatedAt: new Date(),
-      squareId: insertProduct.squareId || null,
-      squareVariationId: insertProduct.squareVariationId || null
+      squareId: product.squareId || null,
+      squareVariationId: product.squareVariationId || null
     };
     this.products.set(id, product);
     return product;
@@ -329,11 +365,11 @@ export class MemStorage implements IStorage {
   }
   
   // Orders
-  async createOrder(insertOrder: InsertOrder): Promise<Order> {
+  async createOrder(order: InsertOrder): Promise<Order> {
     const id = this.currentOrderId++;
     const now = new Date();
     const order: Order = {
-      ...insertOrder,
+      ...order,
       id,
       createdAt: now,
       updatedAt: now,
@@ -743,6 +779,11 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByAuth0Id(auth0Id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.auth0_id, auth0Id));
+    return user;
+  }
+
   async createUser(user: InsertUser): Promise<User> {
     const now = new Date();
     const [createdUser] = await db.insert(users).values({
@@ -767,6 +808,45 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updatedUser;
+  }
+
+  async findOrCreateUserFromAuth0(profile: any): Promise<User> {
+    const auth0Id = profile.id;
+    const email = profile.emails?.[0]?.value;
+    const username = profile.nickname || profile.displayName || email;
+    const fullName = profile.displayName || username;
+    const profileImage = profile.picture;
+
+    if (!auth0Id) {
+      throw new Error('Auth0 profile ID is missing');
+    }
+    if (!email) {
+      throw new Error('Auth0 profile email is missing');
+    }
+
+    let user = await this.getUserByAuth0Id(auth0Id);
+
+    if (!user) {
+      const existingUserByEmail = await this.getUserByEmail(email);
+      if (existingUserByEmail && !existingUserByEmail.auth0_id) {
+        user = await this.updateUser(existingUserByEmail.id, { auth0_id: auth0Id });
+        if (!user) {
+          throw new Error(`Failed to link user ${existingUserByEmail.id} with Auth0 ID`);
+        }
+      } else {
+        user = await this.createUser({
+          username: username,
+          email: email,
+          fullName: fullName,
+          profileImage: profileImage,
+          auth0_id: auth0Id,
+          role: 'client',
+          // Password is not needed for Auth0 users
+        });
+      }
+    }
+
+    return user;
   }
 
   async getReaders(): Promise<User[]> {

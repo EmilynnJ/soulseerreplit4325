@@ -5,9 +5,10 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
+  auth0_id: text("auth0_id").unique(),
   profileImage: text("profile_image"),
   role: text("role", { enum: ["client", "reader", "admin"] }).notNull().default("client"),
   bio: text("bio"),
