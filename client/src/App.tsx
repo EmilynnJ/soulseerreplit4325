@@ -202,16 +202,14 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <CartProvider>
-            <SafeWebSocketProvider>
-              <Router />
-              <AppUpdater />
-              <PwaInstallBanner />
-              <Toaster />
-            </SafeWebSocketProvider>
-          </CartProvider>
-        </QueryClientProvider>
+        <CartProvider>
+          <SafeWebSocketProvider>
+            <Router />
+            <AppUpdater />
+            <PwaInstallBanner />
+            <Toaster />
+          </SafeWebSocketProvider>
+        </CartProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
