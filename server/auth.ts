@@ -271,6 +271,8 @@ export function setupAuth(app: Express) {
         // Return user data
         res.status(200).json({
           ...userResponse,
+          // Handle verified field safely (ensuring it exists or defaulting to false)
+          verified: userResponse.verified !== undefined ? userResponse.verified : false,
           // Include authentication status in the response
           isAuthenticated: true,
           // Include a timestamp to help debug sessions

@@ -200,7 +200,7 @@ export class MemStorage implements IStorage {
       specialties: insertUser.specialties || null,
       pricing: insertUser.pricing || null,
       rating: insertUser.rating || null,
-      verified: insertUser.verified || false,
+      verified: false,
       role: insertUser.role || "client"
     };
     this.users.set(id, user);
@@ -793,6 +793,7 @@ export class DatabaseStorage implements IStorage {
       isOnline: false,
       reviewCount: 0,
       accountBalance: 0,
+      verified: false,
       squareCustomerId: null,
       stripeCustomerId: null
     }).returning();
