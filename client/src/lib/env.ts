@@ -32,11 +32,20 @@ export const env = {
   ENABLE_LIVESTREAMS: getBoolEnvVar('VITE_ENABLE_LIVESTREAMS', true),
   ENABLE_CHECKOUT: getBoolEnvVar('VITE_ENABLE_CHECKOUT', true),
   
+  // Auth0 configuration
+  AUTH0_DOMAIN: getEnvVar('VITE_AUTH0_DOMAIN', ''),
+  AUTH0_CLIENT_ID: getEnvVar('VITE_AUTH0_CLIENT_ID', ''),
+  AUTH0_CALLBACK_URL: getEnvVar('AUTH0_CALLBACK_URL', window.location.origin + '/auth/callback'),
+  
   // External services
   STRIPE_PUBLIC_KEY: getEnvVar('VITE_STRIPE_PUBLIC_KEY', ''),
   
-  // Livestreaming configuration - LiveKit removed, placeholder for Zego Cloud
-  // ZEGO_APP_ID will be added here when implemented
+  // Zego Cloud configuration
+  ZEGO_APP_ID: getEnvVar('VITE_ZEGO_APP_ID', ''),
+  ZEGO_PHONE_APP_ID: getEnvVar('VITE_ZEGO_PHONE_APP_ID', ''),
+  ZEGO_VIDEO_APP_ID: getEnvVar('VITE_ZEGO_VIDEO_APP_ID', ''),
+  ZEGO_CHAT_APP_ID: getEnvVar('VITE_ZEGO_CHAT_APP_ID', ''),
+  ZEGO_LIVE_STREAMING_APP_ID: getEnvVar('VITE_ZEGO_LIVE_STREAMING_APP_ID', ''),
   
   // PWA configuration
   ENABLE_PWA: getBoolEnvVar('VITE_ENABLE_PWA', true),

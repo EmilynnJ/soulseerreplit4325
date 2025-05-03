@@ -66,6 +66,7 @@ function Router() {
         <Route path="/" component={HomePage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/auth" component={AuthPage} />
+        <Route path="/auth/callback" component={AuthPage} />
         
         {/* Protected routes - require login */}
         <ProtectedRoute path="/dashboard" component={DashboardPage} />

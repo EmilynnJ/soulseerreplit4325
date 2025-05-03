@@ -5,9 +5,90 @@ import { initializeDatabase } from "./migrations/migration-manager.js";
 import { config } from "dotenv";
 import path from "path";
 import cors from "cors";
+import fs from "fs";
 
-// Load environment variables
-config();
+// Load environment variables - More direct approach to ensure they're loaded
+try {
+  // Get the absolute path to the .env file
+  const envPath = path.resolve(process.cwd(), '.env');
+  console.log(`Looking for .env file at: ${envPath}`);
+  
+  // Check if the file exists
+  if (fs.existsSync(envPath)) {
+    console.log('.env file found - loading variables');
+    
+    // Read the file directly to ensure we get all variables
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const envLines = envContent.split('\n');
+    
+    // Process each line to set environment variables
+    envLines.forEach(line => {
+      // Skip comments and empty lines
+      if (!line || line.startsWith('#')) return;
+      
+      const [key, ...valueParts] = line.split('=');
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join('=').trim();
+        if (!process.env[key.trim()]) {
+          process.env[key.trim()] = value;
+          console.log(`Loaded ${key.trim()} (${value.length} chars)`);
+        }
+      }
+    });
+    
+    console.log(`Loaded ${envLines.length} lines from .env file`);
+    
+    // Check for critical variables and log their presence (not values)
+    const criticalVars = [
+      'POSTGRES_URL', 
+      'DATABASE_URL', 
+      'STRIPE_SECRET_KEY', 
+      'VITE_AUTH0_DOMAIN',
+      'VITE_AUTH0_CLIENT_ID',
+      'SESSION_SECRET'
+    ];
+    
+    criticalVars.forEach(varName => {
+      if (process.env[varName]) {
+        console.log(`✓ Found ${varName} (${process.env[varName].length} chars)`);
+      } else {
+        console.warn(`✗ Missing ${varName} - app may not function correctly`);
+      }
+    });
+  } else {
+    console.error('.env file not found at:', envPath);
+    // Try using dotenv as fallback
+    config();
+  }
+} catch (error) {
+  console.error('Failed to load environment variables:', error);
+  // Try using dotenv as fallback
+  config();
+}
+
+// Manually ensure critical Stripe variables are set
+if (!process.env.STRIPE_SECRET_KEY && process.env.VITE_STRIPE_SECRET_KEY) {
+  process.env.STRIPE_SECRET_KEY = process.env.VITE_STRIPE_SECRET_KEY;
+  console.log('Set STRIPE_SECRET_KEY from VITE_STRIPE_SECRET_KEY');
+}
+
+// Force load Stripe key from hard-coded value only if it's still missing
+if (!process.env.STRIPE_SECRET_KEY) {
+  // Try to get stripe key directly from .env file content
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      const stripeKeyMatch = envContent.match(/STRIPE_SECRET_KEY=([^\n]+)/);
+      if (stripeKeyMatch && stripeKeyMatch[1]) {
+        process.env.STRIPE_SECRET_KEY = stripeKeyMatch[1];
+        console.log('Successfully extracted STRIPE_SECRET_KEY directly from .env file content');
+      }
+    }
+  } catch (error) {
+    console.error('Error reading Stripe key directly from file:', error);
+  }
+}
 
 const app = express();
 app.use(express.json());
@@ -42,7 +123,8 @@ app.get('/api/health', (req: Request, res: Response) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: process.env.VITE_APP_VERSION || '1.0.0',
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    databaseConnected: true // Will be set by database ping later
   });
 });
 

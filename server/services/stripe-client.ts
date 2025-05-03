@@ -1,20 +1,61 @@
 import Stripe from 'stripe';
+import fs from 'fs';
+import path from 'path';
 
 // Initialize stripe lazily to avoid startup issues
 let stripeInstance: Stripe | null = null;
 
+// Function to read the Stripe Secret Key directly from .env if needed
+function getStripeKeyFromFile(): string | null {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      const stripeKeyMatch = envContent.match(/STRIPE_SECRET_KEY=([^\n]+)/);
+      if (stripeKeyMatch && stripeKeyMatch[1]) {
+        console.log('Found STRIPE_SECRET_KEY directly in .env file');
+        return stripeKeyMatch[1].trim();
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error reading .env file:', error);
+    return null;
+  }
+}
+
+// Get the key from environment or file
+let STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
+// If not found in process.env, try to read it directly from the file
+if (!STRIPE_SECRET_KEY) {
+  console.log('STRIPE_SECRET_KEY not found in process.env, trying to read from file...');
+  STRIPE_SECRET_KEY = getStripeKeyFromFile();
+}
+
+// Output status for debugging but don't reveal key content
+console.log(`Stripe key status: ${STRIPE_SECRET_KEY ? 'Available' : 'Missing'}`);
+if (STRIPE_SECRET_KEY) {
+  console.log(`Stripe key length: ${STRIPE_SECRET_KEY.length} characters`);
+}
+
 // Getter function to safely access the Stripe instance
 function getStripe(): Stripe {
   if (!stripeInstance) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY environment variable is missing');
+    if (!STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY environment variable is missing. This is required for production.');
     }
     
-    console.log('Initializing Stripe with key length:', process.env.STRIPE_SECRET_KEY.length);
-    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2023-10-16' as any // Cast to any to bypass TypeScript version mismatch
-    });
-    console.log('Stripe initialized successfully');
+    try {
+      console.log('Initializing Stripe with provided key');
+      stripeInstance = new Stripe(STRIPE_SECRET_KEY, {
+        apiVersion: '2023-10-16' as any // Cast to any to bypass TypeScript version mismatch
+      });
+      console.log('Stripe initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize Stripe:', error);
+      throw new Error('Failed to initialize Stripe: ' + (error as Error).message);
+    }
   }
   return stripeInstance;
 }
@@ -22,8 +63,13 @@ function getStripe(): Stripe {
 // For consistency with existing code
 const stripe = new Proxy({} as Stripe, {
   get: (target, prop) => {
-    const instance = getStripe();
-    return instance[prop as keyof Stripe];
+    try {
+      const instance = getStripe();
+      return instance[prop as keyof Stripe];
+    } catch (error) {
+      console.error(`Error accessing Stripe.${String(prop)}:`, error);
+      throw error;
+    }
   }
 });
 

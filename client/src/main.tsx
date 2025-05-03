@@ -6,15 +6,19 @@ import { Auth0Provider } from '@auth0/auth0-react';
 import { AuthProvider } from "@/hooks/use-auth";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
+import env from "@/lib/env";
 
-// Get Auth0 credentials from environment variables (must be prefixed with VITE_)
-const auth0Domain = import.meta.env.VITE_AUTH0_DOMAIN;
-const auth0ClientId = import.meta.env.VITE_AUTH0_CLIENT_ID;
+// Log authentication configuration status for debugging
+console.log(`Auth0 Configuration Status:
+  Domain: ${env.AUTH0_DOMAIN ? 'Available ✓' : 'Missing ✗'}
+  ClientID: ${env.AUTH0_CLIENT_ID ? 'Available ✓' : 'Missing ✗'}
+  Callback URL: ${env.AUTH0_CALLBACK_URL ? 'Available ✓' : 'Missing ✗'}`
+);
 
 // Check if Auth0 variables are set
-if (!auth0Domain || !auth0ClientId) {
-  console.error("Auth0 environment variables VITE_AUTH0_DOMAIN and VITE_AUTH0_CLIENT_ID must be set in the .env file for the client.");
-  // Optionally, render an error message or prevent the app from rendering
+if (!env.AUTH0_DOMAIN || !env.AUTH0_CLIENT_ID) {
+  console.error("Auth0 environment variables not found. Authentication will not work properly.");
+  // We'll still render the app for now, just without working authentication
 }
 
 // Register the service worker for PWA support
@@ -33,22 +37,20 @@ const registerServiceWorker = () => {
 };
 
 // Register service worker for production environments
-if (import.meta.env.PROD) {
+if (env.IS_PRODUCTION) {
   registerServiceWorker();
 }
 
 createRoot(document.getElementById("root")!).render(
   <Auth0Provider
-    domain={auth0Domain}
-    clientId={auth0ClientId}
+    domain={env.AUTH0_DOMAIN}
+    clientId={env.AUTH0_CLIENT_ID}
     authorizationParams={{
-      // Use the same callback URL configured in the backend and Auth0 dashboard
-      // Make sure this doesn't end with a slash if your Auth0 config doesn't
-      redirect_uri: window.location.origin + '/dashboard' // Redirect to dashboard after login
-      // You might need 'audience' and 'scope' depending on your API setup
-      // audience: `YOUR_API_IDENTIFIER`,
-      // scope: "openid profile email"
+      redirect_uri: env.AUTH0_CALLBACK_URL || window.location.origin + '/dashboard',
+      scope: "openid profile email"
     }}
+    useRefreshTokens={true}
+    cacheLocation="localstorage"
   >
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
