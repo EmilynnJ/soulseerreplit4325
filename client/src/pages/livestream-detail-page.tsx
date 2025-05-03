@@ -250,7 +250,7 @@ export default function LivestreamDetailPage() {
       
       try {
         // WebRTC livestream token endpoint
-        const response = await apiRequest('POST', '/api/livekit/livestream-token', {
+        const response = await apiRequest('POST', '/api/livestreams/' + livestreamId + '/join-token', {
           room: `livestream-${livestream.id}`,
           name: user.username || 'viewer',
           useReaderRoom: false

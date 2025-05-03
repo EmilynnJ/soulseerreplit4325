@@ -888,7 +888,7 @@ export class DatabaseStorage implements IStorage {
 
   async getReading(id: number): Promise<Reading | undefined> {
     const [reading] = await db.select().from(readings).where(eq(readings.id, id));
-    return reading;
+    return newReading;
   }
   
   async getReadings(): Promise<Reading[]> {
@@ -938,7 +938,7 @@ export class DatabaseStorage implements IStorage {
 
   async getProduct(id: number): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.id, id));
-    return product;
+    return newProduct;
   }
 
   async getProducts(): Promise<Product[]> {
@@ -976,7 +976,7 @@ export class DatabaseStorage implements IStorage {
 
   async getOrder(id: number): Promise<Order | undefined> {
     const [order] = await db.select().from(orders).where(eq(orders.id, id));
-    return order;
+    return newOrder;
   }
 
   async getOrdersByUser(userId: number): Promise<Order[]> {
@@ -1275,3 +1275,4 @@ export class DatabaseStorage implements IStorage {
 
 // Use DatabaseStorage instead of MemStorage for production
 export const storage = new DatabaseStorage();
+

@@ -35,19 +35,24 @@ export function WebRTCRecordingPlayer({ recordingUrl, thumbnail }: { recordingUr
   );
 }
 
-// For backward compatibility with existing code
-export const LiveKitRecordingPlayer = WebRTCRecordingPlayer;
-export const LiveKitPlayer = ({ roomName, token }: { roomName: string; token: string }) => {
-  console.warn('LiveKitPlayer is deprecated. Use WebRTCLivestream instead.');
+// Export WebRTC implementation for recording player
+export const WebRTCRecordingPlayer = ({ recordingUrl }: { recordingUrl: string }) => {
   return (
     <div className="w-full rounded-lg overflow-hidden bg-black relative">
-      <div className="flex flex-col items-center justify-center h-[300px] bg-muted/30 p-6">
-        <MonitorPlay className="h-12 w-12 text-muted-foreground mb-4" />
-        <h3 className="text-xl font-semibold mb-2">Legacy Player</h3>
-        <p className="text-center text-muted-foreground">
-          This component is deprecated and will be removed soon.
-        </p>
+      <div className="w-full min-h-[300px]">
+        <video
+          src={recordingUrl}
+          controls
+          className="w-full h-full object-cover"
+        />
       </div>
     </div>
   );
-}
+};
+
+// Remove LiveKit exports and use WebRTC implementation instead
+export const LiveKitRecordingPlayer = WebRTCRecordingPlayer;
+export const LivestreamPlayer = ({ roomName, token }: { roomName: string; token: string }) => {
+  console.warn('LiveKitPlayer is deprecated. Use WebRTCLivestream instead.');
+  return <WebRTCLivestream roomName={roomName} token={token} />;
+};

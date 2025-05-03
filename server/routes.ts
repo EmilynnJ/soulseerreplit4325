@@ -1956,9 +1956,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Title and description are required" });
       }
 
-      // Create livestream via our LiveKit-based solution
-      const liveKitService = require('./services/livekit-service');
-      const livestream = await liveKitService.createLivestream(req.user, title, description);
+      // Create livestream using the updated LivestreamService (which uses WebRTC)
+      const livestream = await livestreamService.createLivestream(req.user!, title, description, category, scheduledFor ? new Date(scheduledFor) : undefined);
 
       // Add additional metadata
       if (category) {
@@ -1982,7 +1981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
 
       // Make sure LiveKit service is available
-      const liveKitService = require('./services/livekit-service');
+      // LiveKit service removed
 
       let livestreams;
       if (userId) {
@@ -2024,9 +2023,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid livestream ID" });
       }
 
-      // Get the livestream details using LiveKit
-      const liveKitService = require('./services/livekit-service');
-      const livestream = await liveKitService.getLivestreamDetails(id);
+      // Get livestream details using storage directly
+      const livestream = await storage.getLivestreamById(id);
 
       if (!livestream) {
         return res.status(404).json({ message: "Livestream not found" });
@@ -4138,7 +4136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // LiveKit token routes are now in place above
+  // WebRTC token routes are handled elsewhere
   
   // Reader Balance API Routes
   
@@ -4216,3 +4214,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   return httpServer;
 }
+
