@@ -165,6 +165,48 @@ async function fixVerifiedColumn() {
   }
 }
 
+// Function to ensure the stripe_customer_id column exists
+async function fixStripeCustomerIdColumn() {
+  try {
+    log('Checking and fixing "stripe_customer_id" column in users table...', 'database');
+    
+    // First, check if the users table exists
+    const tableCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'users'
+      );
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      log('Users table does not exist yet, skipping stripe_customer_id column fix', 'database');
+      return;
+    }
+    
+    // Check if the stripe_customer_id column exists
+    const columnCheck = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'stripe_customer_id'
+      );
+    `);
+    
+    if (!columnCheck.rows[0].exists) {
+      // Column doesn't exist, add it
+      log('Adding "stripe_customer_id" column to users table', 'database');
+      await query(`ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(100);`);
+      log('Successfully added stripe_customer_id column to users table', 'database');
+    } else {
+      log('stripe_customer_id column already exists', 'database');
+    }
+  } catch (error: any) {
+    log(`Error checking/fixing stripe_customer_id column: ${error.message}`, 'database');
+    console.error('Error in fixStripeCustomerIdColumn:', error);
+  }
+}
+
 // Test the database connection on startup and run fixes
 query('SELECT 1')
   .then(async () => {
@@ -174,6 +216,12 @@ query('SELECT 1')
     await fixVerifiedColumn().catch(err => {
       log(`Error running verified column fix: ${err.message}`, 'database');
       console.error('Error running verified column fix:', err);
+    });
+    
+    // Fix stripe_customer_id column
+    await fixStripeCustomerIdColumn().catch(err => {
+      log(`Error running stripe_customer_id column fix: ${err.message}`, 'database');
+      console.error('Error running stripe_customer_id column fix:', err);
     });
   })
   .catch((err) => {
