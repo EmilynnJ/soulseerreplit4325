@@ -45,7 +45,11 @@ try {
       'STRIPE_SECRET_KEY', 
       'VITE_AUTH0_DOMAIN',
       'VITE_AUTH0_CLIENT_ID',
-      'SESSION_SECRET'
+      'SESSION_SECRET',
+      'AUTH0_DOMAIN',
+      'AUTH0_CLIENT_ID',
+      'AUTH0_CLIENT_SECRET',
+      'AUTH0_CALLBACK_URL'
     ];
     
     criticalVars.forEach(varName => {
@@ -70,6 +74,82 @@ try {
 if (!process.env.STRIPE_SECRET_KEY && process.env.VITE_STRIPE_SECRET_KEY) {
   process.env.STRIPE_SECRET_KEY = process.env.VITE_STRIPE_SECRET_KEY;
   console.log('Set STRIPE_SECRET_KEY from VITE_STRIPE_SECRET_KEY');
+}
+
+// Manually ensure critical Auth0 variables are set
+if (!process.env.AUTH0_DOMAIN && process.env.VITE_AUTH0_DOMAIN) {
+  process.env.AUTH0_DOMAIN = process.env.VITE_AUTH0_DOMAIN;
+  console.log('Set AUTH0_DOMAIN from VITE_AUTH0_DOMAIN');
+}
+
+if (!process.env.AUTH0_CLIENT_ID && process.env.VITE_AUTH0_CLIENT_ID) {
+  process.env.AUTH0_CLIENT_ID = process.env.VITE_AUTH0_CLIENT_ID;
+  console.log('Set AUTH0_CLIENT_ID from VITE_AUTH0_CLIENT_ID');
+}
+
+if (!process.env.AUTH0_CALLBACK_URL && process.env.VITE_AUTH0_CALLBACK_URL) {
+  process.env.AUTH0_CALLBACK_URL = process.env.VITE_AUTH0_CALLBACK_URL;
+  console.log('Set AUTH0_CALLBACK_URL from VITE_AUTH0_CALLBACK_URL');
+}
+
+// Try to extract Auth0 values directly from .env file if they're still missing
+try {
+  if (!process.env.AUTH0_DOMAIN || !process.env.AUTH0_CLIENT_ID || !process.env.AUTH0_CLIENT_SECRET || !process.env.AUTH0_CALLBACK_URL) {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      
+      // Extract Auth0 values
+      const auth0DomainMatch = envContent.match(/AUTH0_DOMAIN=([^\n]+)/);
+      const auth0ClientIdMatch = envContent.match(/AUTH0_CLIENT_ID=([^\n]+)/);
+      const auth0ClientSecretMatch = envContent.match(/AUTH0_CLIENT_SECRET=([^\n]+)/);
+      const auth0CallbackUrlMatch = envContent.match(/AUTH0_CALLBACK_URL=([^\n]+)/);
+      
+      // Set Auth0 values if found
+      if (auth0DomainMatch && auth0DomainMatch[1] && !process.env.AUTH0_DOMAIN) {
+        process.env.AUTH0_DOMAIN = auth0DomainMatch[1];
+        console.log('Successfully extracted AUTH0_DOMAIN directly from .env file content');
+      }
+      
+      if (auth0ClientIdMatch && auth0ClientIdMatch[1] && !process.env.AUTH0_CLIENT_ID) {
+        process.env.AUTH0_CLIENT_ID = auth0ClientIdMatch[1];
+        console.log('Successfully extracted AUTH0_CLIENT_ID directly from .env file content');
+      }
+      
+      if (auth0ClientSecretMatch && auth0ClientSecretMatch[1] && !process.env.AUTH0_CLIENT_SECRET) {
+        process.env.AUTH0_CLIENT_SECRET = auth0ClientSecretMatch[1];
+        console.log('Successfully extracted AUTH0_CLIENT_SECRET directly from .env file content');
+      }
+      
+      if (auth0CallbackUrlMatch && auth0CallbackUrlMatch[1] && !process.env.AUTH0_CALLBACK_URL) {
+        process.env.AUTH0_CALLBACK_URL = auth0CallbackUrlMatch[1];
+        console.log('Successfully extracted AUTH0_CALLBACK_URL directly from .env file content');
+      }
+      
+      // Also check VITE_ prefixed versions
+      const viteAuth0DomainMatch = envContent.match(/VITE_AUTH0_DOMAIN=([^\n]+)/);
+      const viteAuth0ClientIdMatch = envContent.match(/VITE_AUTH0_CLIENT_ID=([^\n]+)/);
+      const viteAuth0CallbackUrlMatch = envContent.match(/VITE_AUTH0_CALLBACK_URL=([^\n]+)/);
+      
+      // Set Auth0 values from VITE_ versions if found and not already set
+      if (viteAuth0DomainMatch && viteAuth0DomainMatch[1] && !process.env.AUTH0_DOMAIN) {
+        process.env.AUTH0_DOMAIN = viteAuth0DomainMatch[1];
+        console.log('Successfully extracted AUTH0_DOMAIN from VITE_AUTH0_DOMAIN in .env file content');
+      }
+      
+      if (viteAuth0ClientIdMatch && viteAuth0ClientIdMatch[1] && !process.env.AUTH0_CLIENT_ID) {
+        process.env.AUTH0_CLIENT_ID = viteAuth0ClientIdMatch[1];
+        console.log('Successfully extracted AUTH0_CLIENT_ID from VITE_AUTH0_CLIENT_ID in .env file content');
+      }
+      
+      if (viteAuth0CallbackUrlMatch && viteAuth0CallbackUrlMatch[1] && !process.env.AUTH0_CALLBACK_URL) {
+        process.env.AUTH0_CALLBACK_URL = viteAuth0CallbackUrlMatch[1];
+        console.log('Successfully extracted AUTH0_CALLBACK_URL from VITE_AUTH0_CALLBACK_URL in .env file content');
+      }
+    }
+  }
+} catch (error) {
+  console.error('Error reading Auth0 keys directly from file:', error);
 }
 
 // Force load Stripe key from hard-coded value only if it's still missing

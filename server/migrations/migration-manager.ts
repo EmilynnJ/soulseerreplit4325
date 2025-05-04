@@ -66,15 +66,13 @@ export async function runMigrations() {
 
         log(`Applying migration: ${migrationFile}`, 'database');
         
-        // Split the SQL into individual statements (separated by semicolons)
-        const statements = migrationSql
-          .split(';')
-          .map(stmt => stmt.trim())
-          .filter(stmt => stmt.length > 0);
-        
-        // Execute each statement separately
-        for (const statement of statements) {
-          await query(statement + ';');
+        // Execute the entire SQL file at once rather than splitting by semicolons
+        // This is better for complex statements like DO blocks
+        try {
+          await query(migrationSql);
+        } catch (error) {
+          log(`Error executing migration ${migrationFile}: ${error}`, 'database');
+          throw error;
         }
         
         await query(insertMigrationQuery, [migrationFile]);
@@ -119,15 +117,13 @@ export async function runMigration(migrationName: string, migrationSql: string) 
       // Apply the migration
       log(`Applying migration: ${migrationName}`, 'database');
       
-      // Split the SQL into individual statements (separated by semicolons)
-      const statements = migrationSql
-        .split(';')
-        .map(stmt => stmt.trim())
-        .filter(stmt => stmt.length > 0);
-      
-      // Execute each statement separately
-      for (const statement of statements) {
-        await query(statement + ';');
+      // Execute the entire SQL file at once rather than splitting by semicolons
+      // This is better for complex statements like DO blocks
+      try {
+        await query(migrationSql);
+      } catch (error) {
+        log(`Error executing migration ${migrationName}: ${error}`, 'database');
+        throw error;
       }
       
       await query(insertMigrationQuery, [migrationName]);

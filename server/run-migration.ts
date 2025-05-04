@@ -1,7 +1,7 @@
-
 import { runMigrations } from './migrations/migration-manager';
 
 async function main() {
+  console.log('Starting database migrations...');
   try {
     await runMigrations();
     console.log('Migrations completed successfully');

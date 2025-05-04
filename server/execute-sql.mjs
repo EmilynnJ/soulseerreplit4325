@@ -17,7 +17,7 @@ if (!sqlFile) {
 let databaseUrl = '';
 try {
   const envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
-  const dbUrlMatch = envContent.match(/DATABASE_URL=(.+)/);
+  const dbUrlMatch = envContent.match(/POSTGRES_URL=(.+)/);
   if (dbUrlMatch) {
     databaseUrl = dbUrlMatch[1];
   }
@@ -25,12 +25,15 @@ try {
   console.warn('Could not read .env file:', err.message);
 }
 
-// Default to localhost if no DATABASE_URL found
+// Default to localhost if no POSTGRES_URL found
 if (!databaseUrl) {
   databaseUrl = 'postgres://postgres:postgres@localhost:5432/soulseer';
 }
 
 console.log(`Using database: ${databaseUrl}`);
+console.log(`Current directory: ${process.cwd()}`);
+console.log(`Script directory: ${__dirname}`);
+console.log(`SQL file argument: ${sqlFile}`);
 
 async function execute() {
   // Create a new client
@@ -43,8 +46,13 @@ async function execute() {
     await client.connect();
     console.log('Connected to database');
 
-    // Read the SQL file
-    const sql = fs.readFileSync(path.join(__dirname, sqlFile), 'utf8');
+    // Read the SQL file - use an absolute path if provided, otherwise resolve relative to current dir
+    const sqlFilePath = path.isAbsolute(sqlFile) 
+      ? sqlFile 
+      : path.resolve(process.cwd(), sqlFile);
+    
+    console.log(`Reading SQL file from: ${sqlFilePath}`);
+    const sql = fs.readFileSync(sqlFilePath, 'utf8');
     console.log(`Executing SQL from ${sqlFile}:\n`);
     console.log(sql);
 
