@@ -3,7 +3,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { sessionService } from './session-service';
 import { storage } from '../storage';
-import stripeClient from './stripe-client';
+import * as stripeClient from './stripe-client';
 import { InsertLivestream, LivestreamUpdate } from '../../shared/schema';
 
 interface ConnectedUser {
@@ -646,6 +646,7 @@ class WebRTCService {
    * @param roomId Room ID
    * @param userName User display name
    * @param userType User type (reader or client)
+   * @param readingType Reading type (video, voice, or chat)
    * @returns Token object with session information
    */
   generateToken(
