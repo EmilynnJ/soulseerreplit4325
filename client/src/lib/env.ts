@@ -56,4 +56,57 @@ export const env = {
   PLAY_STORE_ID: getEnvVar('VITE_PLAY_STORE_ID', ''),
 };
 
+// Environment Configuration
+
+// API Base URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+
+// Authentication Config
+export const AUTH0_REDIRECT_URI = import.meta.env.VITE_AUTH0_REDIRECT_URI || `${window.location.origin}/auth/callback`;
+export const AUTH0_AUDIENCE = import.meta.env.VITE_AUTH0_AUDIENCE || API_BASE_URL;
+
+// Stripe Configuration
+// If not defined in environment, fetch dynamically or use a placeholder for development
+export const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY || 
+  (window as any).__STRIPE_PUBLIC_KEY__ || 
+  // Fallback to placeholder for non-production (will show test mode in Stripe UI)
+  (import.meta.env.DEV ? 'pk_test_placeholder' : '');
+
+// Feature Flags
+export const ENABLE_PUSH_NOTIFICATIONS = import.meta.env.VITE_ENABLE_PUSH_NOTIFICATIONS === 'true';
+export const ENABLE_SOCKET_DEBUGGING = import.meta.env.VITE_ENABLE_SOCKET_DEBUGGING === 'true';
+
+// WebRTC/Real-time Config
+export const ZEGO_SERVER_SECRET = import.meta.env.VITE_ZEGO_SERVER_SECRET || '';
+
+// Development Helpers
+export const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+export const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
+
+// Fetch the Stripe public key from the server if not available
+export async function ensureStripePublicKey(): Promise<string> {
+  // If we already have a key, return it
+  if (STRIPE_PUBLIC_KEY && STRIPE_PUBLIC_KEY !== 'pk_test_placeholder') {
+    return STRIPE_PUBLIC_KEY;
+  }
+
+  try {
+    // Attempt to fetch from server
+    const response = await fetch(`${API_BASE_URL}/api/config/stripe-key`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.publicKey) {
+        // Store in global for future use
+        (window as any).__STRIPE_PUBLIC_KEY__ = data.publicKey;
+        return data.publicKey;
+      }
+    }
+    throw new Error('Failed to fetch Stripe key');
+  } catch (error) {
+    console.error('Error fetching Stripe public key:', error);
+    // Return the fallback in case of error
+    return STRIPE_PUBLIC_KEY;
+  }
+}
+
 export default env;

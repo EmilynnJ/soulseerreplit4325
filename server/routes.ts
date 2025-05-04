@@ -4292,6 +4292,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Provide Stripe public key to client
+  app.get("/api/config/stripe-key", (req, res) => {
+    // Get the Stripe publishable key from environment
+    const publicKey = process.env.STRIPE_PUBLIC_KEY;
+    
+    if (!publicKey) {
+      return res.status(500).json({ 
+        error: "Stripe publishable key not configured" 
+      });
+    }
+    
+    // Return the key to the client
+    return res.json({ publicKey });
+  });
+
   return httpServer;
 }
 
