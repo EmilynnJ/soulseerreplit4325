@@ -4212,6 +4212,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Auth0 sync endpoint
+  app.post("/auth/auth0/sync", async (req, res) => {
+    try {
+      const { auth0Id, email, name, picture } = req.body;
+      
+      if (!auth0Id || !email) {
+        return res.status(400).json({ message: "Missing required Auth0 user data" });
+      }
+      
+      // Look for existing user by Auth0 ID
+      let user = await storage.getUserByAuth0Id(auth0Id);
+      
+      // If no user found by Auth0 ID, check by email
+      if (!user) {
+        const userByEmail = await storage.getUserByEmail(email);
+        
+        if (userByEmail) {
+          // If user exists with this email but doesn't have Auth0 ID, update user with Auth0 ID
+          if (!userByEmail.auth0_id) {
+            user = await storage.updateUser(userByEmail.id, { auth0_id: auth0Id });
+          } else {
+            // Email exists but with different Auth0 ID - this is a conflict
+            return res.status(409).json({ 
+              message: "Email already exists with different authentication method" 
+            });
+          }
+        } else {
+          // Create new user with Auth0 data
+          user = await storage.createUser({
+            username: email.split('@')[0], // Generate username from email
+            email: email,
+            fullName: name || email.split('@')[0],
+            auth0_id: auth0Id,
+            role: "client",
+            profileImage: picture || "",
+            isOnline: true,
+            bio: "",
+            specialties: [],
+            verified: true // Auto-verify Auth0 users
+          });
+        }
+      }
+      
+      // Login the user
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Error logging in Auth0 user:", err);
+          return res.status(500).json({ message: "Login failed after authentication" });
+        }
+        return res.status(200).json({ success: true });
+      });
+      
+    } catch (error) {
+      console.error("Error syncing Auth0 user:", error);
+      res.status(500).json({ message: "Failed to sync Auth0 user" });
+    }
+  });
+
   return httpServer;
 }
 

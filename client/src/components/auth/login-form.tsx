@@ -14,6 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { GlowCard } from "@/components/ui/glow-card";
+import { Separator } from "@/components/ui/separator";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -27,7 +28,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
-  const { loginMutation } = useAuth();
+  const { loginMutation, loginWithAuth0 } = useAuth();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -111,6 +112,21 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
           </div>
         </form>
       </Form>
+
+      <div className="my-4 flex items-center">
+        <Separator className="flex-grow opacity-40" />
+        <span className="mx-2 text-sm text-light/70">or</span>
+        <Separator className="flex-grow opacity-40" />
+      </div>
+
+      <CelestialButton
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={() => loginWithAuth0()}
+      >
+        Continue with Auth0
+      </CelestialButton>
     </GlowCard>
   );
 }

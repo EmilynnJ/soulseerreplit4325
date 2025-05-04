@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, ReactNode, useContext, useEffect } from "react";
 import {
   useQuery,
   useMutation,
@@ -7,6 +7,7 @@ import {
 import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth0 } from "@auth0/auth0-react";
 
 type AuthContextType = {
   user: User | null;
@@ -15,6 +16,7 @@ type AuthContextType = {
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<User, Error, RegisterData>;
+  loginWithAuth0: () => void;
 };
 
 type LoginData = {
@@ -34,6 +36,44 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const { 
+    isAuthenticated, 
+    loginWithRedirect, 
+    logout: auth0Logout, 
+    user: auth0User,
+    isLoading: isAuth0Loading 
+  } = useAuth0();
+
+  // Check if user is authenticated with Auth0
+  useEffect(() => {
+    if (isAuthenticated && auth0User) {
+      // When a user logs in with Auth0, call the backend to create/update user
+      // and establish a session
+      fetch("/auth/auth0/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          auth0Id: auth0User.sub,
+          email: auth0User.email,
+          name: auth0User.name,
+          picture: auth0User.picture,
+        }),
+        credentials: "include",
+      })
+        .then(response => {
+          if (response.ok) {
+            // Refresh user data
+            refetchUser();
+          }
+        })
+        .catch(error => {
+          console.error("Error syncing Auth0 user:", error);
+        });
+    }
+  }, [isAuthenticated, auth0User]);
+
   const {
     data: user,
     error,
@@ -227,6 +267,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         console.log("Logout successful");
+        
+        // Also logout from Auth0 if user was authenticated with Auth0
+        if (isAuthenticated) {
+          auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+        }
       } catch (err) {
         clearTimeout(timeoutId);
         throw err;
@@ -259,6 +304,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Function to login with Auth0
+  const loginWithAuth0 = () => {
+    loginWithRedirect();
+  };
+
   // Convert undefined to null for proper typing
   const safeUser: User | null = user === undefined ? null : user as User;
   
@@ -266,11 +316,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user: safeUser,
-        isLoading,
+        isLoading: isLoading || isAuth0Loading,
         error,
         loginMutation,
         logoutMutation,
         registerMutation,
+        loginWithAuth0,
       }}
     >
       {children}
