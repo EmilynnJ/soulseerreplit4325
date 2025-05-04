@@ -117,6 +117,21 @@ app.use('/images', express.static(imagesPath));
 
 console.log(`Serving uploads from: ${uploadsPath} with fallback to default images`);
 
+// Set proper MIME types for our static files
+app.use((req, res, next) => {
+  const path = req.path;
+  if (path.endsWith('.js')) {
+    res.type('application/javascript');
+  } else if (path.endsWith('.css')) {
+    res.type('text/css');
+  } else if (path === '/serviceWorker.js') {
+    res.type('application/javascript');
+  } else if (path === '/manifest.json') {
+    res.type('application/json');
+  }
+  next();
+});
+
 // Add health check endpoint for Render
 app.get('/api/health', (req: Request, res: Response) => {
   return res.status(200).json({
