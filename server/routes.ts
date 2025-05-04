@@ -4270,6 +4270,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stripe webhook handler
+  app.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+      const sig = req.headers['stripe-signature'];
+      
+      if (!sig) {
+        return res.status(400).json({ message: 'Missing Stripe signature' });
+      }
+      
+      // Pass the payload and signature to the webhook handler
+      const result = await stripeClient.handleStripeWebhookEvent(
+        req.body,
+        sig as string
+      );
+      
+      res.status(200).json(result);
+    } catch (error: any) {
+      console.error('Stripe webhook error:', error);
+      return res.status(400).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
 
