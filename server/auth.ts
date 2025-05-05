@@ -1,12 +1,12 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Strategy as Auth0Strategy } from "passport-auth0"; 
 import { Express } from "express";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { Client, Account, ID } from 'appwrite';
 
 declare global {
   namespace Express {
@@ -23,11 +23,33 @@ async function hashPassword(password: string) {
 }
 
 async function comparePasswords(supplied: string, stored: string) {
+  // Check if stored password has the expected format
+  if (!stored || !stored.includes('.')) {
+    console.error('Invalid password format (missing salt)');
+    return false;
+  }
+
   const [hashed, salt] = stored.split(".");
+  
+  // Verify that salt is present
+  if (!salt) {
+    console.error('Salt is missing from stored password');
+    return false;
+  }
+  
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
+
+// Initialize Appwrite client
+const appwriteClient = new Client();
+appwriteClient
+  .setEndpoint(process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
+  .setProject(process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf');
+
+// Initialize Appwrite account
+const account = new Account(appwriteClient);
 
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET || "soul-seer-secret-key-change-in-production";
@@ -69,16 +91,14 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // --- Auth0 Configuration ---
-  const auth0Domain = process.env.AUTH0_DOMAIN;
-  const auth0ClientId = process.env.AUTH0_CLIENT_ID;
-  const auth0ClientSecret = process.env.AUTH0_CLIENT_SECRET;
-  const auth0CallbackUrl = process.env.AUTH0_CALLBACK_URL;
+  // --- Appwrite Configuration ---
+  const appwriteEndpoint = process.env.APPWRITE_API_ENDPOINT || process.env.VITE_APPWRITE_API_ENDPOINT;
+  const appwriteProjectId = process.env.VITE_APPWRITE_PROJECT_ID;
 
-  if (!auth0Domain || !auth0ClientId || !auth0ClientSecret || !auth0CallbackUrl) {
-    console.warn("Auth0 environment variables (AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_CALLBACK_URL) are not fully set. Auth0 login will be disabled.");
+  if (!appwriteEndpoint || !appwriteProjectId) {
+    console.warn("Appwrite environment variables are not fully set. Appwrite login may not work properly.");
   } else {
-    console.log("Auth0 configured.");
+    console.log("Appwrite configured.");
   }
   // ---------------------------
 
@@ -97,8 +117,29 @@ export function setupAuth(app: Express) {
           user = allUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
         }
         
-        if (!user || !(await comparePasswords(password, user.password))) {
+        // First check if user exists
+        if (!user) {
           return done(null, false, { message: "Invalid credentials" });
+        }
+        
+        // Check if user has a password (could be Appwrite user)
+        if (!user.password) {
+          console.log(`User ${user.username} has no password - might be an Appwrite user`);
+          return done(null, false, { message: "Please use Appwrite to log in" });
+        }
+        
+        // Now check password
+        try {
+          if (!(await comparePasswords(password, user.password))) {
+            return done(null, false, { message: "Invalid credentials" });
+          }
+        } catch (passwordError) {
+          console.error(`Password verification error for user ${user.username}:`, passwordError);
+          // Update the user's password to a valid format
+          const newHashedPassword = await hashPassword(password);
+          await storage.updateUser(user.id, { password: newHashedPassword });
+          console.log(`Updated password format for user ${user.username}`);
+          return done(null, false, { message: "Password reset - please try logging in again" });
         }
         
         // Update last active time
@@ -110,34 +151,6 @@ export function setupAuth(app: Express) {
       }
     }),
   );
-
-  // --- Auth0 Strategy --- (Only if configured)
-  if (auth0Domain && auth0ClientId && auth0ClientSecret && auth0CallbackUrl) {
-    passport.use(
-      new Auth0Strategy(
-        {
-          domain: auth0Domain,
-          clientID: auth0ClientId,
-          clientSecret: auth0ClientSecret,
-          callbackURL: auth0CallbackUrl,
-          passReqToCallback: false, // We don't need the req object in the verify callback
-        },
-        async (accessToken, refreshToken, extraParams, profile, done) => {
-          // profile contains user information from Auth0
-          try {
-            const user = await storage.findOrCreateUserFromAuth0(profile);
-            // Update last active time for Auth0 users as well
-            await storage.updateUser(user.id, { lastActive: new Date() });
-            return done(null, user);
-          } catch (error) {
-            console.error("Error during Auth0 user find/create:", error);
-            return done(error);
-          }
-        }
-      )
-    );
-  }
-  // ----------------------
 
   passport.serializeUser((user, done) => done(null, user.id));
   passport.deserializeUser(async (id: number, done) => {
@@ -287,31 +300,75 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  // --- Auth0 Routes --- (Only if configured)
-  if (auth0Domain && auth0ClientId && auth0ClientSecret && auth0CallbackUrl) {
-    // Route to start Auth0 login flow
-    app.get('/auth/auth0', passport.authenticate('auth0', {
-      scope: 'openid email profile' // Request basic profile info
-    }));
-
-    // Route for Auth0 callback
-    app.get(
-      '/auth/callback',
-      passport.authenticate('auth0', {
-        // On failure, redirect back to the login page (or homepage)
-        // TODO: Consider adding a query parameter to show an error message on redirect
-        failureRedirect: '/login',
-        failureMessage: true // Store failure message in session flash
-      }),
-      (req, res) => {
-        // On successful authentication, redirect to the dashboard or homepage.
-        // The user object is available as req.user
-        console.log('Auth0 login successful, redirecting to /dashboard');
-        res.redirect('/dashboard');
+  // --- Appwrite User Processing ---
+  app.post('/api/appwrite-user', async (req, res) => {
+    try {
+      const { userId, email, name, providerId } = req.body;
+      
+      if (!email) {
+        return res.status(401).json({ message: "Unauthorized or missing Appwrite user data" });
       }
-    );
-  }
-  // --------------------
+      
+      // Check if user exists in our database
+      let user = await storage.getUserByEmail(email);
+      
+      if (!user) {
+        // Create a new user in our database
+        const newUser = {
+          username: name || email.split('@')[0],
+          email: email,
+          fullName: name || email,
+          role: "client", // Default role
+          bio: "",
+          specialties: [],
+          pricing: null,
+          rating: null,
+          verified: true, // Appwrite users are verified
+          profileImage: "",
+          appwrite_id: userId
+        };
+        
+        user = await storage.createUser(newUser);
+        console.log(`Created new user from Appwrite: ${user.username}`);
+      } else {
+        // Update existing user with Appwrite info
+        await storage.updateUser(user.id, { 
+          lastActive: new Date(),
+          appwrite_id: userId,
+          verified: true
+        });
+      }
+      
+      // Return user data without password
+      const { password, ...userResponse } = user;
+      
+      // Log the user in
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Error logging in Appwrite user:", err);
+          return res.status(500).json({ message: "Error during login" });
+        }
+        
+        res.json({
+          ...userResponse,
+          isAuthenticated: true,
+          authProvider: "appwrite"
+        });
+      });
+    } catch (error) {
+      console.error("Error processing Appwrite user:", error);
+      res.status(500).json({ message: "Error processing Appwrite user" });
+    }
+  });
+  
+  // Protected route example using middleware
+  app.get('/api/protected-example', (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    res.json({ message: "This is a protected route", user: req.user });
+  });
+  // ----------------------------
 
   app.post("/api/logout", (req, res, next) => {
     req.logout((err: any) => {
@@ -323,9 +380,28 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     // Check for standard session authentication
     if (req.isAuthenticated()) {
-      // Create a new object from user data without the password
-      const { password: pwd, ...userResponse } = req.user as SelectUser;
-      return res.json(userResponse);
+      try {
+        // Get user data safely
+        const user = req.user as SelectUser;
+        if (!user) {
+          console.error('User is authenticated but user object is null/undefined');
+          return res.sendStatus(401);
+        }
+        
+        // Create a new object from user data without the password
+        // Handle the case where password might be undefined
+        const userResponse = { ...user };
+        delete userResponse.password;
+        
+        return res.json({
+          ...userResponse,
+          // Ensure verified has a value
+          verified: userResponse.verified ?? false
+        });
+      } catch (error) {
+        console.error('Error processing user data:', error);
+        return res.status(500).json({ message: 'Error processing user data' });
+      }
     }
     
     // Check for mobile session authentication via header

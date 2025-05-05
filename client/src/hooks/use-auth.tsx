@@ -7,7 +7,15 @@ import {
 import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth0 } from "@auth0/auth0-react";
+import { Client, Account } from 'appwrite';
+
+// Initialize Appwrite
+const client = new Client();
+client
+  .setEndpoint('https://nyc.cloud.appwrite.io/v1')
+  .setProject('681831b30038fbc171cf');
+
+const account = new Account(client);
 
 type AuthContextType = {
   user: User | null;
@@ -16,7 +24,7 @@ type AuthContextType = {
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<User, Error, RegisterData>;
-  loginWithAuth0: () => void;
+  loginWithAppwrite: () => Promise<void>;
 };
 
 type LoginData = {
@@ -36,43 +44,6 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const { 
-    isAuthenticated, 
-    loginWithRedirect, 
-    logout: auth0Logout, 
-    user: auth0User,
-    isLoading: isAuth0Loading 
-  } = useAuth0();
-
-  // Check if user is authenticated with Auth0
-  useEffect(() => {
-    if (isAuthenticated && auth0User) {
-      // When a user logs in with Auth0, call the backend to create/update user
-      // and establish a session
-      fetch("/auth/auth0/sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          auth0Id: auth0User.sub,
-          email: auth0User.email,
-          name: auth0User.name,
-          picture: auth0User.picture,
-        }),
-        credentials: "include",
-      })
-        .then(response => {
-          if (response.ok) {
-            // Refresh user data
-            refetchUser();
-          }
-        })
-        .catch(error => {
-          console.error("Error syncing Auth0 user:", error);
-        });
-    }
-  }, [isAuthenticated, auth0User]);
 
   const {
     data: user,
@@ -252,76 +223,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       try {
-        const res = await fetch("/api/logout", {
+        // Log out from our session
+        await fetch("/api/logout", {
           method: "POST",
           credentials: "include",
           signal: controller.signal
         });
         
+        // Try to log out from Appwrite as well
+        try {
+          await account.deleteSession('current');
+          console.log("Logged out from Appwrite");
+        } catch (err) {
+          console.log("No active Appwrite session to log out from");
+        }
+        
         clearTimeout(timeoutId);
-        
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error(`Logout failed with status ${res.status}: ${errorText}`);
-          throw new Error(errorText || "Logout failed");
-        }
-        
         console.log("Logout successful");
-        
-        // Also logout from Auth0 if user was authenticated with Auth0
-        if (isAuthenticated) {
-          auth0Logout({ logoutParams: { returnTo: window.location.origin } });
-        }
       } catch (err) {
         clearTimeout(timeoutId);
-        throw err;
+        console.error("Logout failed:", err);
+        throw new Error("Logout failed. Please try again.");
       }
     },
     onSuccess: () => {
-      // Clear all cache data to ensure clean state
+      // Clear the entire cache to remove all user data
       queryClient.clear();
-      console.log("Query cache cleared after logout");
       
-      // Remove the session ID from localStorage
+      // Remove any session data from localStorage
       localStorage.removeItem('sessionId');
-      console.log("Session ID removed from localStorage");
       
-      // Set user to null explicitly
-      queryClient.setQueryData(["/api/user"], null);
+      // Force a refetch to update the UI
+      refetchUser();
       
       toast({
         title: "Logged out",
-        description: "You have been successfully logged out",
+        description: "You have been successfully logged out.",
       });
     },
     onError: (error: Error) => {
       console.error("Logout failed:", error);
       toast({
         title: "Logout failed",
-        description: error.message || "Failed to logout. Please try again.",
+        description: error.message || "Logout failed. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  // Function to login with Auth0
-  const loginWithAuth0 = () => {
-    loginWithRedirect();
+  const loginWithAppwrite = async () => {
+    try {
+      console.log("Redirecting to Appwrite OAuth...");
+      await account.createOAuth2Session(
+        'google',
+        `${window.location.origin}/callback`,
+        `${window.location.origin}/login`
+      );
+    } catch (error) {
+      console.error("Failed to initiate Appwrite login:", error);
+      toast({
+        title: "Login Failed",
+        description: "Could not initiate Appwrite authentication. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  // Convert undefined to null for proper typing
-  const safeUser: User | null = user === undefined ? null : user as User;
-  
   return (
     <AuthContext.Provider
       value={{
-        user: safeUser,
-        isLoading: isLoading || isAuth0Loading,
+        user: user || null,
+        isLoading,
         error,
         loginMutation,
         logoutMutation,
         registerMutation,
-        loginWithAuth0,
+        loginWithAppwrite,
       }}
     >
       {children}

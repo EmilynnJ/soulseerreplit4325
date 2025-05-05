@@ -28,7 +28,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSuccess }: LoginFormProps) {
-  const { loginMutation, loginWithAuth0 } = useAuth();
+  const { loginMutation, loginWithAppwrite } = useAuth();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -49,6 +49,15 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
       console.error("Login failed:", error);
     }
   }
+
+  const handleAppwriteLogin = async () => {
+    try {
+      await loginWithAppwrite();
+      // The redirect will happen automatically
+    } catch (error) {
+      console.error("Appwrite login failed:", error);
+    }
+  };
 
   return (
     <GlowCard className="p-6">
@@ -123,9 +132,9 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
         type="button"
         variant="outline"
         className="w-full"
-        onClick={() => loginWithAuth0()}
+        onClick={handleAppwriteLogin}
       >
-        Continue with Auth0
+        Continue with Google
       </CelestialButton>
     </GlowCard>
   );

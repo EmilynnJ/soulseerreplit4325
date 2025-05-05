@@ -32,10 +32,9 @@ export const env = {
   ENABLE_LIVESTREAMS: getBoolEnvVar('VITE_ENABLE_LIVESTREAMS', true),
   ENABLE_CHECKOUT: getBoolEnvVar('VITE_ENABLE_CHECKOUT', true),
   
-  // Auth0 configuration
-  AUTH0_DOMAIN: getEnvVar('VITE_AUTH0_DOMAIN', ''),
-  AUTH0_CLIENT_ID: getEnvVar('VITE_AUTH0_CLIENT_ID', ''),
-  AUTH0_CALLBACK_URL: getEnvVar('AUTH0_CALLBACK_URL', window.location.origin + '/auth/callback'),
+  // Appwrite configuration
+  APPWRITE_API_ENDPOINT: getEnvVar('VITE_APPWRITE_API_ENDPOINT', 'https://nyc.cloud.appwrite.io/v1'),
+  APPWRITE_PROJECT_ID: getEnvVar('VITE_APPWRITE_PROJECT_ID', '681831b30038fbc171cf'),
   
   // External services
   STRIPE_PUBLIC_KEY: getEnvVar('VITE_STRIPE_PUBLIC_KEY', ''),
@@ -61,9 +60,9 @@ export const env = {
 // API Base URL
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
-// Authentication Config
-export const AUTH0_REDIRECT_URI = import.meta.env.VITE_AUTH0_REDIRECT_URI || `${window.location.origin}/auth/callback`;
-export const AUTH0_AUDIENCE = import.meta.env.VITE_AUTH0_AUDIENCE || API_BASE_URL;
+// Appwrite Config
+export const APPWRITE_ENDPOINT = import.meta.env.VITE_APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
+export const APPWRITE_PROJECT = import.meta.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf';
 
 // Stripe Configuration
 // If not defined in environment, fetch dynamically or use a placeholder for development

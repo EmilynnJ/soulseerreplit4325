@@ -5,7 +5,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { useAuth0 } from "@auth0/auth0-react";
 import { CartProvider } from "@/hooks/use-cart";
 // TRTC has been completely removed
 import { WebSocketProvider } from "@/hooks/websocket-provider";
@@ -24,6 +23,7 @@ import ReaderProfilePage from "@/pages/reader-profile-page";
 import PoliciesPage from "@/pages/policies-page";
 import LivestreamPage from "@/pages/livestream-page";
 import LivestreamDetailPage from "@/pages/livestream-detail-page";
+import CallbackPage from "@/pages/callback-page";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Layout } from "./components/layout";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
@@ -66,7 +66,7 @@ function Router() {
         <Route path="/" component={HomePage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/auth" component={AuthPage} />
-        <Route path="/auth/callback" component={AuthPage} />
+        <Route path="/callback" component={CallbackPage} />
         
         {/* Protected routes - require login */}
         <ProtectedRoute path="/dashboard" component={DashboardPage} />
@@ -189,17 +189,6 @@ const SafeWebSocketProvider = ({ children }: { children: ReactNode }) => {
 };
 
 function App() {
-  const { isLoading } = useAuth0();
-
-  // Show a loading indicator while the Auth0 SDK initializes
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-background text-foreground">
-        Loading authentication...
-      </div>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <ThemeProvider>
