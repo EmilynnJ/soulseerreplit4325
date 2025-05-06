@@ -4,7 +4,6 @@ import { storage } from "./storage";
 import { setupWebSocket } from "./websocket";
 import { setupAuth } from "./auth";
 import readingRouter from "./routes/readings";
-import zegoRoutes from "./routes/zego-routes";
 import { z } from "zod";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
@@ -13,13 +12,9 @@ import path from "path";
 import fs from "fs";
 import { User, UserUpdate, Reading } from "../shared/schema";
 import { WebSocket } from "ws";
-import { Server as SocketServer } from 'socket.io';
 import * as stripeClient from "./services/stripe-client";
 import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
-import { sessionTrackerService } from "./services/session-tracker-service";
-import { giftService } from "./services/gift-service";
-import { handleAppwriteAuth } from "./services/appwrite-auth";
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -83,19 +78,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server for live readings and real-time communication
   const wsManager = setupWebSocket(httpServer);
   (global as any).wsManager = wsManager;
-  
-  // Register ZEGO routes for video/voice/chat sessions
-  app.use('/api/zego', zegoRoutes);
-  
-  // Initialize gift service with socket.io for real-time notifications
-  const io = new SocketServer(httpServer);
-  giftService.setSocketServer(io);
 
-  // WebRTC webhook endpoint (for events like recording completed)
-  app.post('/api/webhooks/webrtc', express.json(), async (req, res) => {
-    console.log('WebRTC webhook endpoint - processing event');
-    // Process WebRTC events here
-    res.status(200).json({ message: 'WebRTC webhook processed' });
+  // LiveKit webhook endpoint (placeholder for future implementation)
+  app.post('/api/webhooks/livekit', express.json(), async (req, res) => {
+    console.log('LiveKit webhook endpoint - not yet implemented');
+    res.status(501).json({ message: 'LiveKit integration coming soon' });
   });
 
   // Track all connected WebSocket clients
@@ -1335,16 +1322,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const livestreamData = req.body;
 
-      // Create the livestream with WebRTC integration
-      const { webRTCService } = await import('./services/webrtc-service');
-      const livestream = await webRTCService.createLivestream(
-        req.user.id,
+      // Create the livestream with LiveKit integration (placeholder)
+      const livestream = await livekitService.createLivestream(
+        req.user,
         livestreamData.title,
-        livestreamData.description,
-        livestreamData.category || "General",
-        livestreamData.thumbnailUrl || null,
-        livestreamData.scheduledFor ? new Date(livestreamData.scheduledFor) : undefined
+        livestreamData.description
       );
+
+      // Add additional data from the request
+      await storage.updateLivestream(livestream.id, {
+        thumbnailUrl: livestreamData.thumbnailUrl || null,
+        scheduledFor: livestreamData.scheduledFor ? new Date(livestreamData.scheduledFor) : null,
+        category: livestreamData.category || "General"
+      });
 
       // Return the livestream 
       res.status(201).json(livestream);
@@ -1380,9 +1370,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updatedLivestream;
 
       if (status === "live") {
-        // Start the livestream with WebRTC
-        const { webRTCService } = await import('./services/webrtc-service');
-        updatedLivestream = await webRTCService.startLivestream(id, req.user.id);
+        // Start the livestream with LiveKit
+        updatedLivestream = await livekitService.startLivestream(id);
 
         // Broadcast to all connected clients that a new livestream is starting
         (global as any).websocket?.broadcastToAll?.({
@@ -1397,9 +1386,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timestamp: Date.now()
         });
       } else if (status === "ended") {
-        // End the livestream with WebRTC
-        const { webRTCService } = await import('./services/webrtc-service');
-        updatedLivestream = await webRTCService.endLivestream(id, req.user.id);
+        // End the livestream with LiveKit
+        updatedLivestream = await livekitService.endLivestream(id);
 
         // Broadcast to all connected clients that the livestream has ended
         (global as any).websocket?.broadcastToAll?.({
@@ -1957,8 +1945,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Title and description are required" });
       }
 
-      // Create livestream using the updated LivestreamService (which uses WebRTC)
-      const livestream = await livestreamService.createLivestream(req.user!, title, description, category, scheduledFor ? new Date(scheduledFor) : undefined);
+      // Create livestream via our LiveKit-based solution
+      const liveKitService = require('./services/livekit-service');
+      const livestream = await liveKitService.createLivestream(req.user, title, description);
 
       // Add additional metadata
       if (category) {
@@ -1982,7 +1971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
 
       // Make sure LiveKit service is available
-      // LiveKit service removed
+      const liveKitService = require('./services/livekit-service');
 
       let livestreams;
       if (userId) {
@@ -2024,8 +2013,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid livestream ID" });
       }
 
-      // Get livestream details using storage directly
-      const livestream = await storage.getLivestreamById(id);
+      // Get the livestream details using LiveKit
+      const liveKitService = require('./services/livekit-service');
+      const livestream = await liveKitService.getLivestreamDetails(id);
 
       if (!livestream) {
         return res.status(404).json({ message: "Livestream not found" });
@@ -2511,31 +2501,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startedAt: new Date()
       });
 
-      // Create WebRTC session for this reading
-      try {
-        // Import the WebRTC service directly
-        const { webRTCService } = await import('./services/webrtc-service');
-        
-        // Generate proper room ID format for WebRTC session (reading-{id})
-        const roomId = `reading-${id}`;
-        
-        // Get reader and client names
-        const reader = await storage.getUser(reading.readerId);
-        const client = await storage.getUser(reading.clientId);
-        
-        // Create session in session service for historical records
-        const sessionResult = await webRTCService.createSession(
-          reading.readerId,
-          reading.clientId,
-          reading.type || 'video'
-        );
-        
-        console.log(`WebRTC session created for reading ${id}: ${JSON.stringify(sessionResult)}`);
-      } catch (webrtcError) {
-        console.error(`Failed to create WebRTC session for reading ${id}:`, webrtcError);
-        // Continue with notification even if WebRTC session creation fails
-      }
-
       // Notify both participants
       (global as any).websocket.notifyUser(reading.clientId, {
         type: 'reading_started',
@@ -2749,42 +2714,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error fetching user balance:", error);
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // Get specific user by ID
-  app.get('/api/users/:id', async (req, res) => {
-    try {
-      const userId = parseInt(req.params.id);
-      
-      if (isNaN(userId)) {
-        return res.status(400).json({ message: "Invalid user ID" });
-      }
-      
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      
-      // Return only public information about the user
-      const publicUserInfo = {
-        id: user.id,
-        username: user.username,
-        fullName: user.fullName,
-        profileImage: user.profileImage,
-        role: user.role,
-        bio: user.bio,
-        specialties: user.specialties,
-        isOnline: user.isOnline || false,
-        reviewCount: user.reviewCount || 0,
-        averageRating: user.averageRating || 0
-      };
-      
-      res.json(publicUserInfo);
-    } catch (error: any) {
-      console.error("Error fetching user:", error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -3319,8 +3248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const { webRTCService } = await import('./services/webrtc-service');
-      const updatedLivestream = await webRTCService.startLivestream(livestreamId, req.user.id);
+      const updatedLivestream = await livekitService.startLivestream(livestreamId);
 
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -3351,8 +3279,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      const { webRTCService } = await import('./services/webrtc-service');
-      const updatedLivestream = await webRTCService.endLivestream(livestreamId, req.user.id);
 
       res.status(200).json(updatedLivestream);
     } catch (error) {
@@ -3403,19 +3329,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Start the livestream immediately using reader-specific room format
-      const { webRTCService } = await import('./services/webrtc-service');
-      const startedLivestream = await webRTCService.startLivestream(livestream.id, readerId);
+      const startedLivestream = await livekitService.startLivestream(livestream.id, true);
       
       if (!startedLivestream) {
         return res.status(500).json({ message: "Failed to start livestream" });
       }
       
       // Generate a token for the reader to join their own room
-      const token = webRTCService.generateLivestreamToken(
+      const token = livekitService.generateLivestreamToken(
         readerId,
         startedLivestream.id.toString(),
         req.user.fullName || req.user.username,
-        true  // isHost = true for reader
+        true  // Use reader-specific room format
       );
       
       // Return livestream info along with the token
@@ -3465,14 +3390,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Generate token for the viewer
-      const { webRTCService } = await import('./services/webrtc-service');
-      
-      // Generate a token for the viewer to connect to the room
-      const token = webRTCService.generateLivestreamToken(
+      const token = livekitService.generateReaderLivestreamToken(
         viewerId,
-        `livestream-${readerId}`,
-        viewerName,
-        false // Not the host
+        readerId,
+        viewerName
       );
       
       res.status(200).json({
@@ -3501,29 +3422,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const actualUserId = userId || user.id;
       const actualRoomId = roomId || room || `default_room_${Date.now()}`;
       const actualUserName = userName || user.fullName || user.username;
-      const actualReadingType = readingType || 'video';
       
-      // Import the webRTCService
-      const { webRTCService } = await import('./services/webrtc-service');
-      
-      // Generate a token using the WebRTC service
-      const token = webRTCService.generateToken(
-        Number(actualUserId),
-        actualRoomId,
-        actualUserName,
-        user.role === 'reader' ? 'reader' : 'client',
-        actualReadingType
-      );
-      
-      console.log('WebRTC token generated: ', {
+      // TODO: Implement the new token generation system
+      console.log('Token request received: ', {
         userId: actualUserId, 
-        roomId: actualRoomId,
+        roomId: actualRoomId, 
         userName: actualUserName,
-        readingType: actualReadingType
+        readingType: readingType
       });
       
-      // Return the token
-      res.status(200).json(token);
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Reading system is being rebuilt. Please try again later.',
+        message: 'The reading system is currently being migrated to a new provider.'
+      });
     } catch (error) {
       console.error('Error in token endpoint:', error);
       res.status(500).json({ error: 'Failed to generate token' });
@@ -3562,19 +3474,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Request identified as ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 
-      // Import the webRTCService
-      const { webRTCService } = await import('./services/webrtc-service');
-      
-      // Generate a token using the WebRTC service
-      const token = webRTCService.generateToken(
-        Number(userId),
-        roomId,
-        user.fullName || user.username,
-        user.role === 'reader' ? 'reader' : 'client',
-        readingType
-      );
-      
-      console.log('WebRTC token generated for reading system: ', {
+      // TODO: Implement new token generation system
+      console.log('Token request received for new reading system: ', {
         userId, 
         roomId,
         readingType,
@@ -3582,7 +3483,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         environment: isProduction ? 'production' : 'development' 
       });
       
-      res.status(200).json(token);
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Reading system is being rebuilt. Please try again later.',
+        message: 'The reading system is currently being migrated to a new provider.'
+      });
     } catch (error) {
       console.error('Error generating token:', error);
       res.status(500).json({ error: 'Failed to generate token' });
@@ -3607,32 +3512,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                        
       console.log(`Generating livestream token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      // Import the webRTCService
-      const { webRTCService } = await import('./services/webrtc-service');
-      
-      // Generate a token using the WebRTC service - viewer by default
-      const token = webRTCService.generateLivestreamToken(
-        user.id,
-        room,
-        name || user.fullName || user.username,
-        false // Not a host
-      );
-      
-      console.log('Livestream token generated: ', {
+      // TODO: Implement new livestream token generation
+      console.log('Livestream token request received: ', {
         userId: user.id.toString(), 
         roomId: room,
         userName: name || user.fullName || user.username
       });
       
-      // Return the token
-      res.status(200).json(token);
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Livestream system is being rebuilt. Please try again later.',
+        message: 'The livestream system is currently being migrated to a new provider.'
+      });
     } catch (error) {
       console.error('Error generating livestream token:', error);
       res.status(500).json({ error: 'Failed to generate livestream token' });
     }
   });
   
-  // Reader-specific livestream token endpoint using WebRTC
+  // Reader-specific livestream token endpoint for new reading system
   app.post('/api/livekit/reader-livestream-token', authenticate, async (req: Request, res: Response) => {
     try {
       const { readerId } = req.body;
@@ -3660,26 +3558,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If the user requesting the token is the reader, they are the host
       const isHost = user.id.toString() === readerId.toString();
       
-      // Import the webRTCService
-      const { webRTCService } = await import('./services/webrtc-service');
-      
-      // Generate a token using the WebRTC service
-      const token = webRTCService.generateLivestreamToken(
-        user.id,
-        roomId,
-        user.fullName || user.username,
-        isHost
-      );
-      
-      console.log('Reader livestream token generated: ', {
+      // TODO: Implement new livestream token generation
+      console.log('Reader livestream token request received: ', {
         userId: user.id.toString(), 
         roomId,
         isHost,
         userName: user.fullName || user.username
       });
       
-      // Return the token
-      res.status(200).json(token);
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Livestream system is being rebuilt. Please try again later.',
+        message: 'The livestream system is currently being migrated to a new provider.'
+      });
     } catch (error) {
       console.error('Error generating reader livestream token:', error);
       res.status(500).json({ error: 'Failed to generate reader livestream token' });
@@ -3742,7 +3633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import at run-time to prevent circular dependencies
       const { webRTCService } = require('./services/webrtc-service');
       
-      // Use WebRTC service to create a session - use basic createSession method (not with tokens)
+      // Use WebRTC service to create a session
       const sessionResult = await webRTCService.createSession(
         parseInt(readerId.toString()),
         parseInt(clientId.toString()),
@@ -3790,7 +3681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import at run-time to prevent circular dependencies
       const { webRTCService } = require('./services/webrtc-service');
       
-      // Use WebRTC service to create a session - use basic createSession method (not with tokens)
+      // Use WebRTC service to create a session
       const sessionResult = await webRTCService.createSession(
         parseInt(readerId.toString()),
         parseInt(clientId.toString()),
@@ -3838,7 +3729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Import at run-time to prevent circular dependencies
       const { webRTCService } = require('./services/webrtc-service');
       
-      // Use WebRTC service to create a session - use basic createSession method (not with tokens)
+      // Use WebRTC service to create a session
       const sessionResult = await webRTCService.createSession(
         parseInt(readerId.toString()),
         parseInt(clientId.toString()),
@@ -3901,7 +3792,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Recording token endpoint for admins using WebRTC
+  // Recording token endpoint for admins - new implementation
   app.post('/api/livekit/recording-token', authenticate, adminOnly, async (req: Request, res: Response) => {
     try {
       const { room } = req.body;
@@ -3919,29 +3810,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                          
       console.log(`Generating recording token: hostname=${req.hostname}, isProduction=${isProduction}`);
       
-      // Import the webRTCService
-      const { webRTCService } = await import('./services/webrtc-service');
-      
-      // Generate a token using the WebRTC service - this is a special admin token
-      const token = webRTCService.generateToken(
-        user.id,
-        room,
-        user.fullName || user.username || 'Admin',
-        'client', // Admins connect as clients for recording
-        'recording'
-      );
-      
-      console.log('Admin recording token generated: ', {
+      // TODO: Implement new recording token generation for admin
+      console.log('Admin recording token request received: ', {
         userId: user.id.toString(), 
         roomId: room,
         userName: user.fullName || user.username
       });
       
-      // Return the token
-      res.status(200).json({
-        ...token,
-        isAdmin: true,
-        isRecording: true
+      // For now, return a temporary response
+      res.status(503).json({ 
+        error: 'Recording system is being rebuilt. Please try again later.',
+        message: 'The recording system is currently being migrated to a new provider.'
       });
     } catch (error) {
       console.error('Error generating recording token:', error);
@@ -4137,7 +4016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // WebRTC token routes are handled elsewhere
+  // LiveKit token routes are now in place above
   
   // Reader Balance API Routes
   
@@ -4213,139 +4092,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Appwrite sync endpoint
-  app.post("/auth/appwrite/sync", async (req, res) => {
-    try {
-      const { appwriteId, email, name, picture } = req.body;
-      
-      if (!appwriteId || !email) {
-        return res.status(400).json({ message: "Missing required Appwrite user data" });
-      }
-      
-      // Look for existing user by Appwrite ID
-      let user = await storage.getUserByAppwriteId(appwriteId);
-      
-      // If no user found by Appwrite ID, check by email
-      if (!user) {
-        const userByEmail = await storage.getUserByEmail(email);
-        
-        if (userByEmail) {
-          // If user exists with this email but doesn't have Appwrite ID, update user with Appwrite ID
-          if (!userByEmail.appwrite_id) {
-            user = await storage.updateUser(userByEmail.id, { appwrite_id: appwriteId });
-          } else {
-            // Email exists but with different Appwrite ID - this is a conflict
-            return res.status(409).json({ 
-              message: "Email already exists with different authentication method" 
-            });
-          }
-        } else {
-          // Create new user with Appwrite data
-          user = await storage.createUser({
-            username: email.split('@')[0], // Generate username from email
-            email: email,
-            fullName: name || email.split('@')[0],
-            appwrite_id: appwriteId,
-            role: "client",
-            profileImage: picture || "",
-            isOnline: true,
-            bio: "",
-            specialties: [],
-            verified: true // Auto-verify Appwrite users
-          });
-        }
-      }
-      
-      // Login the user
-      req.login(user, (err) => {
-        if (err) {
-          console.error("Error logging in Appwrite user:", err);
-          return res.status(500).json({ message: "Login failed after authentication" });
-        }
-        return res.status(200).json({ success: true });
-      });
-      
-    } catch (error) {
-      console.error("Error syncing Appwrite user:", error);
-      res.status(500).json({ message: "Failed to sync Appwrite user" });
-    }
-  });
-
-  // Stripe webhook handler
-  app.post("/api/webhooks/stripe", express.raw({ type: 'application/json' }), async (req, res) => {
-    try {
-      const sig = req.headers['stripe-signature'];
-      
-      if (!sig) {
-        return res.status(400).json({ message: 'Missing Stripe signature' });
-      }
-      
-      // Pass the payload and signature to the webhook handler
-      const result = await stripeClient.handleStripeWebhookEvent(
-        req.body,
-        sig as string
-      );
-      
-      res.status(200).json(result);
-    } catch (error: any) {
-      console.error('Stripe webhook error:', error);
-      return res.status(400).json({ message: error.message });
-    }
-  });
-
-  // Provide Stripe public key to client
-  app.get("/api/config/stripe-key", (req, res) => {
-    // Get the Stripe publishable key from environment
-    const publicKey = process.env.STRIPE_PUBLIC_KEY;
-    
-    if (!publicKey) {
-      return res.status(500).json({ 
-        error: "Stripe publishable key not configured" 
-      });
-    }
-    
-    // Return the key to the client
-    return res.json({ publicKey });
-  });
-
-  // Appwrite auth endpoint - handle token verification and user authentication
-  app.post("/api/auth/appwrite", async (req, res) => {
-    try {
-      const { userId, email, name, profileImage, sessionToken } = req.body;
-      
-      if (!userId || !email || !sessionToken) {
-        return res.status(400).json({ message: "Missing required Appwrite user data" });
-      }
-      
-      // Process Appwrite authentication
-      const user = await handleAppwriteAuth(userId, email, name, profileImage);
-      
-      // Login the user
-      req.login(user, (err) => {
-        if (err) {
-          console.error("Error logging in Appwrite user:", err);
-          return res.status(500).json({ message: "Login failed after authentication" });
-        }
-        
-        return res.status(200).json({ 
-          success: true,
-          user: {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            fullName: user.fullName,
-            role: user.role,
-            profileImage: user.profileImage,
-            verified: user.verified
-          }
-        });
-      });
-    } catch (error) {
-      console.error("Error processing Appwrite authentication:", error);
-      res.status(500).json({ message: "Failed to authenticate with Appwrite" });
-    }
-  });
-
   return httpServer;
 }
-
