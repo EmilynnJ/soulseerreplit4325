@@ -89,11 +89,16 @@ app.use(cors(corsOptions));
 
 // Initialize Appwrite client
 const appwriteClient = new Client();
-appwriteClient
-    .setEndpoint(process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
-    .setProject(process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf');
+const appwriteEndpoint = process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
+const appwriteProjectId = process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf';
 
-console.log("Appwrite client initialized");
+console.log(`Initializing Appwrite with endpoint: ${appwriteEndpoint} and project ID: ${appwriteProjectId}`);
+
+appwriteClient
+    .setEndpoint(appwriteEndpoint)
+    .setProject(appwriteProjectId);
+
+console.log("Appwrite client initialized successfully");
 
 // Log the CORS configuration
 console.log("CORS configured for domains:", corsOptions.origin);

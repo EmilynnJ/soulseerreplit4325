@@ -44,8 +44,8 @@ async function comparePasswords(supplied: string, stored: string) {
 
 // Initialize Appwrite Client
 export const appwriteClient = new Client()
-  .setEndpoint(process.env.APPWRITE_ENDPOINT || '')
-  .setProject(process.env.APPWRITE_PROJECT_ID || '');
+  .setEndpoint(process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
+  .setProject(process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf');
 
 export const appwriteAccount = new Account(appwriteClient);
 

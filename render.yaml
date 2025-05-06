@@ -41,6 +41,12 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: VITE_APPWRITE_PROJECT_ID
+        value: 681831b30038fbc171cf
+      - key: APPWRITE_API_ENDPOINT
+        value: https://nyc.cloud.appwrite.io/v1
+      - key: VITE_APPWRITE_API_ENDPOINT
+        value: https://nyc.cloud.appwrite.io/v1
     headers:
       - path: /*
         name: Cache-Control
@@ -85,6 +91,12 @@ services:
         sync: false
       - key: MUX_TOKEN_SECRET
         sync: false
+      - key: VITE_APPWRITE_PROJECT_ID
+        value: 681831b30038fbc171cf
+      - key: APPWRITE_API_ENDPOINT
+        value: https://nyc.cloud.appwrite.io/v1
+      - key: VITE_APPWRITE_API_ENDPOINT
+        value: https://nyc.cloud.appwrite.io/v1
 
 # Database configuration
 databases:

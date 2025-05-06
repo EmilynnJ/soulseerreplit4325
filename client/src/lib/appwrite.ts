@@ -1,7 +1,7 @@
 import { Client, Account, ID } from 'appwrite';
 
-const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
-const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID || '';
+const endpoint = import.meta.env.VITE_APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
+const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf';
 
 if (!projectId) {
   console.error('Appwrite Project ID is not set!');
