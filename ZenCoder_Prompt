@@ -1,0 +1,126 @@
+ Build a complete real-time psychic reading platform called SoulSeer that includes:
+
+Live, on-demand pay-per-minute chat, phone, and video readings
+
+Scheduled one-time sessions
+
+Live streaming with gifting
+
+Wallet balances and Stripe integration
+
+All built from scratch — no third-party RTC/chat SDKs or APIs.
+
+
+Tech Stack:
+
+Frontend: Vite + React, styled to match SoulSeer's mystical, celestial theme (pinks, black, gold, soft glow, sparkles).
+
+Backend: Node.js + Express
+
+Database: NeonDB (PostgreSQL)
+
+Real-time: WebSockets (for chat + signaling), WebRTC or PeerJS (for video/audio)
+
+Payments: Stripe for credit purchases, gifting, and reader payouts
+
+
+Core Features:
+
+1. Authentication
+
+Email/password login with JWT tokens
+
+User roles: client, reader, admin
+
+
+
+2. Live On-Demand Readings (chat, phone, video)
+
+Clients browse available readers
+
+Click "start session"
+
+Reader accepts/rejects in real time
+
+Session launches using chat, audio, or video via WebRTC or PeerJS
+
+WebSocket-powered live chat
+
+
+
+3. Pay-Per-Minute Logic
+
+Each session deducts credits from the client's wallet every minute
+
+Ends automatically when balance reaches $0
+
+Reader earns 70% commission
+
+All sessions logged in NeonDB (start, end, duration, rate, earnings, and type)
+
+
+
+4. Wallet + Stripe Integration
+
+Clients purchase credits via Stripe Checkout
+
+Admins can issue payouts to readers via Stripe Connect
+
+All credit and transaction logs stored
+
+
+
+5. Reader Scheduling System
+
+Each reader can set availability for each day of the month
+
+Clients can browse reader availability and book time slots
+
+Paid bookings deduct funds instantly
+
+Include scheduling logic for 1-on-1 chat, video, or phone
+
+Admin dashboard to view and manage all bookings
+
+
+
+6. Live Streaming + Gifting
+
+Readers can go live with video and a public chat window
+
+Clients can send gifts during stream via Stripe or wallet balance
+
+Gifts increase reader’s earnings in real time
+
+Gifting transactions are logged
+
+
+
+7. Dashboards
+
+Client: Explore readers, book sessions, join livestreams, track wallet, chat history
+
+Reader: View availability calendar, start sessions, go live, see earnings and logs
+
+Admin: Manage users, view all session logs, handle payouts and policy updates
+
+
+
+8. Public Pages
+
+Home, About, Readers, Live, Shop, Community, Help Center, Policies, Login, Register, Apply to be a Reader
+
+
+
+
+Important Constraints
+
+DO NOT use Agora, LiveKit, ZEGOCLOUD, Twilio, or any external SDKs for chat or video
+
+Chat must be custom-built using WebSocket
+
+Video/audio must be built using WebRTC or PeerJS only
+
+System must be fully integrated, ready to deploy, with all logic functional and connected
+
+Codebase must be organized into clearly separated frontend/ and backend/ folders with routing and service files
