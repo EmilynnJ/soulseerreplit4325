@@ -16,10 +16,10 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  getUserByAuth0Id(auth0Id: string): Promise<User | undefined>;
+  getUserByAppwriteId(appwriteId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: UserUpdate): Promise<User | undefined>;
-  findOrCreateUserFromAuth0(profile: any): Promise<User>;
+  findOrCreateUserFromAppwrite(profile: any): Promise<User>;
   getReaders(): Promise<User[]>;
   getOnlineReaders(): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
@@ -178,9 +178,9 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getUserByAuth0Id(auth0Id: string): Promise<User | undefined> {
+  async getUserByAppwriteId(appwriteId: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
-      (user) => user.auth0_id === auth0Id
+      (user) => user.appwrite_id === appwriteId
     );
   }
 
@@ -221,28 +221,28 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
-  async findOrCreateUserFromAuth0(profile: any): Promise<User> {
-    const auth0Id = profile.id;
+  async findOrCreateUserFromAppwrite(profile: any): Promise<User> {
+    const appwriteId = profile.id;
     const email = profile.emails?.[0]?.value;
     const username = profile.nickname || profile.displayName || email;
     const fullName = profile.displayName || username;
     const profileImage = profile.picture;
 
-    if (!auth0Id) {
-      throw new Error('Auth0 profile ID is missing');
+    if (!appwriteId) {
+      throw new Error('Appwrite profile ID is missing');
     }
     if (!email) {
-      throw new Error('Auth0 profile email is missing');
+      throw new Error('Appwrite profile email is missing');
     }
 
-    let user = await this.getUserByAuth0Id(auth0Id);
+    let user = await this.getUserByAppwriteId(appwriteId);
 
     if (!user) {
       const existingUserByEmail = await this.getUserByEmail(email);
-      if (existingUserByEmail && !existingUserByEmail.auth0_id) {
-        user = await this.updateUser(existingUserByEmail.id, { auth0_id: auth0Id });
+      if (existingUserByEmail && !existingUserByEmail.appwrite_id) {
+        user = await this.updateUser(existingUserByEmail.id, { appwrite_id: appwriteId });
         if (!user) {
-          throw new Error(`Failed to link user ${existingUserByEmail.id} with Auth0 ID`);
+          throw new Error(`Failed to link user ${existingUserByEmail.id} with Appwrite ID`);
         }
       } else {
         user = await this.createUser({
@@ -250,7 +250,7 @@ export class MemStorage implements IStorage {
           email: email,
           fullName: fullName,
           profileImage: profileImage,
-          auth0_id: auth0Id,
+          appwrite_id: appwriteId,
           role: 'client',
         });
       }
@@ -779,8 +779,8 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByAuth0Id(auth0Id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.auth0_id, auth0Id));
+  async getUserByAppwriteId(appwriteId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.appwrite_id, appwriteId));
     return user;
   }
 
@@ -811,28 +811,28 @@ export class DatabaseStorage implements IStorage {
     return updatedUser;
   }
 
-  async findOrCreateUserFromAuth0(profile: any): Promise<User> {
-    const auth0Id = profile.id;
+  async findOrCreateUserFromAppwrite(profile: any): Promise<User> {
+    const appwriteId = profile.id;
     const email = profile.emails?.[0]?.value;
     const username = profile.nickname || profile.displayName || email;
     const fullName = profile.displayName || username;
     const profileImage = profile.picture;
 
-    if (!auth0Id) {
-      throw new Error('Auth0 profile ID is missing');
+    if (!appwriteId) {
+      throw new Error('Appwrite profile ID is missing');
     }
     if (!email) {
-      throw new Error('Auth0 profile email is missing');
+      throw new Error('Appwrite profile email is missing');
     }
 
-    let user = await this.getUserByAuth0Id(auth0Id);
+    let user = await this.getUserByAppwriteId(appwriteId);
 
     if (!user) {
       const existingUserByEmail = await this.getUserByEmail(email);
-      if (existingUserByEmail && !existingUserByEmail.auth0_id) {
-        user = await this.updateUser(existingUserByEmail.id, { auth0_id: auth0Id });
+      if (existingUserByEmail && !existingUserByEmail.appwrite_id) {
+        user = await this.updateUser(existingUserByEmail.id, { appwrite_id: appwriteId });
         if (!user) {
-          throw new Error(`Failed to link user ${existingUserByEmail.id} with Auth0 ID`);
+          throw new Error(`Failed to link user ${existingUserByEmail.id} with Appwrite ID`);
         }
       } else {
         user = await this.createUser({
@@ -840,9 +840,9 @@ export class DatabaseStorage implements IStorage {
           email: email,
           fullName: fullName,
           profileImage: profileImage,
-          auth0_id: auth0Id,
+          appwrite_id: appwriteId,
           role: 'client',
-          // Password is not needed for Auth0 users
+          // Password is not needed for Appwrite users
         });
       }
     }
@@ -1175,15 +1175,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(gifts.createdAt));
   }
   
-  async getGift(id: number): Promise<Gift | undefined> {
-    const [gift] = await db.select().from(gifts).where(eq(gifts.id, id));
-    return gift;
-  }
-  
   async getUnprocessedGifts(): Promise<Gift[]> {
     return await db.select().from(gifts)
       .where(eq(gifts.processed, false))
       .orderBy(asc(gifts.createdAt)); // Process oldest first
+  }
+  
+  async getGift(id: number): Promise<Gift | undefined> {
+    const [gift] = await db.select().from(gifts).where(eq(gifts.id, id));
+    return gift;
   }
   
   async markGiftAsProcessed(id: number): Promise<Gift | undefined> {

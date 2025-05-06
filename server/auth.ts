@@ -6,7 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
-import { Client, Account, ID } from 'appwrite';
+import { Client, Account } from 'appwrite';
 
 declare global {
   namespace Express {
@@ -42,14 +42,54 @@ async function comparePasswords(supplied: string, stored: string) {
   return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-// Initialize Appwrite client
-const appwriteClient = new Client();
-appwriteClient
-  .setEndpoint(process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
-  .setProject(process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf');
+// Initialize Appwrite Client
+export const appwriteClient = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT || '')
+  .setProject(process.env.APPWRITE_PROJECT_ID || '');
 
-// Initialize Appwrite account
-const account = new Account(appwriteClient);
+export const appwriteAccount = new Account(appwriteClient);
+
+// Function to handle Appwrite authentication 
+export async function handleAppwriteAuth(userId: string, email: string, name: string, profileImage?: string) {
+  try {
+    // Create an Appwrite profile-like object for our existing functions
+    const appwriteProfile = {
+      id: userId,
+      emails: [{ value: email }],
+      displayName: name,
+      picture: profileImage || ''
+    };
+    
+    // Use our existing find or create function
+    const user = await storage.findOrCreateUserFromAppwrite(appwriteProfile);
+    
+    return user;
+  } catch (error) {
+    console.error('Error processing Appwrite authentication:', error);
+    throw error;
+  }
+}
+
+// Function to verify Appwrite JWT token (to be implemented based on your needs)
+export async function verifyAppwriteToken(sessionToken: string) {
+  try {
+    // You would typically validate the JWT token here
+    // This is a simplified example - you'll need to implement proper JWT validation
+    
+    // For now, just check if the token exists
+    if (!sessionToken) {
+      return null;
+    }
+    
+    // Here you would decode and verify the token
+    // This depends on how you're implementing the token verification
+    
+    return true;
+  } catch (error) {
+    console.error('Error verifying Appwrite token:', error);
+    return null;
+  }
+}
 
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET || "soul-seer-secret-key-change-in-production";

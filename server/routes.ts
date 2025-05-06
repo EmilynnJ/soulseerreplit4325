@@ -19,6 +19,7 @@ import { sessionService } from "./services/session-service";
 import { readerBalanceService } from "./services/reader-balance-service";
 import { sessionTrackerService } from "./services/session-tracker-service";
 import { giftService } from "./services/gift-service";
+import { handleAppwriteAuth } from "./services/appwrite-auth";
 
 // Set up multer for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
@@ -4212,45 +4213,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auth0 sync endpoint
-  app.post("/auth/auth0/sync", async (req, res) => {
+  // Appwrite sync endpoint
+  app.post("/auth/appwrite/sync", async (req, res) => {
     try {
-      const { auth0Id, email, name, picture } = req.body;
+      const { appwriteId, email, name, picture } = req.body;
       
-      if (!auth0Id || !email) {
-        return res.status(400).json({ message: "Missing required Auth0 user data" });
+      if (!appwriteId || !email) {
+        return res.status(400).json({ message: "Missing required Appwrite user data" });
       }
       
-      // Look for existing user by Auth0 ID
-      let user = await storage.getUserByAuth0Id(auth0Id);
+      // Look for existing user by Appwrite ID
+      let user = await storage.getUserByAppwriteId(appwriteId);
       
-      // If no user found by Auth0 ID, check by email
+      // If no user found by Appwrite ID, check by email
       if (!user) {
         const userByEmail = await storage.getUserByEmail(email);
         
         if (userByEmail) {
-          // If user exists with this email but doesn't have Auth0 ID, update user with Auth0 ID
-          if (!userByEmail.auth0_id) {
-            user = await storage.updateUser(userByEmail.id, { auth0_id: auth0Id });
+          // If user exists with this email but doesn't have Appwrite ID, update user with Appwrite ID
+          if (!userByEmail.appwrite_id) {
+            user = await storage.updateUser(userByEmail.id, { appwrite_id: appwriteId });
           } else {
-            // Email exists but with different Auth0 ID - this is a conflict
+            // Email exists but with different Appwrite ID - this is a conflict
             return res.status(409).json({ 
               message: "Email already exists with different authentication method" 
             });
           }
         } else {
-          // Create new user with Auth0 data
+          // Create new user with Appwrite data
           user = await storage.createUser({
             username: email.split('@')[0], // Generate username from email
             email: email,
             fullName: name || email.split('@')[0],
-            auth0_id: auth0Id,
+            appwrite_id: appwriteId,
             role: "client",
             profileImage: picture || "",
             isOnline: true,
             bio: "",
             specialties: [],
-            verified: true // Auto-verify Auth0 users
+            verified: true // Auto-verify Appwrite users
           });
         }
       }
@@ -4258,15 +4259,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Login the user
       req.login(user, (err) => {
         if (err) {
-          console.error("Error logging in Auth0 user:", err);
+          console.error("Error logging in Appwrite user:", err);
           return res.status(500).json({ message: "Login failed after authentication" });
         }
         return res.status(200).json({ success: true });
       });
       
     } catch (error) {
-      console.error("Error syncing Auth0 user:", error);
-      res.status(500).json({ message: "Failed to sync Auth0 user" });
+      console.error("Error syncing Appwrite user:", error);
+      res.status(500).json({ message: "Failed to sync Appwrite user" });
     }
   });
 
@@ -4305,6 +4306,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     // Return the key to the client
     return res.json({ publicKey });
+  });
+
+  // Appwrite auth endpoint - handle token verification and user authentication
+  app.post("/api/auth/appwrite", async (req, res) => {
+    try {
+      const { userId, email, name, profileImage, sessionToken } = req.body;
+      
+      if (!userId || !email || !sessionToken) {
+        return res.status(400).json({ message: "Missing required Appwrite user data" });
+      }
+      
+      // Process Appwrite authentication
+      const user = await handleAppwriteAuth(userId, email, name, profileImage);
+      
+      // Login the user
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Error logging in Appwrite user:", err);
+          return res.status(500).json({ message: "Login failed after authentication" });
+        }
+        
+        return res.status(200).json({ 
+          success: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            fullName: user.fullName,
+            role: user.role,
+            profileImage: user.profileImage,
+            verified: user.verified
+          }
+        });
+      });
+    } catch (error) {
+      console.error("Error processing Appwrite authentication:", error);
+      res.status(500).json({ message: "Failed to authenticate with Appwrite" });
+    }
   });
 
   return httpServer;

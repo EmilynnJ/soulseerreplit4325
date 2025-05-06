@@ -5,7 +5,7 @@
     try {
       const shareButton = document.getElementById('share-button');
       
-      // If button doesn't exist, create one (invisible)
+      // Safely add event listener only if button exists
       if (shareButton) {
         // Button exists, add event listener with proper error handling
         try {
@@ -15,20 +15,24 @@
           console.log('Error initializing share button:', err);
         }
       } else {
-        // Create the button only if we're on a page that should have sharing
-        // This helps avoid unnecessary DOM manipulation
-        if (document.body) {
-          const newShareButton = document.createElement('button');
-          newShareButton.id = 'share-button';
-          newShareButton.style.display = 'none'; // Hide it initially
-          document.body.appendChild(newShareButton);
-          
-          // Now add the event listener
-          newShareButton.addEventListener('click', handleShareClick);
-          console.log('Created and initialized share button');
+        // Only attempt to create a button if we're on an appropriate page
+        // Don't create buttons on error pages or before DOM is ready
+        if (document.body && !window.location.pathname.includes('error')) {
+          try {
+            const newShareButton = document.createElement('button');
+            newShareButton.id = 'share-button';
+            newShareButton.style.display = 'none'; // Hide it initially
+            document.body.appendChild(newShareButton);
+            
+            // Now add the event listener
+            newShareButton.addEventListener('click', handleShareClick);
+            console.log('Created and initialized share button');
+          } catch (err) {
+            console.log('Error creating share button:', err);
+          }
         } else {
-          // Document body isn't ready yet, this shouldn't happen if we're using DOMContentLoaded
-          console.log('Document body not ready for share button creation');
+          // Document body isn't ready yet or we're on an error page
+          console.log('Skipping share button creation (body not ready or error page)');
         }
       }
     } catch (err) {
@@ -52,15 +56,15 @@
     }
   }
 
-  // Initialize safely when DOM is loaded
+  // Initialize with a safe approach
+  // Wait until interactive or complete before trying to initialize
   if (document.readyState === 'loading') {
     // Still loading, wait for DOMContentLoaded
     document.addEventListener('DOMContentLoaded', initShareButton);
   } else {
-    // DOM already loaded, run now
-    initShareButton();
+    // DOM already ready (interactive or complete), run now
+    setTimeout(initShareButton, 0); // Use setTimeout to avoid blocking
   }
 
-  // Extra safety - retry after a delay
-  setTimeout(initShareButton, 2000);
+  // Remove the timeout retry to avoid duplicates
 })(); 
