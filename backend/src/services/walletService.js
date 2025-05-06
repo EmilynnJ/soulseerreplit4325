@@ -39,6 +39,19 @@ exports.getWalletByUserId = async (userId) => {
 };
 
 /**
+ * Gets the current balance for a user.
+ */
+exports.getBalance = async (userId) => {
+    try {
+        const wallet = await this.getWalletByUserId(userId);
+        return parseFloat(wallet.balance);
+    } catch (error) {
+        console.error(`Error fetching balance for user ${userId}:`, error);
+        throw error;
+    }
+};
+
+/**
  * Adds credits to a user's wallet and logs the transaction.
  * This should be called within a database transaction to ensure atomicity.
  */
@@ -74,6 +87,77 @@ exports.addCreditsToWallet = async (userId, amount, transactionDetails) => {
     }
 };
 
+/**
+ * Adds balance to a user's wallet (used for reader earnings).
+ */
+exports.addBalance = async (userId, amount) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const walletResult = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+        if (walletResult.rows.length === 0) {
+            throw new Error(`Wallet not found for user ${userId}. Cannot add balance.`);
+        }
+        const wallet = walletResult.rows[0];
+        const newBalance = parseFloat(wallet.balance) + parseFloat(amount);
+
+        await client.query('UPDATE wallets SET balance = $1 WHERE id = $2', [newBalance, wallet.id]);
+
+        await client.query(
+            `INSERT INTO transactions (user_id, wallet_id, type, amount, description, status)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            [userId, wallet.id, 'reader_earnings', amount, 'Earnings from reading session', 'completed']
+        );
+
+        await client.query('COMMIT');
+        return {success: true, newBalance};
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Error adding balance to wallet for user ${userId}:`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Deducts balance from a user's wallet (used for session costs).
+ */
+exports.deductBalance = async (userId, amount) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const walletResult = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+        if (walletResult.rows.length === 0) {
+            throw new Error(`Wallet not found for user ${userId}. Cannot deduct balance.`);
+        }
+        const wallet = walletResult.rows[0];
+        const newBalance = parseFloat(wallet.balance) - parseFloat(amount);
+
+        if (newBalance < 0) {
+            throw new Error(`Insufficient balance for user ${userId}. Cannot deduct ${amount}.`);
+        }
+
+        await client.query('UPDATE wallets SET balance = $1 WHERE id = $2', [newBalance, wallet.id]);
+
+        await client.query(
+            `INSERT INTO transactions (user_id, wallet_id, type, amount, description, status)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            [userId, wallet.id, 'session_fee', -amount, 'Cost for reading session', 'completed']
+        );
+
+        await client.query('COMMIT');
+        return {success: true, newBalance};
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(`Error deducting balance from wallet for user ${userId}:`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};
 
 exports.getWalletTransactionsByUserId = async (userId, limit = 20, offset = 0) => {
     try {
