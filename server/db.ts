@@ -20,8 +20,3 @@ export const pool = new Pool({
   }
 });
 
-// Also create a Neon serverless client for edge functions or serverless environments
-export const sql = neon(DATABASE_URL);
-
-// Initialize Drizzle with the pool and schema (primary connection method)
-export const db = drizzle(pool, { schema });

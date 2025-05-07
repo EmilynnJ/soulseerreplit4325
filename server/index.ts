@@ -5,9 +5,73 @@ import { initializeDatabase } from "./migrations/migration-manager.js";
 import { config } from "dotenv";
 import path from "path";
 import cors from "cors";
+import fs from "fs";
+import { Client } from 'appwrite';
 
-// Load environment variables
-config();
+// Load environment variables - More direct approach to ensure they're loaded
+try {
+  // Get the absolute path to the .env file
+  const envPath = path.resolve(process.cwd(), '.env');
+  console.log(`Looking for .env file at: ${envPath}`);
+  
+  // Check if the file exists
+  if (fs.existsSync(envPath)) {
+    console.log('.env file found - loading variables');
+    
+    // Read the file directly to ensure we get all variables
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    const envLines = envContent.split('\n');
+    
+    // Process each line to set environment variables
+    envLines.forEach(line => {
+      // Skip comments and empty lines
+      if (!line || line.startsWith('#')) return;
+      
+      const [key, ...valueParts] = line.split('=');
+      if (key && valueParts.length > 0) {
+        const value = valueParts.join('=').trim();
+        if (!process.env[key.trim()]) {
+          process.env[key.trim()] = value;
+          console.log(`Loaded ${key.trim()} (${value.length} chars)`);
+        }
+      }
+    });
+    
+    console.log(`Loaded ${envLines.length} lines from .env file`);
+    
+    // Check for critical variables and log their presence (not values)
+    const criticalVars = [
+      'POSTGRES_URL', 
+      'DATABASE_URL', 
+      'STRIPE_SECRET_KEY',
+      'SESSION_SECRET',
+      'VITE_APPWRITE_PROJECT_ID',
+      'APPWRITE_API_ENDPOINT'
+    ];
+    
+    criticalVars.forEach(varName => {
+      if (process.env[varName]) {
+        console.log(`✓ Found ${varName} (${process.env[varName].length} chars)`);
+      } else {
+        console.warn(`✗ Missing ${varName} - app may not function correctly`);
+      }
+    });
+  } else {
+    console.error('.env file not found at:', envPath);
+    // Try using dotenv as fallback
+    config();
+  }
+} catch (error) {
+  console.error('Failed to load environment variables:', error);
+  // Try using dotenv as fallback
+  config();
+}
+
+// Manually ensure critical Stripe variables are set
+if (!process.env.STRIPE_SECRET_KEY && process.env.VITE_STRIPE_SECRET_KEY) {
+  process.env.STRIPE_SECRET_KEY = process.env.VITE_STRIPE_SECRET_KEY;
+  console.log('Set STRIPE_SECRET_KEY from VITE_STRIPE_SECRET_KEY');
+}
 
 const app = express();
 app.use(express.json());
@@ -23,6 +87,19 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Initialize Appwrite client
+const appwriteClient = new Client();
+const appwriteEndpoint = process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1';
+const appwriteProjectId = process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf';
+
+console.log(`Initializing Appwrite with endpoint: ${appwriteEndpoint} and project ID: ${appwriteProjectId}`);
+
+appwriteClient
+    .setEndpoint(appwriteEndpoint)
+    .setProject(appwriteProjectId);
+
+console.log("Appwrite client initialized successfully");
+
 // Log the CORS configuration
 console.log("CORS configured for domains:", corsOptions.origin);
 
@@ -36,13 +113,29 @@ app.use('/images', express.static(imagesPath));
 
 console.log(`Serving uploads from: ${uploadsPath} with fallback to default images`);
 
+// Set proper MIME types for our static files
+app.use((req, res, next) => {
+  const path = req.path;
+  if (path.endsWith('.js')) {
+    res.type('application/javascript');
+  } else if (path.endsWith('.css')) {
+    res.type('text/css');
+  } else if (path === '/serviceWorker.js') {
+    res.type('application/javascript');
+  } else if (path === '/manifest.json') {
+    res.type('application/json');
+  }
+  next();
+});
+
 // Add health check endpoint for Render
 app.get('/api/health', (req: Request, res: Response) => {
   return res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     version: process.env.VITE_APP_VERSION || '1.0.0',
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    databaseConnected: true // Will be set by database ping later
   });
 });
 

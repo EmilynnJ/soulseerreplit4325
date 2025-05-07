@@ -66,15 +66,13 @@ export async function runMigrations() {
 
         log(`Applying migration: ${migrationFile}`, 'database');
         
-        // Split the SQL into individual statements (separated by semicolons)
-        const statements = migrationSql
-          .split(';')
-          .map(stmt => stmt.trim())
-          .filter(stmt => stmt.length > 0);
-        
-        // Execute each statement separately
-        for (const statement of statements) {
-          await query(statement + ';');
+        // Execute the entire SQL file at once rather than splitting by semicolons
+        // This is better for complex statements like DO blocks
+        try {
+          await query(migrationSql);
+        } catch (error) {
+          log(`Error executing migration ${migrationFile}: ${error}`, 'database');
+          throw error;
         }
         
         await query(insertMigrationQuery, [migrationFile]);
@@ -119,15 +117,13 @@ export async function runMigration(migrationName: string, migrationSql: string) 
       // Apply the migration
       log(`Applying migration: ${migrationName}`, 'database');
       
-      // Split the SQL into individual statements (separated by semicolons)
-      const statements = migrationSql
-        .split(';')
-        .map(stmt => stmt.trim())
-        .filter(stmt => stmt.length > 0);
-      
-      // Execute each statement separately
-      for (const statement of statements) {
-        await query(statement + ';');
+      // Execute the entire SQL file at once rather than splitting by semicolons
+      // This is better for complex statements like DO blocks
+      try {
+        await query(migrationSql);
+      } catch (error) {
+        log(`Error executing migration ${migrationName}: ${error}`, 'database');
+        throw error;
       }
       
       await query(insertMigrationQuery, [migrationName]);
@@ -151,6 +147,43 @@ export async function runMigration(migrationName: string, migrationSql: string) 
 export async function initializeDatabase() {
   try {
     log('Initializing database...', 'database');
+    
+    // Apply the stripe_customer_id migration manually if needed
+    const stripeCustomerIdMigration = 'add_stripe_customer_id.sql';
+    const checkResult = await query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'stripe_customer_id'
+      );
+    `);
+    
+    const columnExists = checkResult.rows[0].exists;
+    if (!columnExists) {
+      log('stripe_customer_id column does not exist, applying migration...', 'database');
+      const migrationPath = path.join(__dirname, stripeCustomerIdMigration);
+      const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+      
+      // Apply the migration
+      await query(migrationSql);
+      log('stripe_customer_id migration applied manually', 'database');
+      
+      // Record the migration in the migrations table
+      const migrationsTableExists = await query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'migrations'
+        );
+      `);
+      
+      if (migrationsTableExists.rows[0].exists) {
+        await query(insertMigrationQuery, [stripeCustomerIdMigration]);
+        log('Migration recorded in migrations table', 'database');
+      }
+    }
+    
+    // Run other migrations
     await runMigrations();
     log('Database initialization complete', 'database');
   } catch (error) {

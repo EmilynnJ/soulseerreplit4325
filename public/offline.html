@@ -5,132 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SoulSeer - Offline</title>
   <style>
-    :root {
-      --primary: #7f2474;
-      --background: #2c0f27;
-      --foreground: #ffffff;
-      --muted: #f3e8f2;
-      --muted-foreground: #a288a1;
-      --border: #3e1a39;
-      --radius: 0.5rem;
-    }
-    
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--background);
-      color: var(--foreground);
-      min-height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #000000;
+      color: #ffffff;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
       text-align: center;
+      background-image: url('/images/stars-bg.jpg');
+      background-size: cover;
+      background-position: center;
     }
-    
     .container {
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 30px;
+      border-radius: 15px;
       max-width: 500px;
-      padding: 2rem;
-      border-radius: var(--radius);
-      background-color: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--border);
+      box-shadow: 0 0 20px rgba(106, 59, 181, 0.5);
     }
-    
-    .logo {
-      margin-bottom: 1.5rem;
-      font-size: 2rem;
-      font-weight: bold;
-      color: var(--primary);
-    }
-    
     h1 {
-      margin-bottom: 1rem;
-      font-size: 1.8rem;
+      color: #6a3bb5;
+      margin-bottom: 20px;
     }
-    
     p {
-      margin-bottom: 1.5rem;
-      color: var(--muted-foreground);
       line-height: 1.6;
+      margin-bottom: 20px;
     }
-    
-    .button {
-      display: inline-block;
-      background-color: var(--primary);
+    .btn {
+      background-color: #6a3bb5;
       color: white;
-      padding: 0.75rem 1.5rem;
-      text-decoration: none;
-      border-radius: var(--radius);
-      font-weight: 500;
       border: none;
+      padding: 12px 24px;
+      border-radius: 30px;
       cursor: pointer;
-      transition: opacity 0.2s;
+      font-weight: bold;
+      text-decoration: none;
+      transition: background-color 0.3s;
     }
-    
-    .button:hover {
-      opacity: 0.9;
-    }
-    
-    .icon {
-      margin-bottom: 1.5rem;
-      font-size: 3rem;
-    }
-    
-    .crystal-ball {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 1.5rem;
-      border-radius: 50%;
-      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), rgba(127, 36, 116, 0.8));
-      box-shadow: 
-        0 0 20px rgba(127, 36, 116, 0.5),
-        inset 0 0 10px rgba(255, 255, 255, 0.3);
-      position: relative;
-    }
-    
-    .crystal-ball::after {
-      content: '';
-      position: absolute;
-      top: 20%;
-      left: 25%;
-      width: 20%;
-      height: 10%;
-      background-color: rgba(255, 255, 255, 0.7);
-      border-radius: 50%;
-      transform: rotate(30deg);
-    }
-    
-    @media (max-width: 600px) {
-      .container {
-        padding: 1.5rem;
-      }
-      
-      h1 {
-        font-size: 1.5rem;
-      }
+    .btn:hover {
+      background-color: #8154d5;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="logo">SoulSeer</div>
-    <div class="crystal-ball"></div>
     <h1>You're Currently Offline</h1>
-    <p>
-      It seems you've lost your connection to the cosmic realms. 
-      Please check your internet connection and try again.
-    </p>
-    <p>
-      The spiritual energies will be waiting for you when you reconnect.
-    </p>
-    <button class="button" onclick="window.location.reload()">Try Again</button>
+    <p>It appears you've lost your connection. SoulSeer requires an internet connection to connect you with our readers.</p>
+    <p>Please check your internet connection and try again.</p>
+    <button class="btn" onclick="window.location.reload()">Try Again</button>
   </div>
 </body>
 </html>

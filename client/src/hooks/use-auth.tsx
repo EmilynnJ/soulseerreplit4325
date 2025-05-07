@@ -7,7 +7,7 @@ import {
 import { User } from "@shared/schema";
 import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useUser } from "@clerk/clerk-react"; // Import Clerk's useUser hook
+
 
 type AuthContextType = {
   user: User | null;
@@ -16,6 +16,7 @@ type AuthContextType = {
   loginMutation: UseMutationResult<User, Error, LoginData>;
   logoutMutation: UseMutationResult<void, Error, void>;
   registerMutation: UseMutationResult<User, Error, RegisterData>;
+  loginWithAppwrite: () => Promise<void>;
 };
 
 type LoginData = {
@@ -35,8 +36,7 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const { isSignedIn: isClerkSignedIn } = useUser(); // Get Clerk auth state
-  
+
   const {
     data: user,
     error,
@@ -230,65 +230,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       try {
-        const res = await fetch("/api/logout", {
+        // Log out from our session
+        await fetch("/api/logout", {
           method: "POST",
           credentials: "include",
           signal: controller.signal
         });
         
-        clearTimeout(timeoutId);
-        
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error(`Logout failed with status ${res.status}: ${errorText}`);
-          throw new Error(errorText || "Logout failed");
+        // Try to log out from Appwrite as well
+        try {
+          await account.deleteSession('current');
+          console.log("Logged out from Appwrite");
+        } catch (err) {
+          console.log("No active Appwrite session to log out from");
         }
         
+        clearTimeout(timeoutId);
         console.log("Logout successful");
       } catch (err) {
         clearTimeout(timeoutId);
-        throw err;
+        console.error("Logout failed:", err);
+        throw new Error("Logout failed. Please try again.");
       }
     },
     onSuccess: () => {
-      // Clear all cache data to ensure clean state
+      // Clear the entire cache to remove all user data
       queryClient.clear();
-      console.log("Query cache cleared after logout");
       
-      // Remove the session ID from localStorage
+      // Remove any session data from localStorage
       localStorage.removeItem('sessionId');
-      console.log("Session ID removed from localStorage");
       
-      // Set user to null explicitly
-      queryClient.setQueryData(["/api/user"], null);
+      // Force a refetch to update the UI
+      refetchUser();
       
       toast({
         title: "Logged out",
-        description: "You have been successfully logged out",
+        description: "You have been successfully logged out.",
       });
     },
     onError: (error: Error) => {
       console.error("Logout failed:", error);
       toast({
         title: "Logout failed",
-        description: error.message || "Failed to logout. Please try again.",
+        description: error.message || "Logout failed. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  // Convert undefined to null for proper typing
-  const safeUser: User | null = user === undefined ? null : user as User;
-  
+  const loginWithAppwrite = async () => {
+    try {
+      console.log("Redirecting to Appwrite OAuth...");
+      await account.createOAuth2Session(
+        'google',
+        `${window.location.origin}/callback`,
+        `${window.location.origin}/login`
+      );
+    } catch (error) {
+      console.error("Failed to initiate Appwrite login:", error);
+      toast({
+        title: "Login Failed",
+        description: "Could not initiate Appwrite authentication. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
-        user: safeUser,
+        user: user || null,
         isLoading,
         error,
         loginMutation,
         logoutMutation,
         registerMutation,
+        loginWithAppwrite,
       }}
     >
       {children}

@@ -22,7 +22,6 @@ import ReaderProfilePage from "@/pages/reader-profile-page";
 import PoliciesPage from "@/pages/policies-page";
 import LivestreamPage from "@/pages/livestream-page";
 import LivestreamDetailPage from "@/pages/livestream-detail-page";
-import { ClerkProtectedRoute } from "./lib/clerk-protected-route";
 import { Layout } from "./components/layout";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
@@ -63,14 +62,6 @@ function Router() {
         {/* Public home routes */}
         <Route path="/" component={HomePage} />
         <Route path="/about" component={AboutPage} />
-        <Route path="/auth">
-          <SignedIn>
-            <Route path="/auth" component={HomePage} />
-          </SignedIn>
-          <SignedOut>
-            <AuthPage />
-          </SignedOut>
-        </Route>
         
         {/* Protected routes - require login */}
         <Route path="/dashboard">
@@ -227,18 +218,14 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <CartProvider>
-              <SafeWebSocketProvider>
-                <Router />
-                <AppUpdater />
-                <PwaInstallBanner />
-                <Toaster />
-              </SafeWebSocketProvider>
-            </CartProvider>
-          </AuthProvider>
-        </QueryClientProvider>
+        <CartProvider>
+          <SafeWebSocketProvider>
+            <Router />
+            <AppUpdater />
+            <PwaInstallBanner />
+            <Toaster />
+          </SafeWebSocketProvider>
+        </CartProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

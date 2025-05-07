@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { Client, Account } from 'appwrite';
 
 declare global {
   namespace Express {
@@ -22,10 +23,72 @@ async function hashPassword(password: string) {
 }
 
 async function comparePasswords(supplied: string, stored: string) {
+  // Check if stored password has the expected format
+  if (!stored || !stored.includes('.')) {
+    console.error('Invalid password format (missing salt)');
+    return false;
+  }
+
   const [hashed, salt] = stored.split(".");
+  
+  // Verify that salt is present
+  if (!salt) {
+    console.error('Salt is missing from stored password');
+    return false;
+  }
+  
   const hashedBuf = Buffer.from(hashed, "hex");
   const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
   return timingSafeEqual(hashedBuf, suppliedBuf);
+}
+
+// Initialize Appwrite Client
+export const appwriteClient = new Client()
+  .setEndpoint(process.env.APPWRITE_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1')
+  .setProject(process.env.VITE_APPWRITE_PROJECT_ID || '681831b30038fbc171cf');
+
+export const appwriteAccount = new Account(appwriteClient);
+
+// Function to handle Appwrite authentication 
+export async function handleAppwriteAuth(userId: string, email: string, name: string, profileImage?: string) {
+  try {
+    // Create an Appwrite profile-like object for our existing functions
+    const appwriteProfile = {
+      id: userId,
+      emails: [{ value: email }],
+      displayName: name,
+      picture: profileImage || ''
+    };
+    
+    // Use our existing find or create function
+    const user = await storage.findOrCreateUserFromAppwrite(appwriteProfile);
+    
+    return user;
+  } catch (error) {
+    console.error('Error processing Appwrite authentication:', error);
+    throw error;
+  }
+}
+
+// Function to verify Appwrite JWT token (to be implemented based on your needs)
+export async function verifyAppwriteToken(sessionToken: string) {
+  try {
+    // You would typically validate the JWT token here
+    // This is a simplified example - you'll need to implement proper JWT validation
+    
+    // For now, just check if the token exists
+    if (!sessionToken) {
+      return null;
+    }
+    
+    // Here you would decode and verify the token
+    // This depends on how you're implementing the token verification
+    
+    return true;
+  } catch (error) {
+    console.error('Error verifying Appwrite token:', error);
+    return null;
+  }
 }
 
 export function setupAuth(app: Express) {
@@ -68,6 +131,17 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // --- Appwrite Configuration ---
+  const appwriteEndpoint = process.env.APPWRITE_API_ENDPOINT || process.env.VITE_APPWRITE_API_ENDPOINT;
+  const appwriteProjectId = process.env.VITE_APPWRITE_PROJECT_ID;
+
+  if (!appwriteEndpoint || !appwriteProjectId) {
+    console.warn("Appwrite environment variables are not fully set. Appwrite login may not work properly.");
+  } else {
+    console.log("Appwrite configured.");
+  }
+  // ---------------------------
+
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -83,8 +157,29 @@ export function setupAuth(app: Express) {
           user = allUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
         }
         
-        if (!user || !(await comparePasswords(password, user.password))) {
+        // First check if user exists
+        if (!user) {
           return done(null, false, { message: "Invalid credentials" });
+        }
+        
+        // Check if user has a password (could be Appwrite user)
+        if (!user.password) {
+          console.log(`User ${user.username} has no password - might be an Appwrite user`);
+          return done(null, false, { message: "Please use Appwrite to log in" });
+        }
+        
+        // Now check password
+        try {
+          if (!(await comparePasswords(password, user.password))) {
+            return done(null, false, { message: "Invalid credentials" });
+          }
+        } catch (passwordError) {
+          console.error(`Password verification error for user ${user.username}:`, passwordError);
+          // Update the user's password to a valid format
+          const newHashedPassword = await hashPassword(password);
+          await storage.updateUser(user.id, { password: newHashedPassword });
+          console.log(`Updated password format for user ${user.username}`);
+          return done(null, false, { message: "Password reset - please try logging in again" });
         }
         
         // Update last active time
@@ -229,6 +324,8 @@ export function setupAuth(app: Express) {
         // Return user data
         res.status(200).json({
           ...userResponse,
+          // Handle verified field safely (ensuring it exists or defaulting to false)
+          verified: userResponse.verified !== undefined ? userResponse.verified : false,
           // Include authentication status in the response
           isAuthenticated: true,
           // Include a timestamp to help debug sessions
@@ -243,6 +340,76 @@ export function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+  // --- Appwrite User Processing ---
+  app.post('/api/appwrite-user', async (req, res) => {
+    try {
+      const { userId, email, name, providerId } = req.body;
+      
+      if (!email) {
+        return res.status(401).json({ message: "Unauthorized or missing Appwrite user data" });
+      }
+      
+      // Check if user exists in our database
+      let user = await storage.getUserByEmail(email);
+      
+      if (!user) {
+        // Create a new user in our database
+        const newUser = {
+          username: name || email.split('@')[0],
+          email: email,
+          fullName: name || email,
+          role: "client", // Default role
+          bio: "",
+          specialties: [],
+          pricing: null,
+          rating: null,
+          verified: true, // Appwrite users are verified
+          profileImage: "",
+          appwrite_id: userId
+        };
+        
+        user = await storage.createUser(newUser);
+        console.log(`Created new user from Appwrite: ${user.username}`);
+      } else {
+        // Update existing user with Appwrite info
+        await storage.updateUser(user.id, { 
+          lastActive: new Date(),
+          appwrite_id: userId,
+          verified: true
+        });
+      }
+      
+      // Return user data without password
+      const { password, ...userResponse } = user;
+      
+      // Log the user in
+      req.login(user, (err) => {
+        if (err) {
+          console.error("Error logging in Appwrite user:", err);
+          return res.status(500).json({ message: "Error during login" });
+        }
+        
+        res.json({
+          ...userResponse,
+          isAuthenticated: true,
+          authProvider: "appwrite"
+        });
+      });
+    } catch (error) {
+      console.error("Error processing Appwrite user:", error);
+      res.status(500).json({ message: "Error processing Appwrite user" });
+    }
+  });
+  
+  // Protected route example using middleware
+  app.get('/api/protected-example', (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    res.json({ message: "This is a protected route", user: req.user });
+  });
+  // ----------------------------
+
   app.post("/api/logout", (req, res, next) => {
     req.logout((err: any) => {
       if (err) return next(err);
@@ -253,9 +420,28 @@ export function setupAuth(app: Express) {
   app.get("/api/user", (req, res) => {
     // Check for standard session authentication
     if (req.isAuthenticated()) {
-      // Create a new object from user data without the password
-      const { password: pwd, ...userResponse } = req.user as SelectUser;
-      return res.json(userResponse);
+      try {
+        // Get user data safely
+        const user = req.user as SelectUser;
+        if (!user) {
+          console.error('User is authenticated but user object is null/undefined');
+          return res.sendStatus(401);
+        }
+        
+        // Create a new object from user data without the password
+        // Handle the case where password might be undefined
+        const userResponse = { ...user };
+        delete userResponse.password;
+        
+        return res.json({
+          ...userResponse,
+          // Ensure verified has a value
+          verified: userResponse.verified ?? false
+        });
+      } catch (error) {
+        console.error('Error processing user data:', error);
+        return res.status(500).json({ message: 'Error processing user data' });
+      }
     }
     
     // Check for mobile session authentication via header

@@ -16,8 +16,10 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByAppwriteId(appwriteId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, user: UserUpdate): Promise<User | undefined>;
+  findOrCreateUserFromAppwrite(profile: any): Promise<User>;
   getReaders(): Promise<User[]>;
   getOnlineReaders(): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
@@ -176,6 +178,12 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserByAppwriteId(appwriteId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.appwrite_id === appwriteId
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
     const now = new Date();
@@ -192,7 +200,7 @@ export class MemStorage implements IStorage {
       specialties: insertUser.specialties || null,
       pricing: insertUser.pricing || null,
       rating: insertUser.rating || null,
-      verified: insertUser.verified || false,
+      verified: false,
       role: insertUser.role || "client"
     };
     this.users.set(id, user);
@@ -213,6 +221,44 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
   
+  async findOrCreateUserFromAppwrite(profile: any): Promise<User> {
+    const appwriteId = profile.id;
+    const email = profile.emails?.[0]?.value;
+    const username = profile.nickname || profile.displayName || email;
+    const fullName = profile.displayName || username;
+    const profileImage = profile.picture;
+
+    if (!appwriteId) {
+      throw new Error('Appwrite profile ID is missing');
+    }
+    if (!email) {
+      throw new Error('Appwrite profile email is missing');
+    }
+
+    let user = await this.getUserByAppwriteId(appwriteId);
+
+    if (!user) {
+      const existingUserByEmail = await this.getUserByEmail(email);
+      if (existingUserByEmail && !existingUserByEmail.appwrite_id) {
+        user = await this.updateUser(existingUserByEmail.id, { appwrite_id: appwriteId });
+        if (!user) {
+          throw new Error(`Failed to link user ${existingUserByEmail.id} with Appwrite ID`);
+        }
+      } else {
+        user = await this.createUser({
+          username: username,
+          email: email,
+          fullName: fullName,
+          profileImage: profileImage,
+          appwrite_id: appwriteId,
+          role: 'client',
+        });
+      }
+    }
+
+    return user;
+  }
+  
   async getReaders(): Promise<User[]> {
     return Array.from(this.users.values()).filter(user => user.role === "reader");
   }
@@ -226,26 +272,25 @@ export class MemStorage implements IStorage {
   }
   
   // Readings
-  async createReading(insertReading: InsertReading): Promise<Reading> {
+  async createReading(reading: InsertReading): Promise<Reading> {
     const id = this.currentReadingId++;
-    const reading: Reading = {
-      ...insertReading,
+    const newReading: Reading = {
+      ...reading,
       id,
       createdAt: new Date(),
       completedAt: null,
       rating: null,
       review: null,
-      scheduledFor: insertReading.scheduledFor ?? null,
-      notes: insertReading.notes ?? null,
+      scheduledFor: reading.scheduledFor ?? null,
+      notes: reading.notes ?? null,
       startedAt: null,
       totalPrice: null,
-      duration: insertReading.duration ?? null,
       paymentStatus: "pending",
       paymentId: null,
       paymentLinkUrl: null
     };
     this.readings.set(id, reading);
-    return reading;
+    return newReading;
   }
   
   async getReading(id: number): Promise<Reading | undefined> {
@@ -264,16 +309,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.readings.values()).filter(reading => reading.readerId === readerId);
   }
   
-  async updateReading(id: number, readingData: Partial<InsertReading> & {
-    startedAt?: Date | null;
-    completedAt?: Date | null;
-    totalPrice?: number | null;
-    paymentStatus?: "pending" | "authorized" | "paid" | "failed" | "refunded" | null;
-    paymentId?: string | null;
-    paymentLinkUrl?: string | null;
-    rating?: number | null;
-    review?: string | null;
-  }): Promise<Reading | undefined> {
+  async updateReading(id: number, readingData: Partial<InsertReading>): Promise<Reading | undefined> {
     const reading = this.readings.get(id);
     if (!reading) return undefined;
     
@@ -287,20 +323,20 @@ export class MemStorage implements IStorage {
   }
   
   // Products
-  async createProduct(insertProduct: InsertProduct): Promise<Product> {
+  async createProduct(product: InsertProduct): Promise<Product> {
     const id = this.currentProductId++;
-    const product: Product = {
-      ...insertProduct,
+    const newProduct: Product = {
+      ...product,
       id,
       createdAt: new Date(),
-      featured: insertProduct.featured ?? null,
+      featured: product.featured ?? null,
       isSynced: false,
       updatedAt: new Date(),
-      squareId: insertProduct.squareId || null,
-      squareVariationId: insertProduct.squareVariationId || null
+      squareId: product.squareId || null,
+      squareVariationId: product.squareVariationId || null
     };
     this.products.set(id, product);
-    return product;
+    return newProduct;
   }
   
   async getProduct(id: number): Promise<Product | undefined> {
@@ -329,11 +365,11 @@ export class MemStorage implements IStorage {
   }
   
   // Orders
-  async createOrder(insertOrder: InsertOrder): Promise<Order> {
+  async createOrder(order: InsertOrder): Promise<Order> {
     const id = this.currentOrderId++;
     const now = new Date();
-    const order: Order = {
-      ...insertOrder,
+    const newOrder: Order = {
+      ...order,
       id,
       createdAt: now,
       updatedAt: now,
@@ -343,7 +379,7 @@ export class MemStorage implements IStorage {
       squarePaymentId: null
     };
     this.orders.set(id, order);
-    return order;
+    return newOrder;
   }
   
   async getOrder(id: number): Promise<Order | undefined> {
@@ -743,6 +779,11 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByAppwriteId(appwriteId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.appwrite_id, appwriteId));
+    return user;
+  }
+
   async createUser(user: InsertUser): Promise<User> {
     const now = new Date();
     const [createdUser] = await db.insert(users).values({
@@ -752,6 +793,7 @@ export class DatabaseStorage implements IStorage {
       isOnline: false,
       reviewCount: 0,
       accountBalance: 0,
+      verified: false,
       squareCustomerId: null,
       stripeCustomerId: null
     }).returning();
@@ -767,6 +809,45 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updatedUser;
+  }
+
+  async findOrCreateUserFromAppwrite(profile: any): Promise<User> {
+    const appwriteId = profile.id;
+    const email = profile.emails?.[0]?.value;
+    const username = profile.nickname || profile.displayName || email;
+    const fullName = profile.displayName || username;
+    const profileImage = profile.picture;
+
+    if (!appwriteId) {
+      throw new Error('Appwrite profile ID is missing');
+    }
+    if (!email) {
+      throw new Error('Appwrite profile email is missing');
+    }
+
+    let user = await this.getUserByAppwriteId(appwriteId);
+
+    if (!user) {
+      const existingUserByEmail = await this.getUserByEmail(email);
+      if (existingUserByEmail && !existingUserByEmail.appwrite_id) {
+        user = await this.updateUser(existingUserByEmail.id, { appwrite_id: appwriteId });
+        if (!user) {
+          throw new Error(`Failed to link user ${existingUserByEmail.id} with Appwrite ID`);
+        }
+      } else {
+        user = await this.createUser({
+          username: username,
+          email: email,
+          fullName: fullName,
+          profileImage: profileImage,
+          appwrite_id: appwriteId,
+          role: 'client',
+          // Password is not needed for Appwrite users
+        });
+      }
+    }
+
+    return user;
   }
 
   async getReaders(): Promise<User[]> {
@@ -808,7 +889,7 @@ export class DatabaseStorage implements IStorage {
 
   async getReading(id: number): Promise<Reading | undefined> {
     const [reading] = await db.select().from(readings).where(eq(readings.id, id));
-    return reading;
+    return newReading;
   }
   
   async getReadings(): Promise<Reading[]> {
@@ -858,7 +939,7 @@ export class DatabaseStorage implements IStorage {
 
   async getProduct(id: number): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.id, id));
-    return product;
+    return newProduct;
   }
 
   async getProducts(): Promise<Product[]> {
@@ -896,7 +977,7 @@ export class DatabaseStorage implements IStorage {
 
   async getOrder(id: number): Promise<Order | undefined> {
     const [order] = await db.select().from(orders).where(eq(orders.id, id));
-    return order;
+    return newOrder;
   }
 
   async getOrdersByUser(userId: number): Promise<Order[]> {
@@ -1094,15 +1175,15 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(gifts.createdAt));
   }
   
-  async getGift(id: number): Promise<Gift | undefined> {
-    const [gift] = await db.select().from(gifts).where(eq(gifts.id, id));
-    return gift;
-  }
-  
   async getUnprocessedGifts(): Promise<Gift[]> {
     return await db.select().from(gifts)
       .where(eq(gifts.processed, false))
       .orderBy(asc(gifts.createdAt)); // Process oldest first
+  }
+  
+  async getGift(id: number): Promise<Gift | undefined> {
+    const [gift] = await db.select().from(gifts).where(eq(gifts.id, id));
+    return gift;
   }
   
   async markGiftAsProcessed(id: number): Promise<Gift | undefined> {
@@ -1195,3 +1276,4 @@ export class DatabaseStorage implements IStorage {
 
 // Use DatabaseStorage instead of MemStorage for production
 export const storage = new DatabaseStorage();
+

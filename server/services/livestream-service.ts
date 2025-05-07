@@ -239,8 +239,6 @@ class LivestreamService {
     roomName: string,
     displayName: string
   ): {token: string, roomId: string} {
-    // For WebRTC we don't need a token, just return the room ID
-    // This method is kept for API compatibility with the previous LiveKit implementation
     return {
       token: `webrtc-livestream-${roomName}-${userId}-${Date.now()}`,
       roomId: roomName
@@ -259,8 +257,6 @@ class LivestreamService {
     roomName: string,
     displayName: string
   ): {token: string, roomId: string} {
-    // For WebRTC we don't need a token, just return the room ID
-    // This method is kept for API compatibility with the previous LiveKit implementation
     return {
       token: `webrtc-livestream-host-${roomName}-${userId}-${Date.now()}`,
       roomId: roomName

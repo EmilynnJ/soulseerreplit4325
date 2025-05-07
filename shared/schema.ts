@@ -5,9 +5,10 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
+  appwrite_id: text("appwrite_id").unique(),
   profileImage: text("profile_image"),
   role: text("role", { enum: ["client", "reader", "admin"] }).notNull().default("client"),
   bio: text("bio"),
@@ -127,8 +128,6 @@ export const livestreams = pgTable("livestreams", {
   // WebRTC fields
   roomId: text("room_id"), // Used for WebRTC room identification
   recordingUrl: text("recording_url"), // URL to the recording of the livestream
-  // Legacy LiveKit fields (keeping for backward compatibility)
-  livekitRoomName: text("livekit_room_name"),
   duration: real("duration"), // Duration in seconds after stream ends
 });
 
@@ -220,7 +219,7 @@ export const insertLivestreamSchema = createInsertSchema(livestreams)
     viewerCount: true,
     duration: true,
     // Don't omit roomId as we need it for WebRTC
-    livekitRoomName: true
+    recordingUrl: true
   });
 
 export const insertForumPostSchema = createInsertSchema(forumPosts)
@@ -281,7 +280,6 @@ export type LivestreamUpdate = Partial<InsertLivestream> & {
   duration?: number;
   roomId?: string;
   recordingUrl?: string;
-  livekitRoomName?: string;
 };
 
 export type InsertForumPost = z.infer<typeof insertForumPostSchema>;

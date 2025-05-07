@@ -27,9 +27,6 @@ const stripe = new Proxy({} as Stripe, {
   }
 });
 
-// Export the stripe instance
-export { stripe };
-
 export interface CreatePaymentIntentParams {
   amount: number;
   currency?: string;
