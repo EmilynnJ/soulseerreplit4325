@@ -9,7 +9,6 @@ import { desc, asc } from "drizzle-orm";
 import { gifts } from "@shared/schema";
 import stripeClient from "./services/stripe-client";
 // TRTC has been completely removed
-import * as muxClient from "./services/mux-client";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import multer from "multer";
@@ -30,7 +29,7 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Handle uploads directory path based on environment
-const uploadsPath = process.env.NODE_ENV === 'production' 
+const uploadsPath = process.env.NODE_ENV === 'production'
   ? path.join(__dirname, 'public', 'uploads')
   : path.join(process.cwd(), 'public', 'uploads');
 
@@ -79,7 +78,7 @@ async function processCompletedReadingPayment(
       const readerShare = Math.floor(totalPrice * 0.7); // 70% to reader
       const platformShare = totalPrice - readerShare; // 30% to platform
 
-      console.log(`Processing reading payment: Total $${totalPrice/100}, Reader $${readerShare/100} (70%), Platform $${platformShare/100} (30%)`);
+      console.log(`Processing reading payment: Total $${totalPrice / 100}, Reader $${readerShare / 100} (70%), Platform $${platformShare / 100} (30%)`);
 
       await storage.updateUser(reader.id, {
         accountBalance: (reader.accountBalance || 0) + readerShare
@@ -110,126 +109,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup WebSocket server for live readings and real-time communication
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  // MUX Webhook endpoint
-  app.post('/api/webhooks/mux', express.raw({type: 'application/json'}), async (req, res) => {
-    try {
-      // Get the MUX signature from headers
-      const signature = req.headers['mux-signature'] as string;
-
-      if (!signature) {
-        console.warn('Missing MUX signature header');
-        return res.status(400).json({ message: 'Missing signature header' });
-      }
-
-      // The raw body is available in req.body since we used express.raw middleware
-      // Ensure we're handling the Buffer correctly
-      let rawBody;
-      if (Buffer.isBuffer(req.body)) {
-        rawBody = req.body.toString('utf8');
-      } else if (typeof req.body === 'string') {
-        rawBody = req.body;
-      } else {
-        rawBody = JSON.stringify(req.body);
-      }
-
-      // Log the raw request for debugging
-      console.log(`MUX webhook raw request body: ${rawBody}`);
-
-      // Handle the webhook - note: handleMuxWebhook now returns structured responses
-      // instead of throwing errors for better diagnostics
-      const result = await muxClient.handleMuxWebhook(rawBody, signature);
-
-      // If webhook processing was unsuccessful, return an appropriate status code
-      if (!result.success) {
-        console.warn('MUX webhook processing failed:', result);
-        return res.status(422).json(result);
-      }
-
-      // Return the success result
-      res.status(200).json(result);
-    } catch (error) {
-      console.error('Error handling MUX webhook:', error);
-      res.status(500).json({ 
-        message: 'Error processing webhook',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        time: new Date().toISOString()
-      });
-    }
-  });
-
-  // Test endpoint for simulating MUX webhook events (DEVELOPMENT ONLY)
-  if (process.env.NODE_ENV !== 'production') {
-    app.post('/api/test/mux-webhook', express.json(), async (req, res) => {
-      try {
-        console.log('Received test MUX webhook event:', req.body);
-
-        // Extract event data
-        const { type, data } = req.body;
-
-        if (!type || !data) {
-          return res.status(400).json({ message: 'Missing event type or data' });
-        }
-
-        // Directly call the appropriate handler based on the event type
-        switch (type) {
-          case 'video.live_stream.active':
-            await muxClient.handleLivestreamActive(data);
-            break;
-          case 'video.live_stream.idle':
-            await muxClient.handleLivestreamIdle(data);
-            break;
-          case 'video.asset.ready':
-            await muxClient.handleAssetReady(data);
-            break;
-          default:
-            return res.status(400).json({ message: `Unsupported event type: ${type}` });
-        }
-
-        res.status(200).json({ success: true, message: `Successfully processed test ${type} event` });
-      } catch (error) {
-        console.error('Error handling test MUX webhook:', error);
-        res.status(500).json({ message: 'Error processing test webhook' });
-      }
-    });
-  }
-
   // Track all connected WebSocket clients
   const connectedClients = new Map();
   let clientIdCounter = 1;
 
   // Broadcast a message to all connected clients
-// Stripe webhook route
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  if (!sig) {
-    return res.status(400).send('Missing Stripe signature');
-  }
-  let event;
-  try {
-    event = stripeClient.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SIGNING_SECRET as string);
-  } catch (err) {
-    console.error('Stripe webhook signature verification failed:', err);
-    return res.status(400).send('Webhook signature verification failed');
-  }
+  // Stripe webhook route
+  app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    if (!sig) {
+      return res.status(400).send('Missing Stripe signature');
+    }
+    let event;
+    try {
+      event = stripeClient.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SIGNING_SECRET as string);
+    } catch (err) {
+      console.error('Stripe webhook signature verification failed:', err);
+      return res.status(400).send('Webhook signature verification failed');
+    }
 
-  // Handle the event
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      const paymentIntent = event.data.object;
-      // Implement your logic to record payment as successful
-      console.log(`PaymentIntent ${paymentIntent.id} succeeded.`);
-      // TODO: update reading/session records and user balances accordingly
-      break;
-    case 'payment_intent.payment_failed':
-      const failedIntent = event.data.object;
-      console.warn(`PaymentIntent ${failedIntent.id} failed.`);
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
-  }
+    // Handle the event
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        // Implement your logic to record payment as successful
+        console.log(`PaymentIntent ${paymentIntent.id} succeeded.`);
+        // Handle the webhook - note: handleMuxWebhook now returns structured responses
+        // instead of throwing errors for better diagnostics
+        // const result = await muxClient.handleMuxWebhook(rawBody, signature);
 
-  res.json({ received: true });
-});
+        // If webhook processing was unsuccessful, return an appropriate status code
+        // if (!result.success) {
+        //   console.warn('MUX webhook processing failed:', result);
+        //   return res.status(422).json(result);
+        // }
+
+        // Return the success result
+        res.status(200).json({ received: true });
+        break;
+      case 'payment_intent.payment_failed':
+        const failedIntent = event.data.object;
+        console.warn(`PaymentIntent ${failedIntent.id} failed.`);
+        break;
+      default:
+        console.log(`Unhandled event type ${event.type}`);
+    }
+
+    res.json({ received: true });
+  });
   const broadcastToAll = (message: any) => {
     const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
     console.log(`Broadcasting message to all clients: ${messageStr}`);
@@ -299,8 +226,8 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
     connectedClients.set(clientId, { socket: ws, userId });
 
     // Send initial welcome message with client ID
-    ws.send(JSON.stringify({ 
-      type: 'connected', 
+    ws.send(JSON.stringify({
+      type: 'connected',
       message: 'Connected to SoulSeer WebSocket Server',
       clientId,
       serverTime: Date.now()
@@ -314,8 +241,8 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
         // Handle ping messages
         if (data.type === 'ping') {
           console.log(`Received ping from client ${clientId}, sending pong`);
-          ws.send(JSON.stringify({ 
-            type: 'pong', 
+          ws.send(JSON.stringify({
+            type: 'pong',
             timestamp: data.timestamp,
             serverTime: Date.now()
           }));
@@ -935,24 +862,24 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
             const { stripeProductId, stripePriceId } = await stripeClient.syncProductWithStripe(product);
 
             // 3. Update product in database with Stripe IDs
-            await storage.updateProduct(product.id, { 
-              stripeProductId, 
-              stripePriceId 
+            await storage.updateProduct(product.id, {
+              stripeProductId,
+              stripePriceId
             });
 
-            return { 
-              id: product.id, 
-              name: product.name, 
+            return {
+              id: product.id,
+              name: product.name,
               success: true,
               stripeProductId,
               stripePriceId
             };
           } catch (error: any) {
-            return { 
-              id: product.id, 
-              name: product.name, 
-              success: false, 
-              error: error.message 
+            return {
+              id: product.id,
+              name: product.name,
+              success: false,
+              error: error.message
             };
           }
         })
@@ -1010,16 +937,16 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
               stripePriceId: product.stripePriceId
             });
 
-            return { 
-              id: newProduct.id, 
-              name: newProduct.name, 
-              success: true 
+            return {
+              id: newProduct.id,
+              name: newProduct.name,
+              success: true
             };
           } catch (error: any) {
-            return { 
-              name: product.name, 
-              success: false, 
-              error: error.message 
+            return {
+              name: product.name,
+              success: false,
+              error: error.message
             };
           }
         })
@@ -1257,7 +1184,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       // Check if user has enough balance
       const sender = await storage.getUser(userId);
       if (!sender || (sender.accountBalance || 0) < giftData.amount) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Insufficient account balance",
           balance: sender ? sender.accountBalance || 0 : 0,
           required: giftData.amount
@@ -1410,9 +1337,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       res.json(giftsWithUserInfo);
     } catch (error) {
       console.error("Failed to fetch unprocessed gifts:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to fetch unprocessed gifts",
-        error: error.message || "Unknown error" 
+        error: error.message || "Unknown error"
       });
     }
   });
@@ -1443,9 +1370,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       res.json(giftsWithUserInfo);
     } catch (error) {
       console.error("Failed to fetch gifts:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to fetch gifts",
-        error: error.message || "Unknown error" 
+        error: error.message || "Unknown error"
       });
     }
   });
@@ -1458,7 +1385,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
 
       // If no unprocessed gifts found, return early
       if (!unprocessedGifts || unprocessedGifts.length === 0) {
-        return res.json({ 
+        return res.json({
           processedCount: 0,
           gifts: [],
           message: "No unprocessed gifts found"
@@ -1483,7 +1410,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
         }
       }
 
-      res.json({ 
+      res.json({
         processedCount: processedGifts.length,
         gifts: processedGifts,
         failedCount: failedGifts.length,
@@ -1492,9 +1419,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       });
     } catch (error) {
       console.error("Failed to process gifts:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to process gifts",
-        error: error.message || "Unknown error" 
+        error: error.message || "Unknown error"
       });
     }
   });
@@ -1838,7 +1765,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       const client = await storage.getUser(req.user.id);
       const minimumBalance = 500; // $5 in cents
       if (!client || (client.accountBalance || 0) < minimumBalance) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Insufficient account balance. Minimum of $5 is required to start a reading.",
           balance: client ? client.accountBalance || 0 : 0,
           minimumRequired: minimumBalance
@@ -2017,7 +1944,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
         });
 
         // Return the client secret for the payment intent
-        return res.status(201).json({ 
+        return res.status(201).json({
           reading,
           clientSecret: paymentIntent.client_secret,
           paymentLink: `/checkout?clientSecret=${paymentIntent.client_secret}&readingId=${reading.id}`
@@ -2025,9 +1952,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
 
       } catch (stripeError) {
         console.error("Stripe error creating payment intent:", stripeError);
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Payment processing error",
-          error: stripeError.message 
+          error: stripeError.message
         });
       }
 
@@ -2061,8 +1988,8 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
 
       // Check if reading is in the right status
       if (reading.status !== "waiting_payment" && reading.status !== "payment_completed") {
-        return res.status(400).json({ 
-          message: "Reading can't be started. Current status: " + reading.status 
+        return res.status(400).json({
+          message: "Reading can't be started. Current status: " + reading.status
         });
       }
 
@@ -2143,7 +2070,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       // Check if client has sufficient balance
       const currentBalance = client.accountBalance || 0;
       if (currentBalance < totalPrice) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Insufficient account balance. Please add funds to continue.",
           balance: currentBalance,
           required: totalPrice
@@ -2162,7 +2089,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
         const readerShare = Math.floor(totalPrice * 0.7);
         const platformShare = totalPrice - readerShare; // 30% to platform
 
-        console.log(`Processing completed reading payment: Total $${totalPrice/100}, Reader $${readerShare/100} (70%), Platform $${platformShare/100} (30%)`);
+        console.log(`Processing completed reading payment: Total $${totalPrice / 100}, Reader $${readerShare / 100} (70%), Platform $${platformShare / 100} (30%)`);
 
         await storage.updateUser(reader.id, {
           accountBalance: (reader.accountBalance || 0) + readerShare
@@ -2246,8 +2173,8 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       // Update reader's review count
       const reader = await storage.getUser(reading.readerId);
       if (reader) {
-        await storage.updateUser(reading.readerId, { 
-          reviewCount: (reader.reviewCount || 0) + 1 
+        await storage.updateUser(reading.readerId, {
+          reviewCount: (reader.reviewCount || 0) + 1
         });
       }
 
@@ -2278,7 +2205,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
         return res.status(404).json({ message: "User not found" });
       }
 
-      res.json({ 
+      res.json({
         balance: user.accountBalance || 0,
         formatted: `$${((user.accountBalance || 0) / 100).toFixed(2)}`
       });
@@ -2349,9 +2276,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       } else {
         // Admin can view all scheduled readings
         const allReadings = await storage.getReadings();
-        readings = allReadings.filter(r => 
-          r.status === 'scheduled' || 
-          r.status === 'waiting_payment' || 
+        readings = allReadings.filter(r =>
+          r.status === 'scheduled' ||
+          r.status === 'waiting_payment' ||
           r.status === 'payment_completed' ||
           r.status === 'in_progress'
         );
@@ -2367,9 +2294,9 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
       }));
 
       // Filter for upcoming readings
-      const upcomingReadings = readingsWithNames.filter(r => 
-        r.status === 'scheduled' || 
-        r.status === 'waiting_payment' || 
+      const upcomingReadings = readingsWithNames.filter(r =>
+        r.status === 'scheduled' ||
+        r.status === 'waiting_payment' ||
         r.status === 'payment_completed' ||
         r.status === 'in_progress'
       );
@@ -2506,10 +2433,10 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
         return res.status(500).json({ message: "Failed to update account balance" });
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         newBalance: updatedUser.accountBalance || 0,
-        formatted: `$${((updatedUser.accountBalance || 0) / 100).toFixed(2)}` 
+        formatted: `$${((updatedUser.accountBalance || 0) / 100).toFixed(2)}`
       });
     } catch (error: any) {
       console.error("Error confirming added funds:", error);
@@ -2571,7 +2498,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
   // Get all users (admin only)
 
   // Configure multer for memory storage
-  const upload = multer({ 
+  const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 5 * 1024 * 1024, // limit to 5MB
