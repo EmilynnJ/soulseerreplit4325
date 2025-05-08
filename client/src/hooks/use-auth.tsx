@@ -1,12 +1,24 @@
-import { createContext, ReactNode, useContext } from "react";
+import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import {
-  useQuery,
   useMutation,
   UseMutationResult,
+  useQueryClient,
 } from "@tanstack/react-query";
-import { User } from "@shared/schema";
-import { getQueryFn, apiRequest, queryClient } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { account, createAccount, login, logout, getCurrentUser } from "@/lib/appwrite";
+import { Models } from "appwrite";
+
+// Define the AppwriteUser type based on Appwrite's Models.User
+type AppwriteUser = Models.User<Models.Preferences>;
+
+// Define the User type that will be used throughout the app
+type User = {
+  id: string;
+  email: string;
+  name: string;
+  role: "client" | "reader";
+  // Add any other user properties needed by the app
+};
 
 type AuthContextType = {
   user: User | null;
@@ -18,41 +30,74 @@ type AuthContextType = {
 };
 
 type LoginData = {
-  username: string;
+  email: string;
   password: string;
 };
 
 type RegisterData = {
-  username: string;
   email: string;
   password: string;
-  fullName: string;
+  name: string;
   role?: "client" | "reader";
+};
+
+// Helper function to convert Appwrite user to our app's User type
+const convertAppwriteUser = (appwriteUser: AppwriteUser): User => {
+  return {
+    id: appwriteUser.$id,
+    email: appwriteUser.email,
+    name: appwriteUser.name,
+    // Default to client role, can be updated later if needed
+    role: "client",
+  };
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const {
-    data: user,
-    error,
-    isLoading,
-  } = useQuery<User | undefined, Error>({
-    queryKey: ["/api/user"],
-    queryFn: getQueryFn({ on401: "returnNull" }),
-  });
+  const queryClient = useQueryClient();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Check if user is already logged in on component mount
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        setIsLoading(true);
+        const appwriteUser = await getCurrentUser();
+        if (appwriteUser) {
+          setUser(convertAppwriteUser(appwriteUser));
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("Error checking user:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkUser();
+  }, []);
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const res = await apiRequest("POST", "/api/login", credentials);
-      return await res.json();
+      const session = await login(credentials.email, credentials.password);
+      const appwriteUser = await getCurrentUser();
+      if (!appwriteUser) {
+        throw new Error("Failed to get user after login");
+      }
+      return convertAppwriteUser(appwriteUser);
     },
     onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
+      setUser(user);
       toast({
         title: "Welcome back!",
-        description: `You're now logged in as ${user.fullName}`,
+        description: `You're now logged in as ${user.name}`,
       });
     },
     onError: (error: Error) => {
@@ -66,14 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: async (userData: RegisterData) => {
-      const res = await apiRequest("POST", "/api/register", userData);
-      return await res.json();
+      const session = await createAccount(userData.email, userData.password, userData.name);
+      const appwriteUser = await getCurrentUser();
+      if (!appwriteUser) {
+        throw new Error("Failed to get user after registration");
+      }
+      return convertAppwriteUser(appwriteUser);
     },
     onSuccess: (user: User) => {
-      queryClient.setQueryData(["/api/user"], user);
+      setUser(user);
       toast({
         title: "Registration successful!",
-        description: `Welcome to SoulSeer, ${user.fullName}`,
+        description: `Welcome to SoulSeer, ${user.name}`,
       });
     },
     onError: (error: Error) => {
@@ -87,10 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      await logout();
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
+      setUser(null);
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",
@@ -108,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: user ?? null,
+        user,
         isLoading,
         error,
         loginMutation,

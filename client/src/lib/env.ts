@@ -22,20 +22,25 @@ export const env = {
   NODE_ENV: getEnvVar('NODE_ENV', 'development'),
   IS_PRODUCTION: getEnvVar('NODE_ENV') === 'production',
   IS_DEVELOPMENT: getEnvVar('NODE_ENV') === 'development',
-  
+
   // API and service endpoints
   API_URL: getEnvVar('VITE_API_URL', ''),
   WEBSOCKET_URL: getEnvVar('VITE_WEBSOCKET_URL', ''),
-  
+
   // Feature flags
   ENABLE_WEBSOCKET: getBoolEnvVar('VITE_ENABLE_WEBSOCKET', false),
   ENABLE_LIVESTREAMS: getBoolEnvVar('VITE_ENABLE_LIVESTREAMS', true),
   ENABLE_CHECKOUT: getBoolEnvVar('VITE_ENABLE_CHECKOUT', true),
-  
+
   // External services
   STRIPE_PUBLIC_KEY: getEnvVar('VITE_STRIPE_PUBLIC_KEY', ''),
   MUX_ENV_KEY: getEnvVar('VITE_MUX_ENV_KEY', ''),
-  
+
+  // Appwrite configuration
+  APPWRITE_PROJECT_ID: getEnvVar('VITE_APPWRITE_PROJECT_ID', ''),
+  APPWRITE_API_ENDPOINT: getEnvVar('VITE_APPWRITE_API_ENDPOINT', ''),
+  APPWRITE_API_KEY: getEnvVar('VITE_APPWRITE_API_KEY', ''),
+
   // PWA configuration
   ENABLE_PWA: getBoolEnvVar('VITE_ENABLE_PWA', true),
   ENABLE_NOTIFICATIONS: getBoolEnvVar('VITE_ENABLE_NOTIFICATIONS', false),

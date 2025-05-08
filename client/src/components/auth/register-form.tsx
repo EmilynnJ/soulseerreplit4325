@@ -13,24 +13,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { GlowCard } from "@/components/ui/glow-card";
 
 const registerSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
   email: z.string().email("Please enter a valid email address"),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/[0-9]/, "Password must contain at least one number"),
-  fullName: z.string().min(2, "Full name is required"),
+  name: z.string().min(2, "Full name is required"),
   // Role is always client for self-registration
   role: z.literal("client"),
 });
@@ -47,10 +39,9 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      username: "",
       email: "",
       password: "",
-      fullName: "",
+      name: "",
       role: "client",
     },
   });
@@ -68,31 +59,13 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
             control={form.control}
-            name="fullName"
+            name="name"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-light font-playfair">Full Name</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="Enter your full name"
-                    {...field}
-                    className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-light font-playfair">Username</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Choose a unique username"
                     {...field}
                     className="bg-primary-light/30 border-accent-gold/30 font-playfair text-gray-800"
                   />
@@ -142,7 +115,7 @@ export function RegisterForm({ onSuccess }: RegisterFormProps) {
 
           {/* Hidden field for role which is always client */}
           <input type="hidden" {...form.register("role")} value="client" />
-          
+
           {/* Information about reader registration */}
           <div className="rounded-md bg-purple-50 p-3 border border-purple-100">
             <p className="text-sm text-purple-800 font-playfair">
