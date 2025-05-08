@@ -15,7 +15,6 @@ import { CelestialButton } from "@/components/ui/celestial-button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
-import MuxPlayer from "@mux/mux-player-react";
 
 export default function LivestreamPage() {
   const [searchTerm, setSearchTerm] = useState("");
