@@ -33,44 +33,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CelestialButton } from "@/components/ui/celestial-button";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import MuxPlayer from "@mux/mux-player-react";
-
-// Error boundary specific for MuxPlayer to catch and handle player errors
-class MuxPlayerErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: any, errorInfo: React.ErrorInfo) {
-    console.error('MuxPlayer error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full w-full bg-dark/50 p-8 text-center">
-          <AlertCircle className="h-16 w-16 text-accent/60 mb-4" />
-          <h3 className="text-xl font-cinzel text-secondary mb-2">Video Playback Error</h3>
-          <p className="text-light/70 mb-4">
-            We encountered an issue playing this stream. This could be due to connection issues or missing stream configuration.
-          </p>
-          <button 
-            onClick={() => this.setState({ hasError: false })}
-            className="px-4 py-2 bg-accent/80 text-white rounded-md hover:bg-accent transition">
-            Try Again
-          </button>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
 
 export default function LivestreamDetailPage() {
   const { id } = useParams();
