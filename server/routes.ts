@@ -198,6 +198,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   let clientIdCounter = 1;
 
   // Broadcast a message to all connected clients
+// Stripe webhook route
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    return res.status(400).send('Missing Stripe signature');
+  }
+  let event;
+  try {
+    event = stripeClient.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SIGNING_SECRET as string);
+  } catch (err) {
+    console.error('Stripe webhook signature verification failed:', err);
+    return res.status(400).send('Webhook signature verification failed');
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      const paymentIntent = event.data.object;
+      // Implement your logic to record payment as successful
+      console.log(`PaymentIntent ${paymentIntent.id} succeeded.`);
+      // TODO: update reading/session records and user balances accordingly
+      break;
+    case 'payment_intent.payment_failed':
+      const failedIntent = event.data.object;
+      console.warn(`PaymentIntent ${failedIntent.id} failed.`);
+      break;
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  res.json({ received: true });
+});
   const broadcastToAll = (message: any) => {
     const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
     console.log(`Broadcasting message to all clients: ${messageStr}`);
