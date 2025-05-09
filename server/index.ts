@@ -3,7 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initializeDatabase } from "./migrations/migration-manager";
 import { config } from "dotenv";
-import path from "path";
+import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 
 // ES Module alternative for __dirname

@@ -24,10 +24,10 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
+      external: ['axios'],
       output: {
         manualChunks: {
           react: ['react', 'react-dom'],
-          vendor: ['lodash', 'axios'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
         },
       },
