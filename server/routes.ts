@@ -14,6 +14,8 @@ import { promisify } from "util";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
+import { fileURLToPath } from "url";
 
 // Admin middleware
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
