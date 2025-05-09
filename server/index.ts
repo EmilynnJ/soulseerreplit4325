@@ -6,6 +6,10 @@ import { config } from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// ES Module alternative for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // Load environment variables
 config();
 
