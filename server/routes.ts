@@ -29,6 +29,8 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // Handle uploads directory path based on environment
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const uploadsPath = process.env.NODE_ENV === 'production'
   ? path.join(__dirname, 'public', 'uploads')
   : path.join(process.cwd(), 'public', 'uploads');
