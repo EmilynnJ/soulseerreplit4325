@@ -5,19 +5,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { account, createAccount, login, logout, getCurrentUser } from "@/lib/appwrite";
-import { Models } from "appwrite";
-
-// Define the AppwriteUser type based on Appwrite's Models.User
-type AppwriteUser = Models.User<Models.Preferences>;
-
-// Define the User type that will be used throughout the app
 type User = {
-  id: string;
+  id: number;
   email: string;
   name: string;
-  role: "client" | "reader";
-  // Add any other user properties needed by the app
+  role: "client" | "reader" | "admin";
 };
 
 type AuthContextType = {
@@ -38,18 +30,7 @@ type RegisterData = {
   email: string;
   password: string;
   name: string;
-  role?: "client" | "reader";
-};
-
-// Helper function to convert Appwrite user to our app's User type
-const convertAppwriteUser = (appwriteUser: AppwriteUser): User => {
-  return {
-    id: appwriteUser.$id,
-    email: appwriteUser.email,
-    name: appwriteUser.name,
-    // Default to client role, can be updated later if needed
-    role: "client",
-  };
+  role?: "client" | "reader" | "admin";
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -61,14 +42,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Check if user is already logged in on component mount
   useEffect(() => {
     const checkUser = async () => {
       try {
         setIsLoading(true);
-        const appwriteUser = await getCurrentUser();
-        if (appwriteUser) {
-          setUser(convertAppwriteUser(appwriteUser));
+        const response = await fetch("/api/user", {
+          credentials: "include",
+        });
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
         } else {
           setUser(null);
         }
@@ -86,12 +69,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      const session = await login(credentials.email, credentials.password);
-      const appwriteUser = await getCurrentUser();
-      if (!appwriteUser) {
-        throw new Error("Failed to get user after login");
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(credentials),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Login failed");
       }
-      return convertAppwriteUser(appwriteUser);
+      const userData = await response.json();
+      return userData;
     },
     onSuccess: (user: User) => {
       setUser(user);
@@ -111,12 +100,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: async (userData: RegisterData) => {
-      const session = await createAccount(userData.email, userData.password, userData.name);
-      const appwriteUser = await getCurrentUser();
-      if (!appwriteUser) {
-        throw new Error("Failed to get user after registration");
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(userData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Registration failed");
       }
-      return convertAppwriteUser(appwriteUser);
+      const user = await response.json();
+      return user;
     },
     onSuccess: (user: User) => {
       setUser(user);
@@ -136,7 +131,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await logout();
+      const response = await fetch("/api/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Logout failed");
+      }
     },
     onSuccess: () => {
       setUser(null);
